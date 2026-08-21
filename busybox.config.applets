@@ -9,3 +9,4 @@ chmod date stty mktemp touch dirname basename id env
 dd sync stat find xargs
 dmesg halt poweroff reboot
 clear reset
+ip ifconfig route udhcpc ping wget nc hostname netstat traceroute nslookup

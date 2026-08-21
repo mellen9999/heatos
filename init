@@ -14,6 +14,15 @@ export XDG_STATE_HOME=/tmp/home/.local/state
 export TERM=linux
 mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
 
+ip link set lo up 2>/dev/null
+if ! grep -q heatos.nonet /proc/cmdline; then
+	for dev in $(ls /sys/class/net 2>/dev/null); do
+		[ "$dev" = lo ] && continue
+		ip link set "$dev" up 2>/dev/null
+		udhcpc -i "$dev" -q -t 3 -T 1 >/dev/null 2>&1 && break
+	done
+fi
+
 if grep -q heatos.test /proc/cmdline; then
 	echo
 	echo "HEATOS-TEST-BEGIN"
@@ -28,6 +37,28 @@ if grep -q heatos.test /proc/cmdline; then
 	printf 'tput-shim: '; echo "$(tput cols)x$(tput lines)"
 	printf 'cmdchamp-version: '; cmdchamp --version 2>&1 | tail -1
 	printf 'cmdchamp-list: '; cmdchamp --list 2>/dev/null | wc -l | tr -d ' '
+	# print presence, never addresses -- this output gets read aloud
+	printf 'net-iface-up: '; ip -o -4 addr show scope global 2>/dev/null | awk '{print $2}' | head -1 | grep . || echo none
+	printf 'net-has-address: '; [ "$(ip -o -4 addr show scope global 2>/dev/null | wc -l)" -gt 0 ] && echo yes || echo no
+	printf 'net-default-route: '; ip route show default 2>/dev/null | grep -oq 'dev' && echo yes || echo no
+	printf 'net-dns-servers: '; grep -c nameserver /tmp/resolv.conf 2>/dev/null || echo 0
+	irc=$(sed -n 's/.*heatos\.irc=\([^ ]*\).*/\1/p' /proc/cmdline)
+	if [ -n "$irc" ]; then
+		ihost=${irc%:*}; iport=${irc##*:}
+		mkdir -p "$HOME/irc"
+		ii -s "$ihost" -p "$iport" -n heatos -f heatos -i "$HOME/irc" > /tmp/ii.log 2>&1 &
+		sleep 3
+		printf 'ii-stderr: '; head -2 /tmp/ii.log 2>/dev/null | tr '\n' ' '; echo
+		printf 'ii-home: '; echo "$HOME"; ls -d "$HOME/irc" 2>/dev/null || echo '  (no irc dir)'
+		d=$(find "$HOME/irc" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | head -1)
+		printf 'ii-created-tree: '; [ -n "$d" ] && echo yes || echo no
+		printf 'ii-server-greeting: '; grep -c 'Welcome to the heatos test network' "$d/out" 2>/dev/null || echo 0
+		printf 'ii-in-fifo: '; [ -p "$d/in" ] && echo yes || echo no
+		echo '/j #heatos' > "$d/in" 2>/dev/null
+		sleep 2
+		printf 'ii-joined-channel: '; find "$HOME/irc" -maxdepth 2 -type d -name '#heatos' 2>/dev/null | wc -l
+	fi
+
 	printf 'writable-home: '; touch "$HOME/probe" 2>/dev/null && echo "yes (tmpfs)" || echo no
 	echo "HEATOS-TEST-END"
 	sync

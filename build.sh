@@ -5,6 +5,7 @@ cd "$(dirname "$0")"
 KVER="${KVER:-6.12.43}"
 BBVER="${BBVER:-1.37.0}"
 BASHVER="${BASHVER:-5.3}"
+IIVER="${IIVER:-2.0}"
 CMDCHAMP_SRC="${CMDCHAMP_SRC:-$HOME/projects/cmdchamp}"
 # plaintext private keys live ONLY here, only while unlocked. /dev/shm is
 # tmpfs, so nothing lands on disk.
@@ -24,6 +25,12 @@ export KBUILD_BUILD_USER=heatos
 export KBUILD_BUILD_HOST=heatos
 
 say() { printf '\n\033[1;33m==> %s\033[0m\n' "$*"; }
+
+# grep -q exits the moment it matches, SIGPIPEs whatever is feeding it, and
+# under `set -o pipefail` that reads as failure -- so a SUCCESSFUL match looks
+# like a failed command. this trap bit five separate checks in this script.
+# always pipe into `has` instead of `grep -q`.
+has() { local n; n=$(grep -c -- "$1" || true); [ "${n:-0}" -gt 0 ]; }
 
 fetch() {
   say "fetching + verifying sources"
@@ -49,6 +56,13 @@ fetch() {
   [ -f "src/$bashtar" ] || curl -fL "https://ftp.gnu.org/gnu/bash/$bashtar" -o "src/$bashtar"
   grep -q " $bashtar$" sources.sha256 || { echo "FAIL: $bashtar not pinned" >&2; return 1; }
   [ -d "src/bash-$BASHVER" ] || tar -C src -xf "src/$bashtar"
+
+  # ii: suckless publishes no signature, so this pin is trust-on-first-use
+  # over TLS only. see SOURCES.md -- it is weaker than the others on purpose.
+  local iitar="ii-$IIVER.tar.gz"
+  [ -f "src/$iitar" ] || curl -fL "https://dl.suckless.org/tools/$iitar" -o "src/$iitar"
+  grep -q " $iitar$" sources.sha256 || { echo "FAIL: $iitar not pinned" >&2; return 1; }
+  [ -d "src/ii-$IIVER" ] || tar -C src -xf "src/$iitar"
 }
 
 kernel() {
@@ -157,6 +171,21 @@ bash_() {
   printf '  bash: %d bytes\n' "$(stat -c%s bash)"
 }
 
+ii_() {
+  say "building ii $IIVER (irc, musl static-pie)"
+  local d="src/ii-$IIVER" specs="$PWD/musl-static-pie.specs"
+  [ -d "$d" ] || { echo "FAIL: ii source missing, run fetch" >&2; return 1; }
+  make -C "$d" clean >/dev/null 2>&1 || true
+  make -C "$d" CC="gcc -specs=$specs" \
+    CFLAGS="-fPIE -Os -isystem $PWD/sysroot/include" LDFLAGS="" >/dev/null 2>&1
+  [ -f "$d/ii" ] || { echo "FAIL: ii did not build" >&2; return 1; }
+  strip "$d/ii"; cp "$d/ii" ii
+  # ii exits non-zero when printing usage, and pipefail would read that as a
+  # build failure, so the producer is neutralised as well as the consumer.
+  { ./ii 2>&1 || true; } | has usage || { echo "FAIL: built ii does not run" >&2; return 1; }
+  printf '  ii: %d bytes\n' "$(stat -c%s ii)"
+}
+
 rootfs() {
   say "building read-only root"
   rm -rf root
@@ -190,12 +219,19 @@ rootfs() {
     fi
   fi
 
+  [ -f ii ] && cp ii root/bin/ii
+
   # hand-written shims for things busybox lacks
   [ -d overlay ] && cp -r overlay/. root/
 
   cp init root/init
   chmod +x root/init
   echo 'heatos' > root/etc/hostname
+  # without /etc/passwd, anything calling getpwuid() fails -- ii did exactly that
+  printf 'root:x:0:0:root:/root:/bin/sh\n' > root/etc/passwd
+  printf 'root:x:0:\n' > root/etc/group
+  # root is read-only, so resolv.conf must live on the tmpfs udhcpc writes to
+  ln -sf /tmp/resolv.conf root/etc/resolv.conf
   mksquashfs root rootfs.squashfs -noappend -no-xattrs -all-root -comp gzip -quiet -processors 1
   printf '  rootfs.squashfs: %d bytes (%d files)\n' "$(stat -c%s rootfs.squashfs)" "$(find root -type f -o -type l | wc -l)"
 }
@@ -380,7 +416,7 @@ size() {
   # that makes it possible is still in place, which is cheap and catches drift.
   local pinned; pinned=$(date -u -d "@$SOURCE_DATE_EPOCH" +%Y-%m-%d 2>/dev/null)
   g "G10 build clock pinned ($pinned)" \
-    "$([ "$(strings busybox 2>/dev/null | grep -c "BusyBox v.*$pinned")" -gt 0 ] && echo ok || echo FAIL)"
+    "$(strings busybox 2>/dev/null | has "BusyBox v.*$pinned" && echo ok || echo FAIL)"
 
   # find, not ls: `ls nonexistent | wc -l` exits non-zero under pipefail and
   # set -e then kills the whole gate run silently. this bit us four times.
@@ -417,7 +453,7 @@ boot() {
 }
 
 case "${1:-all}" in
-  fetch|kernel|headers|busybox|bash_|rootfs|verity|keys|seal|reseal|unlock|lock|uki|size|boot) "$1" ;;
+  fetch|kernel|headers|busybox|bash_|ii_|rootfs|verity|keys|seal|reseal|unlock|lock|uki|size|boot) "$1" ;;
   all) fetch; kernel; headers; busybox; rootfs; verity; keys; uki; size ;;
   *) echo "usage: $0 {fetch|kernel|busybox|initramfs|floppy|size|run|boot|all}"; exit 1 ;;
 esac
