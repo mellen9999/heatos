@@ -8,6 +8,15 @@ JOBS="$(nproc)"
 IMAGE_MAX=8388608
 SALT=48454154534f530000000000000000000000000000000000000000000000000a
 SBGUID=11111111-2222-3333-4444-555555555555
+# fixed build clock: the same commit must yield the same image, so the
+# artifact can be checked against its source instead of trusted.
+export SOURCE_DATE_EPOCH=1755648000
+# busybox renders its banner timestamp in LOCAL time, so without a pinned TZ
+# the same source builds differently in a different timezone.
+export TZ=UTC
+export KBUILD_BUILD_TIMESTAMP="$(date -u -d "@$SOURCE_DATE_EPOCH" 2>/dev/null)"
+export KBUILD_BUILD_USER=heatos
+export KBUILD_BUILD_HOST=heatos
 
 say() { printf '\n\033[1;33m==> %s\033[0m\n' "$*"; }
 
@@ -52,6 +61,7 @@ kernel() {
     return 1
   fi
   grep -q '^CONFIG_MODULES=y' "$d/.config" && { echo "FAIL: module loader enabled" >&2; return 1; }
+  echo 0 > "$d/.version"
   make -C "$d" -j"$JOBS" bzImage
   cp "$d/arch/x86/boot/bzImage" bzImage
 }
@@ -140,7 +150,7 @@ rootfs() {
   cp init root/init
   chmod +x root/init
   echo 'heatos' > root/etc/hostname
-  mksquashfs root rootfs.squashfs -noappend -no-xattrs -all-root -comp gzip -quiet
+  mksquashfs root rootfs.squashfs -noappend -no-xattrs -all-root -comp gzip -quiet -processors 1
   printf '  rootfs.squashfs: %d bytes (%d files)\n' "$(stat -c%s rootfs.squashfs)" "$(find root -type f -o -type l | wc -l)"
 }
 
@@ -245,6 +255,12 @@ size() {
   want=$(cat verity.roothash)
   have=$(grep -oE 'sha256 [0-9a-f]{64}' cmdline.txt | awk '{print $2}')
   g "G6 cmdline root hash matches tree" "$([ "$want" = "$have" ] && echo ok || echo FAIL)"
+
+  # a full reproducibility check needs two builds; this asserts the mechanism
+  # that makes it possible is still in place, which is cheap and catches drift.
+  local pinned; pinned=$(date -u -d "@$SOURCE_DATE_EPOCH" +%Y-%m-%d 2>/dev/null)
+  g "G10 build clock pinned ($pinned)" \
+    "$(strings busybox 2>/dev/null | grep -q "BusyBox v.*$pinned" && echo ok || echo FAIL)"
 
   g "G7 kernel has no module loader" "$(grep -q '^CONFIG_MODULES=y' "src/linux-$KVER/.config" && echo FAIL || echo ok)"
 
