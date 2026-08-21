@@ -1,0 +1,10 @@
+ash sh
+ls cat cp mv rm mkdir rmdir ln
+mount umount
+echo printf test true false
+grep sed awk cut sort uniq head tail wc tr
+vi
+ps kill sleep uname free df du
+dd sync stat find xargs
+dmesg halt poweroff reboot
+clear reset

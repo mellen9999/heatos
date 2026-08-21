@@ -1,0 +1,11 @@
+#!/bin/sh
+mount -t proc none /proc
+mount -t sysfs none /sys
+echo 0 > /proc/sys/kernel/printk
+cat <<'BANNER'
+
+  floppy linux -- 1474560 bytes, all of it yours
+  type `help` for the applet list
+
+BANNER
+exec /bin/sh

@@ -1,0 +1,14 @@
+src/
+root/
+keys/
+bzImage
+busybox
+initramfs.cpio.gz
+build.log
+syslinux.cfg
+*.img
+*.squashfs
+*.verity
+*.uki
+*.efi
+*.fd
