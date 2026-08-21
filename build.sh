@@ -6,6 +6,7 @@ KVER="${KVER:-6.12.43}"
 BBVER="${BBVER:-1.37.0}"
 JOBS="$(nproc)"
 IMAGE_MAX=8388608
+SALT=48454154534f530000000000000000000000000000000000000000000000000a
 
 say() { printf '\n\033[1;33m==> %s\033[0m\n' "$*"; }
 
@@ -142,43 +143,87 @@ rootfs() {
   printf '  rootfs.squashfs: %d bytes (%d files)\n' "$(stat -c%s rootfs.squashfs)" "$(find root -type f -o -type l | wc -l)"
 }
 
-floppy() {
-  say "writing floppy.img"
-  rm -f floppy.img
-  truncate -s 1474560 floppy.img
-  /usr/bin/mkfs.fat -F 12 -n FLOPPY floppy.img >/dev/null
-  syslinux --install floppy.img
-  printf 'DEFAULT linux\nLABEL linux\n  KERNEL /bzImage\n  INITRD /initramfs.cpio.gz\n  APPEND console=ttyS0,115200 quiet\n' > syslinux.cfg
-  mcopy -i floppy.img bzImage ::/bzImage
-  mcopy -i floppy.img initramfs.cpio.gz ::/initramfs.cpio.gz
-  mcopy -i floppy.img syslinux.cfg ::/syslinux.cfg
+verity() {
+  say "building verity hash tree"
+  cp rootfs.squashfs heatos.img
+  local data blocks
+  data=$(stat -c%s heatos.img)
+  if [ $((data % 4096)) -ne 0 ]; then
+    data=$(( (data / 4096 + 1) * 4096 ))
+    truncate -s "$data" heatos.img
+  fi
+  blocks=$((data / 4096))
+
+  # fixed salt: the image must be reproducible, and a random salt would
+  # change the root hash on every build for identical content.
+  veritysetup format heatos.img heatos.img \
+    --hash-offset="$data" --data-blocks="$blocks" --salt="$SALT" > verity.info
+  local rh
+  rh=$(awk '/Root hash/{print $NF}' verity.info)
+  [ ${#rh} -eq 64 ] || { echo "FAIL: no root hash from veritysetup" >&2; return 1; }
+  echo "$rh" > verity.roothash
+
+  # veritysetup writes a superblock AT the hash offset, so the hash tree
+  # itself starts one block later -- pointing the table at $blocks lands on
+  # the superblock and the root mount fails with no verity error at all.
+  printf 'dm-mod.create="vroot,,,ro,0 %d verity 1 /dev/vda /dev/vda 4096 4096 %d %d sha256 %s %s" root=/dev/dm-0 ro rootfstype=squashfs rootwait init=/init console=ttyS0,115200
+' \
+    "$((blocks * 8))" "$blocks" "$((blocks + 1))" "$rh" "$SALT" > cmdline.txt
+
+  printf '  heatos.img: %d bytes  root hash: %s
+' "$(stat -c%s heatos.img)" "$rh"
 }
 
 size() {
-  local k i total
-  k=$(stat -c%s bzImage)
-  i=$(stat -c%s initramfs.cpio.gz)
-  total=$((k + i + 32768))
-  printf '\n  kernel      %8d\n  initramfs   %8d\n  boot+fs     %8d\n  ---------------------\n  total       %8d / %d\n\n' \
-    "$k" "$i" 32768 "$total" "$IMAGE_MAX"
-  if [ "$total" -gt "$IMAGE_MAX" ]; then
-    printf '\033[1;31m  OVER BUDGET by %d bytes -- cut something\033[0m\n\n' "$((total - CAP))"
-    return 1
-  fi
-  printf '\033[1;32m  fits, %d bytes to spare\033[0m\n\n' "$((CAP - total))"
-}
+  say "gates"
+  local bad=0
+  g() { printf '  %-42s %s
+' "$1" "$2"; [ "$2" = ok ] || bad=1; }
 
-run() {
-  qemu-system-x86_64 -m 64 -kernel bzImage -initrd initramfs.cpio.gz \
-    -append "console=ttyS0,115200" -nographic -no-reboot
+  local sz; sz=$(stat -c%s heatos.img)
+  g "G1 image <= $IMAGE_MAX ($sz)" "$([ "$sz" -le "$IMAGE_MAX" ] && echo ok || echo FAIL)"
+
+  local elfs interp exec_type
+  elfs=$(find root -type f -exec sh -c 'head -c4 "$1" | grep -q ELF && echo "$1"' _ {} \; 2>/dev/null)
+  interp=0; exec_type=0
+  for f in $elfs; do
+    readelf -l "$f" 2>/dev/null | grep -q INTERP && interp=$((interp+1))
+    readelf -h "$f" 2>/dev/null | grep -q 'Type:.*EXEC' && exec_type=$((exec_type+1))
+  done
+  g "G2 no dynamic loader ($interp with INTERP)" "$([ "$interp" -eq 0 ] && echo ok || echo FAIL)"
+  g "G3 all ELF are PIE ($exec_type non-PIE)"    "$([ "$exec_type" -eq 0 ] && echo ok || echo FAIL)"
+
+  local suid ww
+  suid=$(find root -type f \( -perm -4000 -o -perm -2000 \) | wc -l)
+  ww=$(find root -type f -perm -0002 | wc -l)
+  g "G4 no setuid/setgid ($suid)"      "$([ "$suid" -eq 0 ] && echo ok || echo FAIL)"
+  g "G5 no world-writable ($ww)"       "$([ "$ww" -eq 0 ] && echo ok || echo FAIL)"
+
+  local want have
+  want=$(cat verity.roothash)
+  have=$(grep -oE 'sha256 [0-9a-f]{64}' cmdline.txt | awk '{print $2}')
+  g "G6 cmdline root hash matches tree" "$([ "$want" = "$have" ] && echo ok || echo FAIL)"
+
+  g "G7 kernel has no module loader" "$(grep -q '^CONFIG_MODULES=y' "src/linux-$KVER/.config" && echo FAIL || echo ok)"
+
+  echo
+  [ "$bad" -eq 0 ] && printf '[1;32m  all gates green -- %d bytes, %d to spare[0m
+
+' "$sz" "$((IMAGE_MAX - sz))" \
+                   || { printf '[1;31m  GATES FAILED[0m
+
+'; return 1; }
 }
 
 boot() {
-  qemu-system-x86_64 -m 64 -fda floppy.img -boot a -nographic -no-reboot
+  [ -f cmdline.txt ] || { echo "FAIL: run ./build.sh verity first" >&2; return 1; }
+  qemu-system-x86_64 -m 128 -kernel bzImage \
+    -drive file="${1:-heatos.img}",if=virtio,format=raw,readonly=on \
+    -append "$(cat cmdline.txt) ${HEATOS_APPEND:-}" -nographic -no-reboot
 }
 
 case "${1:-all}" in
-  fetch|kernel|headers|busybox|rootfs|floppy|size|run|boot) "$1" ;;
-  all) fetch; kernel; headers; busybox; rootfs; size; floppy ;;
+  fetch|kernel|headers|busybox|rootfs|verity|size|boot) "$1" ;;
+  all) fetch; kernel; headers; busybox; rootfs; verity; size ;;
   *) echo "usage: $0 {fetch|kernel|busybox|initramfs|floppy|size|run|boot|all}"; exit 1 ;;
 esac
