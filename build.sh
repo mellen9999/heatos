@@ -38,45 +38,48 @@ say() { printf '\n\033[1;33m==> %s\033[0m\n' "$*"; }
 # always pipe into `has` instead of `grep -q`.
 has() { local n; n=$(grep -c -- "$1" || true); [ "${n:-0}" -gt 0 ]; }
 
+# download, verify, extract ONE pinned tarball. verification is per-source and
+# happens before extraction -- the old bulk `sha256sum -c` ran after only two of
+# five sources had been downloaded, so on a clean clone it failed, and in a tree
+# that already had src/ populated it passed. that is why nobody saw it.
+get() {
+  local url="$1" tar="$2" dir="$3"
+  [ -f "src/$tar" ] || curl -fL --progress-bar "$url" -o "src/$tar"
+  grep -q " $tar$" sources.sha256 || { echo "FAIL: $tar not pinned in sources.sha256" >&2; return 1; }
+  ( cd src && grep " $tar$" ../sources.sha256 | sha256sum -c --strict - >/dev/null ) || {
+    echo "FAIL: $tar digest mismatch -- refusing to extract" >&2; return 1; }
+  [ -d "src/$dir" ] || tar -C src -xf "src/$tar"
+}
+
 fetch() {
   say "fetching + verifying sources"
   mkdir -p src
-  local ktar="linux-$KVER.tar.xz" bbtar="busybox-$BBVER.tar.bz2"
-
-  [ -f "src/$ktar" ]  || curl -fL "https://cdn.kernel.org/pub/linux/kernel/v6.x/$ktar" -o "src/$ktar"
-  [ -f "src/$bbtar" ] || curl -fL "https://busybox.net/downloads/$bbtar" -o "src/$bbtar"
 
   # G8 -- every source pinned, verified BEFORE extraction. a verified boot
   # chain rooted in an unverified tarball proves nothing.
-  grep -q " $ktar$"  sources.sha256 || { echo "FAIL: $ktar not pinned in sources.sha256" >&2; return 1; }
-  grep -q " $bbtar$" sources.sha256 || { echo "FAIL: $bbtar not pinned in sources.sha256" >&2; return 1; }
-  # sources.sha256 pins tarballs AND loose content (cmdchamp); only the
-  # tarballs live in src/, so verify those here and let each stage check its own.
-  ( cd src && grep -E '\.tar\.(xz|bz2|gz)$' ../sources.sha256 | sha256sum -c --strict - ) || {
-    echo "FAIL: source digest mismatch -- refusing to extract" >&2; return 1; }
-
-  [ -d "src/linux-$KVER" ]    || tar -C src -xf "src/$ktar"
-  [ -d "src/busybox-$BBVER" ] || tar -C src -xf "src/$bbtar"
-
+  get "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$KVER.tar.xz" \
+      "linux-$KVER.tar.xz" "linux-$KVER"
+  get "https://busybox.net/downloads/busybox-$BBVER.tar.bz2" \
+      "busybox-$BBVER.tar.bz2" "busybox-$BBVER"
   # bash: GNU publishes PGP sigs, not digest lists, so the pin is anchored to
   # a signature check done once by hand (Chet Ramey, DSA 7C0135FB...).
-  local bashtar="bash-$BASHVER.tar.gz"
-  [ -f "src/$bashtar" ] || curl -fL "https://ftp.gnu.org/gnu/bash/$bashtar" -o "src/$bashtar"
-  grep -q " $bashtar$" sources.sha256 || { echo "FAIL: $bashtar not pinned" >&2; return 1; }
-  [ -d "src/bash-$BASHVER" ] || tar -C src -xf "src/$bashtar"
-
+  get "https://ftp.gnu.org/gnu/bash/bash-$BASHVER.tar.gz" \
+      "bash-$BASHVER.tar.gz" "bash-$BASHVER"
   # ii: suckless publishes no signature, so this pin is trust-on-first-use
   # over TLS only. see SOURCES.md -- it is weaker than the others on purpose.
-  local iitar="ii-$IIVER.tar.gz"
-  [ -f "src/$iitar" ] || curl -fL "https://dl.suckless.org/tools/$iitar" -o "src/$iitar"
-  grep -q " $iitar$" sources.sha256 || { echo "FAIL: $iitar not pinned" >&2; return 1; }
-  [ -d "src/ii-$IIVER" ] || tar -C src -xf "src/$iitar"
-
+  get "https://dl.suckless.org/tools/ii-$IIVER.tar.gz" \
+      "ii-$IIVER.tar.gz" "ii-$IIVER"
   # bearssl: also no upstream signature -- see SOURCES.md
-  local bstar="bearssl-$BSSLVER.tar.gz"
-  [ -f "src/$bstar" ] || curl -fL "https://bearssl.org/$bstar" -o "src/$bstar"
-  grep -q " $bstar$" sources.sha256 || { echo "FAIL: $bstar not pinned" >&2; return 1; }
-  [ -d "src/bearssl-$BSSLVER" ] || tar -C src -xf "src/$bstar"
+  get "https://bearssl.org/bearssl-$BSSLVER.tar.gz" \
+      "bearssl-$BSSLVER.tar.gz" "bearssl-$BSSLVER"
+
+  # completeness: now that every source is present, re-check the whole pinned
+  # set. this catches a tarball that is pinned but no longer fetched, which the
+  # per-source checks above cannot see.
+  ( cd src && grep -E '\.tar\.(xz|bz2|gz)$' ../sources.sha256 | sha256sum -c --strict - >/dev/null ) || {
+    echo "FAIL: pinned source set does not match src/" >&2; return 1; }
+  printf '  %d sources verified against sources.sha256\n' \
+    "$(grep -cE '\.tar\.(xz|bz2|gz)$' sources.sha256)"
 }
 
 kernel() {
