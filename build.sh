@@ -51,13 +51,29 @@ bbset() {
   fi
 }
 
+headers() {
+  say "installing kernel headers into sysroot"
+  local d="src/linux-$KVER"
+  rm -rf sysroot
+  make -C "$d" headers_install INSTALL_HDR_PATH="$PWD/sysroot" >/dev/null
+  printf '  sysroot/include: %s headers\n' "$(find sysroot/include -name '*.h' | wc -l)"
+}
+
 busybox() {
   say "building busybox $BBVER (${BBMODE:-full})"
+  [ -d sysroot/include/linux ] || headers
   local d="src/busybox-$BBVER"
   make -C "$d" defconfig >/dev/null
 
-  bbset "$d" STATIC y
+  # static-PIE: plain -static is an ASLR downgrade (fixed load address), so we
+  # drive it through EXTRA flags instead of CONFIG_STATIC, which would inject a
+  # conflicting -static. G3 verifies the result is ET_DYN.
+  bbset "$d" STATIC n
+  bbset "$d" PIE n
   for off in TC PAM FEATURE_WTMP FEATURE_UTMP; do bbset "$d" "$off" n; done
+  sed -i '/^CONFIG_EXTRA_CFLAGS=/d;/^CONFIG_EXTRA_LDFLAGS=/d' "$d/.config"
+  echo "CONFIG_EXTRA_CFLAGS=\"-fPIE -Os -isystem $PWD/sysroot/include\"" >> "$d/.config"
+  echo 'CONFIG_EXTRA_LDFLAGS=""' >> "$d/.config"
 
   if [ "${BBMODE:-full}" = trim ]; then
     grep -o '^CONFIG_[A-Z0-9_]*=y' "$d/.config" | sed 's/^CONFIG_//;s/=y$//' > /tmp/bb-all.$$
@@ -72,16 +88,21 @@ busybox() {
     rm -f /tmp/bb-all.$$
   fi
 
-  yes '' | make -C "$d" oldconfig >/dev/null 2>&1
+  # `yes |` takes SIGPIPE when make exits; pipefail would turn that into exit 141
+  # and silently abort before compiling. this bit us twice.
+  yes '' | make -C "$d" oldconfig >/dev/null 2>&1 || true
 
   rm -f "$d/busybox"
-  local cc=gcc
-  command -v musl-gcc >/dev/null && cc=musl-gcc
+  local specs="$PWD/musl-static-pie.specs"
+  [ -f "$specs" ] || { echo "FAIL: $specs missing" >&2; return 1; }
+  local cc="gcc -specs=$specs"
   make -C "$d" -j"$JOBS" CC="$cc" HOSTCC=gcc
   [ -f "$d/busybox" ] || { echo "busybox build failed" >&2; return 1; }
   strip "$d/busybox"
   cp "$d/busybox" busybox
-  printf '  busybox binary: %d bytes (%s)\n' "$(stat -c%s busybox)" "$cc"
+  # form gates can pass on a binary that segfaults -- so prove it executes
+  ./busybox true 2>/dev/null || { echo "FAIL: built busybox does not run" >&2; return 1; }
+  printf '  busybox binary: %d bytes (musl static-pie, runs)\n' "$(stat -c%s busybox)"
 }
 
 initramfs() {
@@ -130,7 +151,7 @@ boot() {
 }
 
 case "${1:-all}" in
-  fetch|kernel|busybox|initramfs|floppy|size|run|boot) "$1" ;;
-  all) fetch; kernel; busybox; initramfs; size; floppy ;;
+  fetch|kernel|headers|busybox|initramfs|floppy|size|run|boot) "$1" ;;
+  all) fetch; kernel; headers; busybox; initramfs; size; floppy ;;
   *) echo "usage: $0 {fetch|kernel|busybox|initramfs|floppy|size|run|boot|all}"; exit 1 ;;
 esac

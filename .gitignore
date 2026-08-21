@@ -12,3 +12,4 @@ syslinux.cfg
 *.uki
 *.efi
 *.fd
+sysroot/

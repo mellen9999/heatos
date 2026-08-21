@@ -1,0 +1,28 @@
+# musl + true static-PIE. arch's musl-gcc.specs picks Scrt1.o (dynamic PIE
+# start) and hardcodes -dynamic-linker, which yields a binary that links
+# clean and segfaults. this swaps in rcrt1.o (self-relocating) and links
+# static with no interpreter.
+%rename cpp_options old_cpp_options
+
+*cpp_options:
+-nostdinc -isystem /usr/lib/musl/include -isystem include%s %(old_cpp_options)
+
+*cc1:
+%(cc1_cpu) -nostdinc -isystem /usr/lib/musl/include -isystem include%s
+
+*link_libgcc:
+-L/usr/lib/musl/lib -L .%s
+
+*libgcc:
+libgcc.a%s %:if-exists(libgcc_eh.a%s)
+
+*startfile:
+%{!r:/usr/lib/musl/lib/rcrt1.o /usr/lib/musl/lib/crti.o crtbeginS.o%s}
+
+*endfile:
+%{!r:crtendS.o%s /usr/lib/musl/lib/crtn.o}
+
+# -r (partial link) cannot take -pie, and busybox partial-links every
+# subdirectory, so the static-pie flags must apply to the final link only.
+*link:
+-nostdlib %{!r:-static -pie --no-dynamic-linker} %{rdynamic:-export-dynamic}
