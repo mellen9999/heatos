@@ -1,0 +1,8 @@
+# the exact artifact this source builds. regenerate with ./build.sh pin.
+# G13 compares against this. a mismatch on the SAME toolchain means the
+# image no longer corresponds to the source; on a different toolchain it
+# only means you cannot independently verify this build.
+image     332b1042b940ef435a73f4050a96b2116c15923de05e4e010669cf18f22b0020
+squashfs  1ba78dfb5d870cd3bad1443385e078e6174f6823e9d2a2c857ac06ec3078a0e2
+roothash  a84794388d8036ae915c4835e7dde94e9478c72a7a28ac837dd3cccf4c1a16a6
+toolchain 28ec5b52cc526595cfcc7518f7116dc8bcbdfa14f6d77c204d24bc8c56237bcd

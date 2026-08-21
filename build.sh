@@ -15,6 +15,11 @@ JOBS="$(nproc)"
 IMAGE_MAX=8388608
 SALT=48454154534f530000000000000000000000000000000000000000000000000a
 SBGUID=11111111-2222-3333-4444-555555555555
+# the verity superblock carries a UUID that veritysetup randomises per format.
+# it sits outside the hash tree so it changes no security property -- it just
+# made every build produce different bytes, which is the property that lets
+# anyone check the artifact against this source.
+VUUID=00000000-0000-4000-8000-000068656174
 # fixed build clock: the same commit must yield the same image, so the
 # artifact can be checked against its source instead of trusted.
 export SOURCE_DATE_EPOCH=1755648000
@@ -281,10 +286,10 @@ rootfs() {
   printf 'root:x:0:\n' > root/etc/group
   # root is read-only, so resolv.conf must live on the tmpfs udhcpc writes to
   ln -sf /tmp/resolv.conf root/etc/resolv.conf
-  # -mkfs-time/-inode-time: without these the image carries the wall-clock
-  # mtime of every file, so the same source builds different bytes each run.
-  mksquashfs root rootfs.squashfs -noappend -no-xattrs -all-root -comp gzip -quiet -processors 1 \
-    -mkfs-time "$SOURCE_DATE_EPOCH" -inode-time "$SOURCE_DATE_EPOCH"
+  # squashfs-tools >= 4.6 reads SOURCE_DATE_EPOCH itself and clamps every
+  # timestamp to it -- and hard-errors if you also pass -mkfs-time, which is
+  # how this was caught. -processors 1 keeps block ordering deterministic.
+  mksquashfs root rootfs.squashfs -noappend -no-xattrs -all-root -comp gzip -quiet -processors 1
   printf '  rootfs.squashfs: %d bytes (%d files)\n' "$(stat -c%s rootfs.squashfs)" "$(find root -type f -o -type l | wc -l)"
 }
 
@@ -406,10 +411,11 @@ verity() {
   fi
   blocks=$((data / 4096))
 
-  # fixed salt: the image must be reproducible, and a random salt would
-  # change the root hash on every build for identical content.
+  # fixed salt AND fixed uuid: the image must be reproducible. a random salt
+  # would change the root hash for identical content; a random uuid left the
+  # root hash stable and still changed the image bytes on every single build.
   veritysetup format heatos.img heatos.img \
-    --hash-offset="$data" --data-blocks="$blocks" --salt="$SALT" > verity.info
+    --hash-offset="$data" --data-blocks="$blocks" --salt="$SALT" --uuid="$VUUID" > verity.info
   local rh
   rh=$(awk '/Root hash/{print $NF}' verity.info)
   [ ${#rh} -eq 64 ] || { echo "FAIL: no root hash from veritysetup" >&2; return 1; }
@@ -433,10 +439,34 @@ verity() {
 ' "$(stat -c%s heatos.img)" "$rh"
 }
 
+toolchain() {
+  { gcc --version | head -1
+    ld --version | head -1
+    mksquashfs -version 2>&1 | head -1
+    veritysetup --version
+    sha256sum musl-static-pie.specs | awk '{print $1}'
+  } | sha256sum | awk '{print $1}'
+}
+
+pin() {
+  say "pinning the bytes this source produces"
+  [ -f heatos.img ] || { echo "FAIL: no heatos.img -- build first" >&2; return 1; }
+  { echo "# the exact artifact this source builds. regenerate with ./build.sh pin."
+    echo "# G13 compares against this. a mismatch on the SAME toolchain means the"
+    echo "# image no longer corresponds to the source; on a different toolchain it"
+    echo "# only means you cannot independently verify this build."
+    printf 'image     %s\n'   "$(sha256sum < heatos.img      | awk '{print $1}')"
+    printf 'squashfs  %s\n'   "$(sha256sum < rootfs.squashfs | awk '{print $1}')"
+    printf 'roothash  %s\n'   "$(cat verity.roothash)"
+    printf 'toolchain %s\n'   "$(toolchain)"
+  } > image.sha256
+  cat image.sha256
+}
+
 size() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=10
+  local EXPECTED_GATES=11
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -490,6 +520,30 @@ size() {
   g "G12 image has all $want_n manifest entries ($missing missing)" \
     "$([ "$missing" -eq 0 ] && [ "$want_n" -gt 0 ] && echo ok || echo FAIL)"
 
+  # G13 -- the artifact matches the digest committed alongside the source.
+  # this is the whole point of a pinned clock, salt and uuid: without it,
+  # "reproducible" is a claim in a README that nothing ever checks.
+  if [ -f image.sha256 ]; then
+    local want_img have_img want_tc have_tc
+    want_img=$(awk '$1=="image"{print $2}'     image.sha256)
+    want_tc=$(awk '$1=="toolchain"{print $2}'  image.sha256)
+    have_img=$(sha256sum < heatos.img | awk '{print $1}')
+    have_tc=$(toolchain)
+    if [ "$want_tc" != "$have_tc" ]; then
+      g "G13 reproducible (toolchain differs, not checked)" ok
+      printf '    this gcc/squashfs-tools is not the one the pin was taken with,\n' >&2
+      printf '    so a byte mismatch here would prove nothing. rebuild is unverified.\n' >&2
+    else
+      g "G13 image matches committed digest" \
+        "$([ "$want_img" = "$have_img" ] && echo ok || echo FAIL)"
+      [ "$want_img" = "$have_img" ] || \
+        printf '    pinned %s\n    built  %s\n' "${want_img:0:32}..." "${have_img:0:32}..." >&2
+    fi
+  else
+    g "G13 image digest pinned" FAIL
+    printf '    no image.sha256 -- run ./build.sh pin\n' >&2
+  fi
+
   g "G7 kernel has no module loader" "$(grep -q '^CONFIG_MODULES=y' "src/linux-$KVER/.config" && echo FAIL || echo ok)"
 
   # a gate that dies mid-run under set -e looked exactly like a passing one,
@@ -520,7 +574,7 @@ boot() {
 }
 
 case "${1:-all}" in
-  fetch|kernel|headers|busybox|bash_|ii_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|size|boot) "$1" ;;
+  fetch|kernel|headers|busybox|bash_|ii_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|pin|size|boot) "$1" ;;
   all) fetch; kernel; headers; busybox; bash_; tls; ii_; rootfs; verity; keys; uki; size ;;
   *) echo "usage: $0 {fetch|kernel|busybox|initramfs|floppy|size|run|boot|all}"; exit 1 ;;
 esac
