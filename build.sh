@@ -32,11 +32,24 @@ kernel() {
   say "building kernel $KVER"
   local d="src/linux-$KVER"
   make -C "$d" tinyconfig
+  # olddefconfig silently drops any option whose deps are unmet, so enable to a
+  # fixpoint (a parent enabled on pass N unlocks its children on pass N+1) and
+  # then GATE on it -- a kernel quietly missing squashfs still "builds fine".
+  for _pass in 1 2 3; do
+    while read -r opt; do
+      "$d/scripts/config" --file "$d/.config" --enable "$opt"
+    done < <(grep -o '^CONFIG_[A-Z0-9_]*' kernel.config)
+    make -C "$d" olddefconfig >/dev/null
+  done
+  local missing=()
   while read -r opt; do
-    [ -z "$opt" ] && continue
-    "$d/scripts/config" --file "$d/.config" --enable "$opt"
+    grep -q "^$opt=y" "$d/.config" || missing+=("$opt")
   done < <(grep -o '^CONFIG_[A-Z0-9_]*' kernel.config)
-  make -C "$d" olddefconfig
+  if [ "${#missing[@]}" -gt 0 ]; then
+    echo "FAIL: kernel options requested but not enabled: ${missing[*]}" >&2
+    return 1
+  fi
+  grep -q '^CONFIG_MODULES=y' "$d/.config" && { echo "FAIL: module loader enabled" >&2; return 1; }
   make -C "$d" -j"$JOBS" bzImage
   cp "$d/arch/x86/boot/bzImage" bzImage
 }
@@ -105,14 +118,28 @@ busybox() {
   printf '  busybox binary: %d bytes (musl static-pie, runs)\n' "$(stat -c%s busybox)"
 }
 
-initramfs() {
-  say "packing initramfs"
+rootfs() {
+  say "building read-only root"
   rm -rf root
-  mkdir -p root/bin root/proc root/sys root/dev
+  mkdir -p root/bin root/proc root/sys root/dev root/etc
   cp busybox root/bin/
-  ln -sf busybox root/bin/sh
+  # one binary, many names: busybox reads argv[0] to decide what to be.
+  # names come from busybox itself, not our config list -- the two drift
+  # (CONFIG_TEST1 is the applet named "["), and a missing applet makes
+  # shell tests fail open rather than fail loud.
+  ./busybox --list > /tmp/heatos-applets.$$ 2>/dev/null || {
+    echo "FAIL: busybox --list unavailable (enable the busybox applet)" >&2; return 1; }
+  [ -s /tmp/heatos-applets.$$ ] || { echo "FAIL: empty applet list" >&2; return 1; }
+  while read -r a; do
+    ln -sf busybox "root/bin/$a"
+  done < /tmp/heatos-applets.$$
+  grep -qx '\[' /tmp/heatos-applets.$$ || { echo "FAIL: '[' applet missing -- shell tests would fail open" >&2; rm -f /tmp/heatos-applets.$$; return 1; }
+  rm -f /tmp/heatos-applets.$$
   cp init root/init
-  (cd root && find . | cpio -o -H newc --quiet | gzip -9) > initramfs.cpio.gz
+  chmod +x root/init
+  echo 'heatos' > root/etc/hostname
+  mksquashfs root rootfs.squashfs -noappend -no-xattrs -all-root -comp gzip -quiet
+  printf '  rootfs.squashfs: %d bytes (%d files)\n' "$(stat -c%s rootfs.squashfs)" "$(find root -type f -o -type l | wc -l)"
 }
 
 floppy() {
@@ -151,7 +178,7 @@ boot() {
 }
 
 case "${1:-all}" in
-  fetch|kernel|headers|busybox|initramfs|floppy|size|run|boot) "$1" ;;
-  all) fetch; kernel; headers; busybox; initramfs; size; floppy ;;
+  fetch|kernel|headers|busybox|rootfs|floppy|size|run|boot) "$1" ;;
+  all) fetch; kernel; headers; busybox; rootfs; size; floppy ;;
   *) echo "usage: $0 {fetch|kernel|busybox|initramfs|floppy|size|run|boot|all}"; exit 1 ;;
 esac

@@ -1,11 +1,25 @@
 #!/bin/sh
 mount -t proc none /proc
 mount -t sysfs none /sys
-echo 0 > /proc/sys/kernel/printk
+mount -t devtmpfs none /dev 2>/dev/null
+
+if grep -q heatos.test /proc/cmdline; then
+	echo
+	echo "HEATOS-TEST-BEGIN"
+	printf 'rootfs-type: '; awk '$2=="/" {print $3}' /proc/mounts
+	printf 'rootfs-flags: '; awk '$2=="/" {print $4}' /proc/mounts
+	printf 'write-to-root: '; if touch /probe 2>/dev/null; then echo "SUCCEEDED (BAD)"; else echo "refused (good)"; fi
+	printf 'dynamic-loader-present: '; if [ -e /lib/ld-musl-x86_64.so.1 ]; then echo "yes (BAD)"; else echo "no (good)"; fi
+	printf 'module-loader: '; if [ -e /proc/modules ]; then echo "present (BAD)"; else echo "absent (good)"; fi
+	printf 'busybox-runs: '; busybox true && echo yes || echo no
+	echo "HEATOS-TEST-END"
+	sync
+fi
+
 cat <<'BANNER'
 
-  floppy linux -- 1474560 bytes, all of it yours
-  type `help` for the applet list
+  heatos -- static-pie musl, read-only root
+  every byte on this disk is covered by a hash tree
 
 BANNER
 exec /bin/sh

@@ -1,7 +1,7 @@
 ash sh
 ls cat cp mv rm mkdir rmdir ln
 mount umount
-echo printf test true false
+echo printf test test1 true false busybox
 grep sed awk cut sort uniq head tail wc tr
 vi
 ps kill sleep uname free df du
