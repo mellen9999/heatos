@@ -75,7 +75,7 @@ headers() {
 }
 
 busybox() {
-  say "building busybox $BBVER (${BBMODE:-full})"
+  say "building busybox $BBVER (${BBMODE:-trim})"
   [ -d sysroot/include/linux ] || headers
   local d="src/busybox-$BBVER"
   make -C "$d" defconfig >/dev/null
@@ -90,7 +90,7 @@ busybox() {
   echo "CONFIG_EXTRA_CFLAGS=\"-fPIE -Os -isystem $PWD/sysroot/include\"" >> "$d/.config"
   echo 'CONFIG_EXTRA_LDFLAGS=""' >> "$d/.config"
 
-  if [ "${BBMODE:-full}" = trim ]; then
+  if [ "${BBMODE:-trim}" = trim ]; then
     grep -o '^CONFIG_[A-Z0-9_]*=y' "$d/.config" | sed 's/^CONFIG_//;s/=y$//' > /tmp/bb-all.$$
     local keep
     keep=$(tr ' ' '\n' < busybox.config.applets | grep -v '^$' | tr 'a-z' 'A-Z' | sort -u)
