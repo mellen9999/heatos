@@ -7,8 +7,13 @@ pass=0; fail=0
 
 # production carries no test hook, so build a test-flavoured UKI for this run
 # and restore the production one on the way out.
+# unlock once into RAM; every subsequent sign reuses it, and we wipe on exit.
+./build.sh unlock || { echo "cannot unlock signing keys"; exit 1; }
 HEATOS_TEST=1 ./build.sh verity >/dev/null && ./build.sh uki >/dev/null
-restore() { ./build.sh verity >/dev/null 2>&1 && ./build.sh uki >/dev/null 2>&1; }
+restore() {
+	./build.sh verity >/dev/null 2>&1 && ./build.sh uki >/dev/null 2>&1
+	./build.sh lock >/dev/null 2>&1
+}
 trap restore EXIT
 ok()  { printf '  \033[1;32mPASS\033[0m  %s\n' "$1"; pass=$((pass+1)); }
 bad() { printf '  \033[1;31mFAIL\033[0m  %s\n' "$1"; fail=$((fail+1)); }

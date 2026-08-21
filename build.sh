@@ -6,6 +6,9 @@ KVER="${KVER:-6.12.43}"
 BBVER="${BBVER:-1.37.0}"
 BASHVER="${BASHVER:-5.3}"
 CMDCHAMP_SRC="${CMDCHAMP_SRC:-$HOME/projects/cmdchamp}"
+# plaintext private keys live ONLY here, only while unlocked. /dev/shm is
+# tmpfs, so nothing lands on disk.
+RAMKEYS="/dev/shm/heatos-keys-$(id -u)"
 JOBS="$(nproc)"
 IMAGE_MAX=8388608
 SALT=48454154534f530000000000000000000000000000000000000000000000000a
@@ -210,6 +213,73 @@ keys() {
   echo "  PK/KEK/db written to keys/ (gitignored, heatos-only -- NOT heatpc's)"
 }
 
+seal() {
+  say "encrypting private keys"
+  # fail loud rather than no-op: silently skipping an already-sealed keyset is
+  # how you end up believing a new passphrase took effect when it did not.
+  if [ ! -f keys/db.key ] && [ -f keys/db.key.enc ]; then
+    echo "FAIL: keys are already sealed. use './build.sh reseal' to change the passphrase." >&2
+    return 1
+  fi
+  [ -f keys/db.key ] || { echo "FAIL: no keys/db.key -- run ./build.sh keys first" >&2; return 1; }
+  local pass
+  if [ -n "${HEATOS_KEYPASS:-}" ]; then pass="$HEATOS_KEYPASS"
+  else read -rsp "  passphrase for heatos signing keys: " pass; echo; fi
+  [ -n "$pass" ] || { echo "FAIL: empty passphrase" >&2; return 1; }
+  local k
+  for k in PK KEK db; do
+    [ -f "keys/$k.key" ] || continue
+    HEATOS_PASS="$pass" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
+      -in "keys/$k.key" -out "keys/$k.key.enc" -pass env:HEATOS_PASS || return 1
+    shred -u "keys/$k.key" 2>/dev/null || rm -f "keys/$k.key"
+  done
+  chmod 600 keys/*.enc
+  echo "  sealed. plaintext keys removed from disk."
+}
+
+reseal() {
+  say "changing the signing passphrase"
+  unlock || return 1
+  local newpass
+  if [ -n "${HEATOS_NEWKEYPASS:-}" ]; then newpass="$HEATOS_NEWKEYPASS"
+  else read -rsp "  NEW passphrase: " newpass; echo; fi
+  [ -n "$newpass" ] || { echo "FAIL: empty passphrase" >&2; return 1; }
+  local k
+  for k in PK KEK db; do
+    [ -f "$RAMKEYS/$k.key" ] || continue
+    HEATOS_PASS="$newpass" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
+      -in "$RAMKEYS/$k.key" -out "keys/$k.key.enc.new" -pass env:HEATOS_PASS || return 1
+    mv "keys/$k.key.enc.new" "keys/$k.key.enc"
+  done
+  lock
+  echo "  passphrase changed."
+}
+
+unlock() {
+  [ -f "$RAMKEYS/db.key" ] && return 0
+  [ -f keys/db.key.enc ] || { echo "FAIL: keys/db.key.enc missing -- run ./build.sh keys then seal" >&2; return 1; }
+  local pass
+  if [ -n "${HEATOS_KEYPASS:-}" ]; then pass="$HEATOS_KEYPASS"
+  else read -rsp "  passphrase to unlock signing keys: " pass; echo; fi
+  mkdir -p "$RAMKEYS"; chmod 700 "$RAMKEYS"
+  local k
+  for k in PK KEK db; do
+    [ -f "keys/$k.key.enc" ] || continue
+    HEATOS_PASS="$pass" openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+      -in "keys/$k.key.enc" -out "$RAMKEYS/$k.key" -pass env:HEATOS_PASS 2>/dev/null \
+      || { rm -rf "$RAMKEYS"; echo "FAIL: wrong passphrase" >&2; return 1; }
+  done
+  chmod 600 "$RAMKEYS"/*.key
+  openssl rsa -in "$RAMKEYS/db.key" -noout 2>/dev/null \
+    || { rm -rf "$RAMKEYS"; echo "FAIL: decrypted key is not a valid RSA key" >&2; return 1; }
+  echo "  unlocked into RAM ($RAMKEYS)"
+}
+
+lock() {
+  rm -rf "$RAMKEYS"
+  echo "  locked -- plaintext keys wiped from RAM"
+}
+
 uki() {
   say "building + signing unified kernel image"
   [ -f cmdline.txt ] || { echo "FAIL: run verity first" >&2; return 1; }
@@ -218,8 +288,11 @@ uki() {
   grep -q '^CONFIG_EFI_STUB=y' "src/linux-$KVER/.config" || {
     echo "FAIL: kernel lacks EFI_STUB -- firmware cannot load it" >&2; return 1; }
 
+  unlock || return 1
   ukify build --linux=bzImage --cmdline="$(cat cmdline.txt)" --stub="$stub" --output=heatos.efi >/dev/null
-  sbsign --key keys/db.key --cert keys/db.crt --output heatos-signed.efi heatos.efi >/dev/null
+  sbsign --key "$RAMKEYS/db.key" --cert keys/db.crt --output heatos-signed.efi heatos.efi >/dev/null \
+    || { echo "FAIL: signing failed -- refusing to ship an unsigned image" >&2; rm -f heatos-signed.efi; return 1; }
+  [ -f heatos-signed.efi ] || { echo "FAIL: no signed image produced" >&2; return 1; }
   sbverify --cert keys/db.crt heatos-signed.efi >/dev/null 2>&1 || {
     echo "FAIL: signature does not verify" >&2; return 1; }
 
@@ -274,9 +347,10 @@ verity() {
 
 size() {
   say "gates"
-  local bad=0
+  local bad=0 ran=0
+  local EXPECTED_GATES=9
   g() { printf '  %-42s %s
-' "$1" "$2"; [ "$2" = ok ] || bad=1; }
+' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
   local sz; sz=$(stat -c%s heatos.img)
   g "G1 image <= $IMAGE_MAX ($sz)" "$([ "$sz" -le "$IMAGE_MAX" ] && echo ok || echo FAIL)"
@@ -308,7 +382,19 @@ size() {
   g "G10 build clock pinned ($pinned)" \
     "$([ "$(strings busybox 2>/dev/null | grep -c "BusyBox v.*$pinned")" -gt 0 ] && echo ok || echo FAIL)"
 
+  # find, not ls: `ls nonexistent | wc -l` exits non-zero under pipefail and
+  # set -e then kills the whole gate run silently. this bit us four times.
+  local plain; plain=$(find keys -maxdepth 1 -name '*.key' 2>/dev/null | wc -l)
+  g "G11 no plaintext private key on disk ($plain)" "$([ "$plain" -eq 0 ] && echo ok || echo FAIL)"
+
   g "G7 kernel has no module loader" "$(grep -q '^CONFIG_MODULES=y' "src/linux-$KVER/.config" && echo FAIL || echo ok)"
+
+  # a gate that dies mid-run under set -e looked exactly like a passing one,
+  # so prove every gate actually executed.
+  if [ "$ran" -ne "$EXPECTED_GATES" ]; then
+    printf '\033[1;31m  only %d of %d gates ran -- the gate run was truncated\033[0m\n\n' "$ran" "$EXPECTED_GATES"
+    return 1
+  fi
 
   echo
   [ "$bad" -eq 0 ] && printf '[1;32m  all gates green -- %d bytes, %d to spare[0m
@@ -331,7 +417,7 @@ boot() {
 }
 
 case "${1:-all}" in
-  fetch|kernel|headers|busybox|bash_|rootfs|verity|keys|uki|size|boot) "$1" ;;
+  fetch|kernel|headers|busybox|bash_|rootfs|verity|keys|seal|reseal|unlock|lock|uki|size|boot) "$1" ;;
   all) fetch; kernel; headers; busybox; rootfs; verity; keys; uki; size ;;
   *) echo "usage: $0 {fetch|kernel|busybox|initramfs|floppy|size|run|boot|all}"; exit 1 ;;
 esac
