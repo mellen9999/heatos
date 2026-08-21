@@ -21,3 +21,7 @@ verity.info
 verity.roothash
 cmdline.txt
 ta.h
+bash
+ii
+tlstunnel
+rootfs.squashfs

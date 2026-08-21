@@ -45,7 +45,9 @@ fetch() {
   # chain rooted in an unverified tarball proves nothing.
   grep -q " $ktar$"  sources.sha256 || { echo "FAIL: $ktar not pinned in sources.sha256" >&2; return 1; }
   grep -q " $bbtar$" sources.sha256 || { echo "FAIL: $bbtar not pinned in sources.sha256" >&2; return 1; }
-  ( cd src && sha256sum -c --strict ../sources.sha256 ) || {
+  # sources.sha256 pins tarballs AND loose content (cmdchamp); only the
+  # tarballs live in src/, so verify those here and let each stage check its own.
+  ( cd src && grep -E '\.tar\.(xz|bz2|gz)$' ../sources.sha256 | sha256sum -c --strict - ) || {
     echo "FAIL: source digest mismatch -- refusing to extract" >&2; return 1; }
 
   [ -d "src/linux-$KVER" ]    || tar -C src -xf "src/$ktar"
@@ -241,24 +243,32 @@ rootfs() {
   done < /tmp/heatos-applets.$$
   grep -qx '\[' /tmp/heatos-applets.$$ || { echo "FAIL: '[' applet missing -- shell tests would fail open" >&2; rm -f /tmp/heatos-applets.$$; return 1; }
   rm -f /tmp/heatos-applets.$$
-  # bash + cmdchamp: the game is hard bash (assoc arrays, [[ ]], =~), so we
-  # ship bash rather than attempt an ash port.
-  if [ -f bash ]; then
-    cp bash root/bin/bash
-    if [ -d "$CMDCHAMP_SRC" ]; then
-      mkdir -p root/opt/cmdchamp
-      cp "$CMDCHAMP_SRC/cmdchamp" root/opt/cmdchamp/cmdchamp
-      chmod +x root/opt/cmdchamp/cmdchamp
-      ln -sf /opt/cmdchamp/cmdchamp root/bin/cmdchamp
-      # cmdchamp's shebang is #!/usr/bin/env bash and upstream content is not
-      # ours to rewrite, so provide the path it expects.
-      mkdir -p root/usr/bin
-      ln -sf /bin/busybox root/usr/bin/env
-    fi
-  fi
+  # every component is REQUIRED. these were `[ -f x ] && cp x` -- one missing
+  # binary silently produced a smaller image that still passed every gate.
+  # a build that ships less than it claims must fail, not shrink.
+  local b
+  for b in bash ii tlstunnel; do
+    [ -f "$b" ] || { echo "FAIL: $b not built -- run ./build.sh all" >&2; return 1; }
+    cp "$b" "root/bin/$b"
+  done
 
-  [ -f ii ] && cp ii root/bin/ii
-  [ -f tlstunnel ] && cp tlstunnel root/bin/tlstunnel
+  # cmdchamp is content, not recipe -- it lives outside this repo. pin its
+  # digest or the image quietly depends on the state of one directory on one
+  # machine, and sources.sha256 stops describing what is in the image.
+  local want have
+  want=$(awk '$2=="cmdchamp"{print $1}' sources.sha256)
+  [ -n "$want" ] || { echo "FAIL: cmdchamp not pinned in sources.sha256" >&2; return 1; }
+  [ -f "$CMDCHAMP_SRC/cmdchamp" ] || { echo "FAIL: no cmdchamp at $CMDCHAMP_SRC" >&2; return 1; }
+  have=$(sha256sum < "$CMDCHAMP_SRC/cmdchamp" | awk '{print $1}')
+  [ "$want" = "$have" ] || {
+    echo "FAIL: cmdchamp digest mismatch (pinned ${want:0:16}..., got ${have:0:16}...)" >&2; return 1; }
+  mkdir -p root/opt/cmdchamp root/usr/bin
+  cp "$CMDCHAMP_SRC/cmdchamp" root/opt/cmdchamp/cmdchamp
+  chmod +x root/opt/cmdchamp/cmdchamp
+  ln -sf /opt/cmdchamp/cmdchamp root/bin/cmdchamp
+  # cmdchamp's shebang is #!/usr/bin/env bash and upstream content is not ours
+  # to rewrite, so provide the path it expects.
+  ln -sf /bin/busybox root/usr/bin/env
 
   # hand-written shims for things busybox lacks
   [ -d overlay ] && cp -r overlay/. root/
@@ -271,7 +281,10 @@ rootfs() {
   printf 'root:x:0:\n' > root/etc/group
   # root is read-only, so resolv.conf must live on the tmpfs udhcpc writes to
   ln -sf /tmp/resolv.conf root/etc/resolv.conf
-  mksquashfs root rootfs.squashfs -noappend -no-xattrs -all-root -comp gzip -quiet -processors 1
+  # -mkfs-time/-inode-time: without these the image carries the wall-clock
+  # mtime of every file, so the same source builds different bytes each run.
+  mksquashfs root rootfs.squashfs -noappend -no-xattrs -all-root -comp gzip -quiet -processors 1 \
+    -mkfs-time "$SOURCE_DATE_EPOCH" -inode-time "$SOURCE_DATE_EPOCH"
   printf '  rootfs.squashfs: %d bytes (%d files)\n' "$(stat -c%s rootfs.squashfs)" "$(find root -type f -o -type l | wc -l)"
 }
 
@@ -423,7 +436,7 @@ verity() {
 size() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=9
+  local EXPECTED_GATES=10
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -462,6 +475,21 @@ size() {
   local plain; plain=$(find keys -maxdepth 1 -name '*.key' 2>/dev/null | wc -l)
   g "G11 no plaintext private key on disk ($plain)" "$([ "$plain" -eq 0 ] && echo ok || echo FAIL)"
 
+  # G12 -- the image contains everything the manifest declares. component
+  # copies were `[ -f x ] && cp x`, so a component that failed to build made
+  # the image smaller and every other gate still went green.
+  local listing missing=0 want_n=0 p
+  listing=$(unsquashfs -l rootfs.squashfs 2>/dev/null | sed 's|^squashfs-root/||')
+  while read -r p; do
+    case "$p" in ''|'#'*) continue ;; esac
+    want_n=$((want_n+1))
+    if [ "$(printf '%s\n' "$listing" | grep -cFx -- "$p" || true)" = 0 ]; then
+      missing=$((missing+1)); printf '    missing from image: %s\n' "$p" >&2
+    fi
+  done < manifest
+  g "G12 image has all $want_n manifest entries ($missing missing)" \
+    "$([ "$missing" -eq 0 ] && [ "$want_n" -gt 0 ] && echo ok || echo FAIL)"
+
   g "G7 kernel has no module loader" "$(grep -q '^CONFIG_MODULES=y' "src/linux-$KVER/.config" && echo FAIL || echo ok)"
 
   # a gate that dies mid-run under set -e looked exactly like a passing one,
@@ -493,6 +521,6 @@ boot() {
 
 case "${1:-all}" in
   fetch|kernel|headers|busybox|bash_|ii_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|size|boot) "$1" ;;
-  all) fetch; kernel; headers; busybox; rootfs; verity; keys; uki; size ;;
+  all) fetch; kernel; headers; busybox; bash_; tls; ii_; rootfs; verity; keys; uki; size ;;
   *) echo "usage: $0 {fetch|kernel|busybox|initramfs|floppy|size|run|boot|all}"; exit 1 ;;
 esac

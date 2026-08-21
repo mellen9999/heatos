@@ -1,0 +1,17 @@
+# what the image MUST contain. checked against the built squashfs by G12.
+# a component that fails to build used to shrink the image silently; this
+# file is the declaration that makes that a build failure instead.
+init
+etc/passwd
+etc/group
+bin/busybox
+bin/sh
+bin/[
+bin/bash
+bin/ii
+bin/tlstunnel
+bin/cmdchamp
+bin/udhcpc
+bin/ip
+opt/cmdchamp/cmdchamp
+usr/bin/env

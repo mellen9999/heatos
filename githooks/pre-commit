@@ -19,6 +19,20 @@ while read -r f; do
 	esac
 done <<< "$staged"
 
+# the same lesson the private-key rule below already learned, applied to
+# artifacts: decide on CONTENT. a name blocklist is a list of the mistakes you
+# have already made -- it let `bash`, `ii` and `tlstunnel` into this repo as
+# committed binaries, because none of them are called *.img.
+while read -r f; do
+	[ -z "$f" ] && continue
+	magic=$(git show ":$f" 2>/dev/null | head -c4 | od -An -tx1 | tr -d ' \n')
+	case "$magic" in
+		7f454c46)          say "refusing to commit a compiled ELF binary: $f" ;;
+		68737173|73717368) say "refusing to commit a squashfs image: $f" ;;
+		4d5a*)             say "refusing to commit a PE/EFI executable: $f" ;;
+	esac
+done <<< "$staged"
+
 # a PEM can be a public certificate (trust/ holds those on purpose) or a
 # private key. decide on CONTENT, not extension -- that is both more permissive
 # where it should be and stricter everywhere else, including files with no
