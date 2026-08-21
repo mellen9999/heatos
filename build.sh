@@ -4,6 +4,8 @@ cd "$(dirname "$0")"
 
 KVER="${KVER:-6.12.43}"
 BBVER="${BBVER:-1.37.0}"
+BASHVER="${BASHVER:-5.3}"
+CMDCHAMP_SRC="${CMDCHAMP_SRC:-$HOME/projects/cmdchamp}"
 JOBS="$(nproc)"
 IMAGE_MAX=8388608
 SALT=48454154534f530000000000000000000000000000000000000000000000000a
@@ -37,6 +39,13 @@ fetch() {
 
   [ -d "src/linux-$KVER" ]    || tar -C src -xf "src/$ktar"
   [ -d "src/busybox-$BBVER" ] || tar -C src -xf "src/$bbtar"
+
+  # bash: GNU publishes PGP sigs, not digest lists, so the pin is anchored to
+  # a signature check done once by hand (Chet Ramey, DSA 7C0135FB...).
+  local bashtar="bash-$BASHVER.tar.gz"
+  [ -f "src/$bashtar" ] || curl -fL "https://ftp.gnu.org/gnu/bash/$bashtar" -o "src/$bashtar"
+  grep -q " $bashtar$" sources.sha256 || { echo "FAIL: $bashtar not pinned" >&2; return 1; }
+  [ -d "src/bash-$BASHVER" ] || tar -C src -xf "src/$bashtar"
 }
 
 kernel() {
@@ -130,10 +139,25 @@ busybox() {
   printf '  busybox binary: %d bytes (musl static-pie, runs)\n' "$(stat -c%s busybox)"
 }
 
+bash_() {
+  say "building bash $BASHVER (musl static-pie)"
+  local d="src/bash-$BASHVER" specs="$PWD/musl-static-pie.specs"
+  [ -d "$d" ] || { echo "FAIL: bash source missing, run fetch" >&2; return 1; }
+  if [ ! -f "$d/bash" ]; then
+    ( cd "$d" && CC="gcc -specs=$specs" ./configure --host=x86_64-pc-linux-gnu \
+        --without-bash-malloc --disable-nls --enable-static-link >/dev/null 2>&1 \
+      && make -j"$JOBS" >/dev/null 2>&1 )
+  fi
+  [ -f "$d/bash" ] || { echo "FAIL: bash did not build" >&2; return 1; }
+  strip "$d/bash"; cp "$d/bash" bash
+  ./bash -c 'exit 0' || { echo "FAIL: built bash does not run" >&2; return 1; }
+  printf '  bash: %d bytes\n' "$(stat -c%s bash)"
+}
+
 rootfs() {
   say "building read-only root"
   rm -rf root
-  mkdir -p root/bin root/proc root/sys root/dev root/etc
+  mkdir -p root/bin root/proc root/sys root/dev root/etc root/tmp
   cp busybox root/bin/
   # one binary, many names: busybox reads argv[0] to decide what to be.
   # names come from busybox itself, not our config list -- the two drift
@@ -147,6 +171,25 @@ rootfs() {
   done < /tmp/heatos-applets.$$
   grep -qx '\[' /tmp/heatos-applets.$$ || { echo "FAIL: '[' applet missing -- shell tests would fail open" >&2; rm -f /tmp/heatos-applets.$$; return 1; }
   rm -f /tmp/heatos-applets.$$
+  # bash + cmdchamp: the game is hard bash (assoc arrays, [[ ]], =~), so we
+  # ship bash rather than attempt an ash port.
+  if [ -f bash ]; then
+    cp bash root/bin/bash
+    if [ -d "$CMDCHAMP_SRC" ]; then
+      mkdir -p root/opt/cmdchamp
+      cp "$CMDCHAMP_SRC/cmdchamp" root/opt/cmdchamp/cmdchamp
+      chmod +x root/opt/cmdchamp/cmdchamp
+      ln -sf /opt/cmdchamp/cmdchamp root/bin/cmdchamp
+      # cmdchamp's shebang is #!/usr/bin/env bash and upstream content is not
+      # ours to rewrite, so provide the path it expects.
+      mkdir -p root/usr/bin
+      ln -sf /bin/busybox root/usr/bin/env
+    fi
+  fi
+
+  # hand-written shims for things busybox lacks
+  [ -d overlay ] && cp -r overlay/. root/
+
   cp init root/init
   chmod +x root/init
   echo 'heatos' > root/etc/hostname
@@ -219,7 +262,10 @@ verity() {
   # rebuilds a test-flavoured UKI for its own runs.
   local testflag=""
   [ "${HEATOS_TEST:-0}" = 1 ] && testflag=" heatos.test"
-  printf 'dm-mod.create="vroot,,,ro,0 %d verity 1 /dev/vda /dev/vda 4096 4096 %d %d sha256 %s %s" root=/dev/dm-0 ro rootfstype=squashfs rootwait init=/init console=ttyS0,115200%s\n' \
+  # default dm-verity refuses only the bad block and lets boot continue if
+  # nothing essential needed it. panic_on_corruption makes ANY corruption
+  # anywhere fatal -- the machine refuses to run at all, which is the point.
+  printf 'dm-mod.create="vroot,,,ro,0 %d verity 1 /dev/vda /dev/vda 4096 4096 %d %d sha256 %s %s 1 panic_on_corruption" root=/dev/dm-0 ro rootfstype=squashfs rootwait init=/init console=ttyS0,115200%s\n' \
     "$((blocks * 8))" "$blocks" "$((blocks + 1))" "$rh" "$SALT" "$testflag" > cmdline.txt
 
   printf '  heatos.img: %d bytes  root hash: %s
@@ -260,7 +306,7 @@ size() {
   # that makes it possible is still in place, which is cheap and catches drift.
   local pinned; pinned=$(date -u -d "@$SOURCE_DATE_EPOCH" +%Y-%m-%d 2>/dev/null)
   g "G10 build clock pinned ($pinned)" \
-    "$(strings busybox 2>/dev/null | grep -q "BusyBox v.*$pinned" && echo ok || echo FAIL)"
+    "$([ "$(strings busybox 2>/dev/null | grep -c "BusyBox v.*$pinned")" -gt 0 ] && echo ok || echo FAIL)"
 
   g "G7 kernel has no module loader" "$(grep -q '^CONFIG_MODULES=y' "src/linux-$KVER/.config" && echo FAIL || echo ok)"
 
@@ -285,7 +331,7 @@ boot() {
 }
 
 case "${1:-all}" in
-  fetch|kernel|headers|busybox|rootfs|verity|keys|uki|size|boot) "$1" ;;
+  fetch|kernel|headers|busybox|bash_|rootfs|verity|keys|uki|size|boot) "$1" ;;
   all) fetch; kernel; headers; busybox; rootfs; verity; keys; uki; size ;;
   *) echo "usage: $0 {fetch|kernel|busybox|initramfs|floppy|size|run|boot|all}"; exit 1 ;;
 esac

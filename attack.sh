@@ -31,10 +31,13 @@ python3 -c "
 import pathlib,sys
 p=pathlib.Path('/tmp/heatos-a1.img'); b=bytearray(p.read_bytes()); b[100000]^=1; p.write_bytes(bytes(b))"
 out=$(boot_img /tmp/heatos-a1.img)
-if grep -q 'is corrupted' <<< "$out" && ! grep -q HEATOS-TEST-BEGIN <<< "$out"; then
-	ok "verity refused the block and killed init"
+# verity detects lazily, when the block is actually read, so the machine may
+# execute briefly first. what must be true is that it dies rather than
+# continuing -- panic_on_corruption makes that unconditional.
+if grep -q 'is corrupted' <<< "$out" && grep -q 'dm-verity device corrupted' <<< "$out"; then
+	ok "verity panicked the kernel on one flipped bit"
 else
-	bad "corrupted image booted or produced no verity error"
+	bad "corrupted image did not panic (verity error present: $(grep -c 'is corrupted' <<< "$out"))"
 fi
 rm -f /tmp/heatos-a1.img
 

@@ -1,0 +1,11 @@
+#!/bin/sh
+# cmdchamp uses exactly four capabilities. shipping ncurses plus a terminfo
+# database for these would cost more than the entire rest of the OS.
+size() { stty size 2>/dev/null; }
+case "$1" in
+	cols)  c=$(size | cut -d' ' -f2); [ -n "$c" ] && [ "$c" -gt 0 ] 2>/dev/null && echo "$c" || echo 80 ;;
+	lines) l=$(size | cut -d' ' -f1); [ -n "$l" ] && [ "$l" -gt 0 ] 2>/dev/null && echo "$l" || echo 24 ;;
+	smacs) printf '\033(0' ;;   # enter line-drawing charset
+	rmacs) printf '\033(B' ;;   # back to ASCII
+	*)     exit 1 ;;
+esac

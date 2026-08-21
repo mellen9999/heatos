@@ -5,6 +5,7 @@ echo printf test test1 true false busybox
 grep sed awk cut sort uniq head tail wc tr
 vi
 ps kill sleep uname free df du
+chmod date stty mktemp touch dirname basename id env
 dd sync stat find xargs
 dmesg halt poweroff reboot
 clear reset

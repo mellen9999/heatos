@@ -3,6 +3,17 @@ mount -t proc none /proc
 mount -t sysfs none /sys
 mount -t devtmpfs none /dev 2>/dev/null
 
+# the root is read-only by design, so anything that needs to write gets a
+# RAM-backed home. nothing here survives a reboot, which is the point.
+mount -t tmpfs none /tmp
+mkdir -p /tmp/home
+export HOME=/tmp/home
+export XDG_DATA_HOME=/tmp/home/.local/share
+export XDG_CONFIG_HOME=/tmp/home/.config
+export XDG_STATE_HOME=/tmp/home/.local/state
+export TERM=linux
+mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+
 if grep -q heatos.test /proc/cmdline; then
 	echo
 	echo "HEATOS-TEST-BEGIN"
@@ -12,6 +23,12 @@ if grep -q heatos.test /proc/cmdline; then
 	printf 'dynamic-loader-present: '; if [ -e /lib/ld-musl-x86_64.so.1 ]; then echo "yes (BAD)"; else echo "no (good)"; fi
 	printf 'module-loader: '; if [ -e /proc/modules ]; then echo "present (BAD)"; else echo "absent (good)"; fi
 	printf 'busybox-runs: '; busybox true && echo yes || echo no
+	printf 'bash-runs: '; if [ -x /bin/bash ]; then /bin/bash -c 'exit 0' && echo yes || echo no; else echo absent; fi
+	printf 'bash-assoc-arrays: '; /bin/bash -c 'declare -A m; m[k]=ok; [[ ${m[k]} == ok ]]' 2>/dev/null && echo yes || echo no
+	printf 'tput-shim: '; echo "$(tput cols)x$(tput lines)"
+	printf 'cmdchamp-version: '; cmdchamp --version 2>&1 | tail -1
+	printf 'cmdchamp-list: '; cmdchamp --list 2>/dev/null | wc -l | tr -d ' '
+	printf 'writable-home: '; touch "$HOME/probe" 2>/dev/null && echo "yes (tmpfs)" || echo no
 	echo "HEATOS-TEST-END"
 	sync
 fi
