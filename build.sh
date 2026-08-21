@@ -7,6 +7,7 @@ BBVER="${BBVER:-1.37.0}"
 JOBS="$(nproc)"
 IMAGE_MAX=8388608
 SALT=48454154534f530000000000000000000000000000000000000000000000000a
+SBGUID=11111111-2222-3333-4444-555555555555
 
 say() { printf '\n\033[1;33m==> %s\033[0m\n' "$*"; }
 
@@ -143,6 +144,43 @@ rootfs() {
   printf '  rootfs.squashfs: %d bytes (%d files)\n' "$(stat -c%s rootfs.squashfs)" "$(find root -type f -o -type l | wc -l)"
 }
 
+keys() {
+  say "generating heatos secure boot keys"
+  [ -f keys/db.key ] && { echo "  already present (delete keys/ to regenerate)"; return 0; }
+  mkdir -p keys
+  for k in PK KEK db; do
+    openssl req -new -x509 -newkey rsa:2048 -nodes -sha256 -days 3650 \
+      -subj "/CN=heatos $k/" -keyout "keys/$k.key" -out "keys/$k.crt" 2>/dev/null
+    openssl x509 -in "keys/$k.crt" -outform DER -out "keys/$k.der"
+  done
+  chmod 700 keys; chmod 600 keys/*.key
+  echo "  PK/KEK/db written to keys/ (gitignored, heatos-only -- NOT heatpc's)"
+}
+
+uki() {
+  say "building + signing unified kernel image"
+  [ -f cmdline.txt ] || { echo "FAIL: run verity first" >&2; return 1; }
+  local stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub
+  [ -f "$stub" ] || { echo "FAIL: systemd-stub missing" >&2; return 1; }
+  grep -q '^CONFIG_EFI_STUB=y' "src/linux-$KVER/.config" || {
+    echo "FAIL: kernel lacks EFI_STUB -- firmware cannot load it" >&2; return 1; }
+
+  ukify build --linux=bzImage --cmdline="$(cat cmdline.txt)" --stub="$stub" --output=heatos.efi >/dev/null
+  sbsign --key keys/db.key --cert keys/db.crt --output heatos-signed.efi heatos.efi >/dev/null
+  sbverify --cert keys/db.crt heatos-signed.efi >/dev/null 2>&1 || {
+    echo "FAIL: signature does not verify" >&2; return 1; }
+
+  mkdir -p esp/EFI/BOOT
+  cp heatos-signed.efi esp/EFI/BOOT/BOOTX64.EFI
+
+  cp /usr/share/edk2/x64/OVMF_VARS.4m.fd ovmf-vars.fd
+  virt-fw-vars --input ovmf-vars.fd --output ovmf-vars.fd \
+    --set-pk  "$SBGUID" keys/PK.der \
+    --add-kek "$SBGUID" keys/KEK.der \
+    --add-db  "$SBGUID" keys/db.der >/dev/null 2>&1
+  printf '  signed UKI: %d bytes, keys enrolled into ovmf-vars.fd\n' "$(stat -c%s heatos-signed.efi)"
+}
+
 verity() {
   say "building verity hash tree"
   cp rootfs.squashfs heatos.img
@@ -166,9 +204,13 @@ verity() {
   # veritysetup writes a superblock AT the hash offset, so the hash tree
   # itself starts one block later -- pointing the table at $blocks lands on
   # the superblock and the root mount fails with no verity error at all.
-  printf 'dm-mod.create="vroot,,,ro,0 %d verity 1 /dev/vda /dev/vda 4096 4096 %d %d sha256 %s %s" root=/dev/dm-0 ro rootfstype=squashfs rootwait init=/init console=ttyS0,115200
-' \
-    "$((blocks * 8))" "$blocks" "$((blocks + 1))" "$rh" "$SALT" > cmdline.txt
+  # heatos.test is DEBUG scaffolding, and the cmdline lives INSIDE the UKI
+  # signature -- so it must never ship in a production image. attack.sh
+  # rebuilds a test-flavoured UKI for its own runs.
+  local testflag=""
+  [ "${HEATOS_TEST:-0}" = 1 ] && testflag=" heatos.test"
+  printf 'dm-mod.create="vroot,,,ro,0 %d verity 1 /dev/vda /dev/vda 4096 4096 %d %d sha256 %s %s" root=/dev/dm-0 ro rootfstype=squashfs rootwait init=/init console=ttyS0,115200%s\n' \
+    "$((blocks * 8))" "$blocks" "$((blocks + 1))" "$rh" "$SALT" "$testflag" > cmdline.txt
 
   printf '  heatos.img: %d bytes  root hash: %s
 ' "$(stat -c%s heatos.img)" "$rh"
@@ -216,14 +258,18 @@ size() {
 }
 
 boot() {
-  [ -f cmdline.txt ] || { echo "FAIL: run ./build.sh verity first" >&2; return 1; }
-  qemu-system-x86_64 -m 128 -kernel bzImage \
+  [ -f ovmf-vars.fd ] || { echo "FAIL: run ./build.sh uki first" >&2; return 1; }
+  qemu-system-x86_64 -machine q35,smm=on -m 256 \
+    -global driver=cfi.pflash01,property=secure,value=on \
+    -drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
+    -drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
     -drive file="${1:-heatos.img}",if=virtio,format=raw,readonly=on \
-    -append "$(cat cmdline.txt) ${HEATOS_APPEND:-}" -nographic -no-reboot
+    -drive file=fat:esp,format=raw,if=virtio,readonly=on \
+    -nographic -no-reboot
 }
 
 case "${1:-all}" in
-  fetch|kernel|headers|busybox|rootfs|verity|size|boot) "$1" ;;
-  all) fetch; kernel; headers; busybox; rootfs; verity; size ;;
+  fetch|kernel|headers|busybox|rootfs|verity|keys|uki|size|boot) "$1" ;;
+  all) fetch; kernel; headers; busybox; rootfs; verity; keys; uki; size ;;
   *) echo "usage: $0 {fetch|kernel|busybox|initramfs|floppy|size|run|boot|all}"; exit 1 ;;
 esac

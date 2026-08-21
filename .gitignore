@@ -13,3 +13,10 @@ syslinux.cfg
 *.efi
 *.fd
 sysroot/
+esp/
+ovmf-vars.fd
+heatos.efi
+heatos-signed.efi
+verity.info
+verity.roothash
+cmdline.txt
