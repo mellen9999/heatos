@@ -59,6 +59,13 @@ if grep -q heatos.test /proc/cmdline; then
 		printf 'ii-joined-channel: '; find "$HOME/irc" -maxdepth 2 -type d -name '#heatos' 2>/dev/null | wc -l
 	fi
 
+	echo 0 > /proc/sys/kernel/printk
+	printf 'HEAD / HTTP/1.0\r\nHost: letsencrypt.org\r\nConnection: close\r\n\r\n' | tlstunnel - letsencrypt.org 443 > /tmp/tls.out 2> /tmp/tls.err
+	printf 'tls-handshake: '; head -1 /tmp/tls.out 2>/dev/null | tr -d '\r' | grep . || echo FAILED
+	printf 'tls-stderr: '; head -1 /tmp/tls.err 2>/dev/null | grep . || echo none
+	echo 1 > /proc/sys/kernel/printk
+	printf 'trust-anchors-in-binary: '; grep -ac 'Internet Security Research Group' /bin/tlstunnel 2>/dev/null || echo 0
+
 	printf 'writable-home: '; touch "$HOME/probe" 2>/dev/null && echo "yes (tmpfs)" || echo no
 	echo "HEATOS-TEST-END"
 	sync

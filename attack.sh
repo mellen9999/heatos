@@ -3,6 +3,7 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 
+has() { local n; n=$(grep -c -- "$1" || true); [ "${n:-0}" -gt 0 ]; }
 pass=0; fail=0
 
 # production carries no test hook, so build a test-flavoured UKI for this run
@@ -86,6 +87,20 @@ else
 	bad "a dynamic loader is present"
 fi
 grep -q 'dynamic-loader-present: no' <<< "$out" && ok "confirmed absent from inside the booted system" || bad "loader present at runtime"
+
+echo
+echo "A6  TLS must refuse a certificate outside our trust anchors"
+if ! printf 'HEAD / HTTP/1.0\r\nHost: letsencrypt.org\r\nConnection: close\r\n\r\n' \
+     | timeout 20 ./tlstunnel - letsencrypt.org 443 2>/dev/null | has 'HTTP/1'; then
+	echo "  SKIP  no network -- A6 not evaluated (not counted as a pass)"
+else
+	ok "trusted CA: handshake with letsencrypt.org succeeded"
+	err=$({ printf 'HEAD / HTTP/1.0\r\nHost: google.com\r\n\r\n' | timeout 20 ./tlstunnel - google.com 443 2>&1 >/dev/null; } || true)
+	case "$err" in
+		*"ssl error 62"*) ok "untrusted CA refused (BR_ERR_X509_NOT_TRUSTED)" ;;
+		*)                bad "a cert outside trust/ was not refused: ${err:-no error}" ;;
+	esac
+fi
 
 echo
 printf '  %d passed, %d failed\n\n' "$pass" "$fail"

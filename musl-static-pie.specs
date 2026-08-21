@@ -25,4 +25,4 @@ libgcc.a%s %:if-exists(libgcc_eh.a%s)
 # -r (partial link) cannot take -pie, and busybox partial-links every
 # subdirectory, so the static-pie flags must apply to the final link only.
 *link:
--nostdlib %{!r:-static -pie --no-dynamic-linker} %{rdynamic:-export-dynamic}
+-nostdlib %{!r:%{!shared:-static -pie --no-dynamic-linker}} %{shared:-shared} %{rdynamic:-export-dynamic}

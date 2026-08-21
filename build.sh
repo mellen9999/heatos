@@ -6,6 +6,7 @@ KVER="${KVER:-6.12.43}"
 BBVER="${BBVER:-1.37.0}"
 BASHVER="${BASHVER:-5.3}"
 IIVER="${IIVER:-2.0}"
+BSSLVER="${BSSLVER:-0.6}"
 CMDCHAMP_SRC="${CMDCHAMP_SRC:-$HOME/projects/cmdchamp}"
 # plaintext private keys live ONLY here, only while unlocked. /dev/shm is
 # tmpfs, so nothing lands on disk.
@@ -63,6 +64,12 @@ fetch() {
   [ -f "src/$iitar" ] || curl -fL "https://dl.suckless.org/tools/$iitar" -o "src/$iitar"
   grep -q " $iitar$" sources.sha256 || { echo "FAIL: $iitar not pinned" >&2; return 1; }
   [ -d "src/ii-$IIVER" ] || tar -C src -xf "src/$iitar"
+
+  # bearssl: also no upstream signature -- see SOURCES.md
+  local bstar="bearssl-$BSSLVER.tar.gz"
+  [ -f "src/$bstar" ] || curl -fL "https://bearssl.org/$bstar" -o "src/$bstar"
+  grep -q " $bstar$" sources.sha256 || { echo "FAIL: $bstar not pinned" >&2; return 1; }
+  [ -d "src/bearssl-$BSSLVER" ] || tar -C src -xf "src/$bstar"
 }
 
 kernel() {
@@ -171,6 +178,37 @@ bash_() {
   printf '  bash: %d bytes\n' "$(stat -c%s bash)"
 }
 
+ta() {
+  say "compiling trust anchors"
+  local d="src/bearssl-$BSSLVER"
+  [ -x "$d/build/brssl" ] || { echo "FAIL: brssl missing, run tls first" >&2; return 1; }
+  local pems; pems=$(find trust -name '*.pem' | sort)
+  [ -n "$pems" ] || { echo "FAIL: trust/ is empty -- refusing to build a client that trusts nothing" >&2; return 1; }
+  # shellcheck disable=SC2086
+  "$d/build/brssl" ta $pems > ta.h || return 1
+  local n; n=$(grep -oE 'TAs_NUM[[:space:]]+[0-9]+' ta.h | grep -oE '[0-9]+$')
+  [ "${n:-0}" -gt 0 ] || { echo "FAIL: ta.h has no anchors" >&2; return 1; }
+  printf '  %s trust anchor(s) compiled in:\n' "$n"
+  local f; for f in $pems; do printf '    %s\n' "$(openssl x509 -in "$f" -noout -subject | sed 's/^subject=//')"; done
+}
+
+tls() {
+  say "building bearssl + tlstunnel"
+  local d="src/bearssl-$BSSLVER" specs="$PWD/musl-static-pie.specs"
+  [ -f "$d/build/libbearssl.a" ] || \
+    make -C "$d" CC="gcc -specs=$specs" CFLAGS="-W -Wall -Os -fPIE -isystem $PWD/sysroot/include" \
+      build/libbearssl.a >/dev/null 2>&1
+  [ -x "$d/build/brssl" ] || \
+    make -C "$d" CC="gcc -specs=$specs" CFLAGS="-W -Wall -Os -fPIE -isystem $PWD/sysroot/include" \
+      build/brssl >/dev/null 2>&1
+  [ -f "$d/build/libbearssl.a" ] || { echo "FAIL: libbearssl.a did not build" >&2; return 1; }
+  ta || return 1
+  gcc -specs="$specs" -fPIE -Os -isystem "$PWD/sysroot/include" \
+    -I"$d/inc" -I. -o tlstunnel tlstunnel.c "$d/build/libbearssl.a" || return 1
+  { ./tlstunnel 2>&1 || true; } | has usage || { echo "FAIL: tlstunnel does not run" >&2; return 1; }
+  printf '  tlstunnel: %d bytes\n' "$(stat -c%s tlstunnel)"
+}
+
 ii_() {
   say "building ii $IIVER (irc, musl static-pie)"
   local d="src/ii-$IIVER" specs="$PWD/musl-static-pie.specs"
@@ -220,6 +258,7 @@ rootfs() {
   fi
 
   [ -f ii ] && cp ii root/bin/ii
+  [ -f tlstunnel ] && cp tlstunnel root/bin/tlstunnel
 
   # hand-written shims for things busybox lacks
   [ -d overlay ] && cp -r overlay/. root/
@@ -453,7 +492,7 @@ boot() {
 }
 
 case "${1:-all}" in
-  fetch|kernel|headers|busybox|bash_|ii_|rootfs|verity|keys|seal|reseal|unlock|lock|uki|size|boot) "$1" ;;
+  fetch|kernel|headers|busybox|bash_|ii_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|size|boot) "$1" ;;
   all) fetch; kernel; headers; busybox; rootfs; verity; keys; uki; size ;;
   *) echo "usage: $0 {fetch|kernel|busybox|initramfs|floppy|size|run|boot|all}"; exit 1 ;;
 esac

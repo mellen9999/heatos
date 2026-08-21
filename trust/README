@@ -1,0 +1,16 @@
+Every certificate authority in this directory can issue a certificate for ANY
+domain that heatos will believe. That is what a trust store is.
+
+A normal distro ships ~150 of these. heatos ships the ones it needs and no
+more, and because they live in git, adding one is a visible commit with a
+diff -- not an invisible default.
+
+  isrg-root-x1.pem   Let's Encrypt / ISRG Root X1.
+                     sha256 96:BC:EC:06:...:DF:08:C6
+                     Verified two ways: fetched from letsencrypt.org AND
+                     byte-compared against heatpc's system trust store.
+                     Needed because irc.libera.chat chains to it.
+
+`./build.sh ta` compiles these into ta.h, which is linked into tlstunnel. The
+anchors end up inside the signed, verity-covered image -- nobody can drop an
+extra CA into a directory at runtime.

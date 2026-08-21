@@ -20,3 +20,4 @@ heatos-signed.efi
 verity.info
 verity.roothash
 cmdline.txt
+ta.h

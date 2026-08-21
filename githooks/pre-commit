@@ -12,11 +12,23 @@ staged=$(git diff --cached --name-only --diff-filter=ACM)
 while read -r f; do
 	[ -z "$f" ] && continue
 	case "$f" in
-		keys/*|*.key|*.pem)          say "refusing to commit a key: $f" ;;
+		keys/*|*.key)                say "refusing to commit a key: $f" ;;
 		bzImage|busybox|*.img|*.squashfs|*.uki|*.efi|*.fd|*.cpio.gz)
 			say "refusing to commit a build artifact: $f" ;;
 		src/*)                       say "refusing to commit vendored upstream source: $f" ;;
 	esac
+done <<< "$staged"
+
+# a PEM can be a public certificate (trust/ holds those on purpose) or a
+# private key. decide on CONTENT, not extension -- that is both more permissive
+# where it should be and stricter everywhere else, including files with no
+# telltale name at all.
+while read -r f; do
+	[ -z "$f" ] && continue
+	[ -f "$f" ] || continue
+	if git show ":$f" 2>/dev/null | grep -qE 'BEGIN (RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY'; then
+		say "refusing to commit a file containing a PRIVATE KEY: $f"
+	fi
 done <<< "$staged"
 
 # G1 -- if an image exists, it must be under the cap declared in build.sh
