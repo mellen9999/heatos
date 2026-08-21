@@ -276,7 +276,12 @@ rootfs() {
   ln -sf /bin/busybox root/usr/bin/env
 
   # hand-written shims for things busybox lacks
-  [ -d overlay ] && cp -r overlay/. root/
+  # overlay carries the tput shim cmdchamp needs and the udhcpc script without
+  # which dhcp silently configures nothing. it was optional; under `set -e` a
+  # failing test in an && list does not abort, so a missing overlay just
+  # produced a quieter, more broken image.
+  [ -d overlay ] || { echo "FAIL: overlay/ missing" >&2; return 1; }
+  cp -r overlay/. root/
 
   cp init root/init
   chmod +x root/init

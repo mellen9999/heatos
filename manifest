@@ -15,3 +15,5 @@ bin/udhcpc
 bin/ip
 opt/cmdchamp/cmdchamp
 usr/bin/env
+bin/tput
+usr/share/udhcpc/default.script
