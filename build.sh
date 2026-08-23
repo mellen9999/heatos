@@ -641,6 +641,19 @@ toolchain() {
   } | sha256sum | awk '{print $1}'
 }
 
+# cmdchamp is external content under active development, so its digest changes
+# every time it is edited and the pin goes stale. re-pin it in one step instead
+# of hand-editing sources.sha256. this is deliberate and shows up as a diff.
+repin() {
+  say "re-pinning cmdchamp digest"
+  [ -f "$CMDCHAMP_SRC/cmdchamp" ] || { echo "FAIL: no cmdchamp at $CMDCHAMP_SRC" >&2; return 1; }
+  grep -q ' cmdchamp$' sources.sha256 || { echo "FAIL: cmdchamp line missing from sources.sha256" >&2; return 1; }
+  local d; d=$(sha256sum < "$CMDCHAMP_SRC/cmdchamp" | awk '{print $1}')
+  awk -v d="$d" '$2=="cmdchamp"{print d"  cmdchamp"; next} {print}' sources.sha256 > sources.sha256.tmp \
+    && mv sources.sha256.tmp sources.sha256
+  echo "  cmdchamp re-pinned to ${d:0:16}... -- commit the sources.sha256 diff"
+}
+
 pin() {
   say "pinning the bytes this source produces"
   [ -f heatos.img ] || { echo "FAIL: no heatos.img -- build first" >&2; return 1; }
@@ -863,12 +876,12 @@ bootusb() {
 }
 
 case "${1:-all}" in
-  deps|fetch|kernel|headers|busybox|bash_|ii_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|stick|usb|pin|size|boot|bootusb) "$@" ;;
+  deps|fetch|kernel|headers|busybox|bash_|ii_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|stick|usb|pin|repin|size|boot|bootusb) "$@" ;;
   all)
     deps; fetch; kernel; headers; busybox; bash_; tls; ii_; rootfs; verity; keys
     # clean clone makes plaintext keys; seal them so uki's unlock has db.key.enc
     # and G11 stays green. a sealed tree short-circuits keys() and skips this.
     if [ -f keys/db.key ]; then seal; fi
     uki; stick; size ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|bash_|ii_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|stick|usb <dev>|pin|size|boot|bootusb|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|bash_|ii_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|stick|usb <dev>|pin|repin|size|boot|bootusb|all}"; exit 1 ;;
 esac
