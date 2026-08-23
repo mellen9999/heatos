@@ -11,3 +11,12 @@ dmesg halt poweroff reboot
 clear reset
 setsid cttyhack
 ip ifconfig route udhcpc ping wget nc hostname netstat traceroute nslookup
+# offense/recovery, all inside the one already-gated static busybox (max
+# capability per byte, no new pinned source, no new trust surface).
+arp arping telnet tftp ftpget ftpput
+sha256sum sha512sum sha1sum md5sum cksum base64
+tar gzip gunzip zcat bzip2 bunzip2 unzip
+fdisk blkid findfs losetup blockdev
+hexdump od strings cmp diff less tee
+top pgrep pkill watch timeout nohup flock
+seq tac split readlink realpath which whoami tty mkfifo nproc
