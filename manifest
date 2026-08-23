@@ -16,4 +16,6 @@ bin/ip
 opt/cmdchamp/cmdchamp
 usr/bin/env
 bin/tput
+bin/setsid
+bin/cttyhack
 usr/share/udhcpc/default.script

@@ -7,8 +7,13 @@
 *cpp_options:
 -nostdinc -isystem /usr/lib/musl/include -isystem include%s %(old_cpp_options)
 
+# -fstack-protector-strong: musl's static libc provides __stack_chk_fail and
+# canary setup, so SSP works in a no-ldso static-pie binary. -fstack-clash-
+# protection emits stack probes (pure codegen, no libc dependency).
+# NOT -D_FORTIFY_SOURCE: musl ships no _chk implementations, so it is a silent
+# no-op -- fortify-headers would be a new dependency for a claim nothing backs.
 *cc1:
-%(cc1_cpu) -nostdinc -isystem /usr/lib/musl/include -isystem include%s
+%(cc1_cpu) -nostdinc -isystem /usr/lib/musl/include -isystem include%s -fstack-protector-strong -fstack-clash-protection
 
 *link_libgcc:
 -L/usr/lib/musl/lib -L .%s
@@ -24,5 +29,8 @@ libgcc.a%s %:if-exists(libgcc_eh.a%s)
 
 # -r (partial link) cannot take -pie, and busybox partial-links every
 # subdirectory, so the static-pie flags must apply to the final link only.
+# -z noexecstack is kernel-enforced (non-exec stack) and gated by G16. relro/now
+# emit PT_GNU_RELRO but nothing enforces it in a static-pie binary with no ldso
+# -- kept as belt, deliberately NOT gated, so no check claims what it can't.
 *link:
--nostdlib %{!r:%{!shared:-static -pie --no-dynamic-linker}} %{shared:-shared} %{rdynamic:-export-dynamic}
+-nostdlib %{!r:%{!shared:-static -pie --no-dynamic-linker -z noexecstack -z relro -z now}} %{shared:-shared} %{rdynamic:-export-dynamic}

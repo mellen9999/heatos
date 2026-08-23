@@ -1,11 +1,43 @@
 #!/bin/sh
-mount -t proc none /proc
-mount -t sysfs none /sys
-mount -t devtmpfs none /dev 2>/dev/null
+# nosuid,nodev,noexec everywhere they are safe. /dev keeps device nodes (no
+# nodev) but drops suid+exec. these close the one W^X hole in an otherwise
+# immutable system: a static-pie binary needs no loader, so a writable+
+# executable tmpfs was a place to drop and run code. noexec /tmp shuts it.
+mount -t proc  -o nosuid,nodev,noexec none /proc
+mount -t sysfs -o nosuid,nodev,noexec none /sys
+mount -t devtmpfs -o nosuid,noexec none /dev 2>/dev/null
+# securityfs exposes /sys/kernel/security/lockdown so the lockdown state is
+# provable at runtime (the test block reads it; A8 asserts it).
+mount -t securityfs -o nosuid,nodev,noexec none /sys/kernel/security 2>/dev/null
 
 # the root is read-only by design, so anything that needs to write gets a
 # RAM-backed home. nothing here survives a reboot, which is the point.
-mount -t tmpfs none /tmp
+mount -t tmpfs -o nosuid,nodev,noexec none /tmp
+
+# runtime sysctl hardening. write /proc/sys directly (no sysctl-applet dep).
+# a key whose feature is compiled out is simply absent -- that is already the
+# safe state, so skip it; a write that FAILS on a present key is loud. several
+# (dmesg_restrict, perf_event_paranoid) are inert while the console is root,
+# and are set for the day that stops being true.
+for kv in \
+  kernel/kptr_restrict=2 \
+  kernel/dmesg_restrict=1 \
+  kernel/perf_event_paranoid=3 \
+  fs/protected_symlinks=1 \
+  fs/protected_hardlinks=1 \
+  fs/protected_fifos=2 \
+  fs/protected_regular=2 \
+  net/ipv4/tcp_syncookies=1 \
+  net/ipv4/conf/all/accept_redirects=0 \
+  net/ipv4/conf/all/send_redirects=0 \
+  net/ipv4/conf/all/accept_source_route=0 \
+  net/ipv4/conf/all/rp_filter=1 \
+  net/ipv4/icmp_echo_ignore_broadcasts=1
+do
+  p=/proc/sys/${kv%=*}; v=${kv#*=}
+  [ -e "$p" ] || continue
+  echo "$v" > "$p" 2>/dev/null || echo "sysctl FAILED: ${kv%=*}"
+done
 mkdir -p /tmp/home
 export HOME=/tmp/home
 export XDG_DATA_HOME=/tmp/home/.local/share
@@ -31,12 +63,26 @@ if grep -q heatos.test /proc/cmdline; then
 	printf 'write-to-root: '; if touch /probe 2>/dev/null; then echo "SUCCEEDED (BAD)"; else echo "refused (good)"; fi
 	printf 'dynamic-loader-present: '; if [ -e /lib/ld-musl-x86_64.so.1 ]; then echo "yes (BAD)"; else echo "no (good)"; fi
 	printf 'module-loader: '; if [ -e /proc/modules ]; then echo "present (BAD)"; else echo "absent (good)"; fi
+	# kernel attack-surface + containment probes (A8/A9 grep these)
+	printf 'devmem-node: '; if [ -e /dev/mem ]; then echo "present (BAD)"; else echo "absent (good)"; fi
+	printf 'devport-node: '; if [ -e /dev/port ]; then echo "present (BAD)"; else echo "absent (good)"; fi
+	printf 'kcore: '; if [ -e /proc/kcore ]; then echo "present (BAD)"; else echo "absent (good)"; fi
+	printf 'kexec-loaded: '; if [ -e /sys/kernel/kexec_loaded ]; then echo "present (BAD)"; else echo "absent (good)"; fi
+	printf 'vsyscall-map: '; grep -c vsyscall /proc/self/maps 2>/dev/null || echo 0
+	printf 'lockdown: '; cat /sys/kernel/security/lockdown 2>/dev/null || echo "(no securityfs)"
+	printf 'remount-rw: '; if mount -o remount,rw / 2>/dev/null; then echo "SUCCEEDED (BAD)"; else echo "refused (good)"; fi
+	printf 'tmp-exec: '; cp /bin/busybox /tmp/probe-x 2>/dev/null; chmod +x /tmp/probe-x 2>/dev/null; if /tmp/probe-x true 2>/dev/null; then echo "SUCCEEDED (BAD)"; else echo "refused (good)"; fi; rm -f /tmp/probe-x
+	printf 'kptr-restrict: '; cat /proc/sys/kernel/kptr_restrict 2>/dev/null || echo '?'
+	printf 'dmesg-restrict: '; cat /proc/sys/kernel/dmesg_restrict 2>/dev/null || echo '?'
 	printf 'busybox-runs: '; busybox true && echo yes || echo no
 	printf 'bash-runs: '; if [ -x /bin/bash ]; then /bin/bash -c 'exit 0' && echo yes || echo no; else echo absent; fi
 	printf 'bash-assoc-arrays: '; /bin/bash -c 'declare -A m; m[k]=ok; [[ ${m[k]} == ok ]]' 2>/dev/null && echo yes || echo no
 	printf 'tput-shim: '; echo "$(tput cols)x$(tput lines)"
 	printf 'cmdchamp-version: '; cmdchamp --version 2>&1 | tail -1
-	printf 'cmdchamp-list: '; cmdchamp --list 2>/dev/null | wc -l | tr -d ' '
+	# `explain ls` exercises the assoc-array explain corpus -- a real functional
+	# check. the old `--list` was not a subcommand: it fell through to usage and
+	# always printed 2 lines, so the probe read "2" whether cmdchamp worked or not.
+	printf 'cmdchamp-explain: '; cmdchamp explain ls 2>/dev/null | grep -c . | tr -d ' '
 	# print presence, never addresses -- this output gets read aloud
 	printf 'net-iface-up: '; ip -o -4 addr show scope global 2>/dev/null | awk '{print $2}' | head -1 | grep . || echo none
 	printf 'net-has-address: '; [ "$(ip -o -4 addr show scope global 2>/dev/null | wc -l)" -gt 0 ] && echo yes || echo no
@@ -71,10 +117,26 @@ if grep -q heatos.test /proc/cmdline; then
 	sync
 fi
 
-cat <<'BANNER'
+# tighten default permissions on anything the session writes to tmpfs
+umask 077
+
+banner() {
+	cat <<'BANNER'
 
   heatos -- static-pie musl, read-only root
   every byte on this disk is covered by a hash tree
 
 BANNER
+}
+
+# real hardware: the framebuffer console gets its own login shell so a screen +
+# keyboard is usable. serial stays primary (exec below). same shell, another
+# tty -- not a second shell program. respawn on exit; the sleep stops a spin if
+# the tty is dead. under qemu -nographic the fbcon exists but is unseen, so this
+# runs harmlessly in the background there.
+if [ -c /dev/tty1 ] && [ -d /sys/class/graphics/fbcon ]; then
+	( while : ; do banner >/dev/tty1; setsid cttyhack /bin/sh <>/dev/tty1 >/dev/tty1 2>&1; sleep 1; done ) &
+fi
+
+banner
 exec /bin/sh

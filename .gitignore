@@ -25,3 +25,5 @@ bash
 ii
 tlstunnel
 rootfs.squashfs
+esp.part
+sources.sha256.tmp

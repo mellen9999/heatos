@@ -8,17 +8,23 @@ pass=0; fail=0; skip=0; sections=0
 # the gate runner already learned this: a run that dies partway through prints
 # a smaller number and looks exactly like a clean one. count the attacks that
 # actually ran and refuse to report a result if any of them went missing.
-EXPECTED_SECTIONS=6
+EXPECTED_SECTIONS=10
 section() { sections=$((sections+1)); echo; echo "$1"; }
 
-# production carries no test hook, so build a test-flavoured UKI for this run
-# and restore the production one on the way out.
+# p2 (root) starts after the 1 MiB gap + the ESP. keep in step with build.sh
+# STICK_ESP_MIB (64). the whole stick is what boots on real hardware, so the
+# harness attacks the stick, not the bare heatos.img.
+ROOT_OFF=$(( (1 + 64) * 1024 * 1024 ))
+
+# production carries no test hook, so build a test-flavoured UKI + stick for this
+# run and restore the production ones on the way out.
 # unlock once into RAM; every subsequent sign reuses it, and we wipe on exit.
 ./build.sh unlock || { echo "cannot unlock signing keys"; exit 1; }
-HEATOS_TEST=1 ./build.sh verity >/dev/null && ./build.sh uki >/dev/null
+HEATOS_TEST=1 ./build.sh verity >/dev/null && ./build.sh uki >/dev/null && ./build.sh stick >/dev/null
 restore() {
-	./build.sh verity >/dev/null 2>&1 && ./build.sh uki >/dev/null 2>&1
+	./build.sh verity >/dev/null 2>&1 && ./build.sh uki >/dev/null 2>&1 && ./build.sh stick >/dev/null 2>&1
 	./build.sh lock >/dev/null 2>&1
+	rm -f /tmp/heatos-a*.img /tmp/heatos-a*.efi
 }
 trap restore EXIT
 ok()  { printf '  \033[1;32mPASS\033[0m  %s\n' "$1"; pass=$((pass+1)); }
@@ -28,23 +34,38 @@ bad() { printf '  \033[1;31mFAIL\033[0m  %s\n' "$1"; fail=$((fail+1)); }
 # catch everywhere else.
 skipped() { printf '  \033[1;33mSKIP\033[0m  %s\n' "$1"; skip=$((skip+1)); }
 
-# boots the real chain: firmware -> enrolled key -> signed UKI -> verity root
+# boots the real chain over VIRTIO: firmware -> enrolled key -> signed UKI ->
+# verity root resolved by PARTUUID off the stick's p2.
 boot_img() {
-	timeout 90 qemu-system-x86_64 -machine q35,smm=on -m 256 \
+	timeout 120 qemu-system-x86_64 -machine q35,smm=on -m 256 \
 		-global driver=cfi.pflash01,property=secure,value=on \
 		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
 		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
 		-drive file="$1",if=virtio,format=raw,readonly=on \
-		-drive file=fat:esp,format=raw,if=virtio,readonly=on \
+		-nic user,model=virtio-net-pci \
 		-nographic -no-reboot < /dev/null 2>&1
 }
 
+# same chain but over an emulated xHCI USB mass-storage device -- the real
+# hardware path, including usb enumeration and the dm-mod.waitfor poll.
+boot_usb() {
+	timeout 120 qemu-system-x86_64 -machine q35,smm=on -m 256 \
+		-global driver=cfi.pflash01,property=secure,value=on \
+		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
+		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
+		-device qemu-xhci,id=xhci \
+		-drive if=none,id=stick,format=raw,readonly=on,file="$1" \
+		-device usb-storage,bus=xhci.0,drive=stick \
+		-nic user,model=virtio-net-pci \
+		-nographic -no-reboot < /dev/null 2>&1
+}
+
+flip() { python3 -c "import pathlib;p=pathlib.Path('$1');b=bytearray(p.read_bytes());b[$2]^=1;p.write_bytes(bytes(b))"; }
+
 echo
-section "A1  flip one byte in the image -- boot must refuse"
-cp heatos.img /tmp/heatos-a1.img
-python3 -c "
-import pathlib,sys
-p=pathlib.Path('/tmp/heatos-a1.img'); b=bytearray(p.read_bytes()); b[100000]^=1; p.write_bytes(bytes(b))"
+section "A1  flip one byte in the root filesystem -- boot must refuse"
+cp stick.img /tmp/heatos-a1.img
+flip /tmp/heatos-a1.img $((ROOT_OFF + 100000))
 out=$(boot_img /tmp/heatos-a1.img)
 # verity detects lazily, when the block is actually read, so the machine may
 # execute briefly first. what must be true is that it dies rather than
@@ -57,36 +78,36 @@ fi
 rm -f /tmp/heatos-a1.img
 
 echo
-section "A2  clean image -- must boot, and root must be unwritable"
-out=$(boot_img heatos.img)
+section "A2  clean stick -- must boot, and root must be unwritable"
+out=$(boot_img stick.img)
 grep -qi 'secure boot is enabled' <<< "$out" && ok "secure boot was enforcing during the run" || bad "secure boot not enabled"
 grep -q 'write-to-root: refused' <<< "$out" && ok "write to / returned EROFS" || bad "root was writable"
 grep -q 'busybox-runs: yes'      <<< "$out" && ok "userland actually executes"  || bad "userland did not run"
 
 echo
 section "A3  unsigned UKI -- firmware must refuse it"
-cp heatos.efi esp/EFI/BOOT/BOOTX64.EFI
-o3=$(boot_img heatos.img)
+cp stick.img /tmp/heatos-a3.img
+mcopy -o -i /tmp/heatos-a3.img@@1M heatos.efi ::/EFI/BOOT/BOOTX64.EFI
+o3=$(boot_img /tmp/heatos-a3.img)
 if grep -q HEATOS-TEST-BEGIN <<< "$o3"; then
 	bad "unsigned kernel booted -- secure boot is not enforcing"
 else
 	grep -qi 'access denied' <<< "$o3" && ok "firmware rejected the unsigned image" \
 		|| bad "unsigned image did not boot, but not visibly refused by secure boot"
 fi
+rm -f /tmp/heatos-a3.img
 
 echo
 section "A4  tamper the signed UKI -- signature must break"
 cp heatos-signed.efi /tmp/heatos-a4.efi
-python3 -c "
-import pathlib
-p=pathlib.Path('/tmp/heatos-a4.efi'); b=bytearray(p.read_bytes()); b[len(b)//2]^=1; p.write_bytes(bytes(b))"
+flip /tmp/heatos-a4.efi $(( $(stat -c%s heatos-signed.efi) / 2 ))
 sbverify --cert keys/db.crt /tmp/heatos-a4.efi >/dev/null 2>&1 \
 	&& bad "tampered UKI still verified" || ok "one flipped bit invalidates the signature"
-cp /tmp/heatos-a4.efi esp/EFI/BOOT/BOOTX64.EFI
-o4=$(boot_img heatos.img)
+cp stick.img /tmp/heatos-a4.img
+mcopy -o -i /tmp/heatos-a4.img@@1M /tmp/heatos-a4.efi ::/EFI/BOOT/BOOTX64.EFI
+o4=$(boot_img /tmp/heatos-a4.img)
 grep -q HEATOS-TEST-BEGIN <<< "$o4" && bad "tampered UKI booted" || ok "firmware refused the tampered image"
-rm -f /tmp/heatos-a4.efi
-cp heatos-signed.efi esp/EFI/BOOT/BOOTX64.EFI
+rm -f /tmp/heatos-a4.efi /tmp/heatos-a4.img
 
 echo
 section "A5  no dynamic loader to hijack"
@@ -109,6 +130,50 @@ else
 		*"ssl error 62"*) ok "untrusted CA refused (BR_ERR_X509_NOT_TRUSTED)" ;;
 		*)                bad "a cert outside trust/ was not refused: ${err:-no error}" ;;
 	esac
+fi
+
+echo
+section "A7  flip a byte in the verity HASH TREE -- boot must refuse"
+# the data region is covered by the tree; the tree itself must be covered too,
+# or an attacker could rewrite data + recompute the tree. flip the first hash
+# block (one past the superblock at data-end). the superblock block itself is
+# NOT covered -- dm-mod.create ignores it -- which is the one honest gap here.
+blocks=$(grep -oE '4096 4096 [0-9]+ [0-9]+' cmdline.txt | head -1 | awk '{print $3}')
+if [ -n "${blocks:-}" ]; then
+	cp stick.img /tmp/heatos-a7.img
+	flip /tmp/heatos-a7.img $((ROOT_OFF + (blocks + 1) * 4096 + 16))
+	o7=$(boot_img /tmp/heatos-a7.img)
+	grep -q 'dm-verity device corrupted' <<< "$o7" && ok "hash-tree corruption panicked the kernel" \
+		|| bad "a flipped hash-tree byte did not panic"
+	rm -f /tmp/heatos-a7.img
+else
+	bad "could not parse data-block count from cmdline.txt"
+fi
+
+echo
+section "A8  kernel attack surface is closed"
+# reuses A2's clean boot output ($out); every line is a deterministic init probe.
+grep -q 'devmem-node: absent'  <<< "$out" && ok "/dev/mem absent"          || bad "/dev/mem present"
+grep -q 'kcore: absent'        <<< "$out" && ok "/proc/kcore absent"       || bad "/proc/kcore present"
+grep -q 'kexec-loaded: absent' <<< "$out" && ok "kexec unavailable"        || bad "kexec present"
+grep -q 'vsyscall-map: 0'      <<< "$out" && ok "no fixed vsyscall page"   || bad "vsyscall page mapped"
+grep -q 'lockdown: .*\[confidentiality\]' <<< "$out" && ok "lockdown=confidentiality enforced" || bad "lockdown not in confidentiality mode"
+
+echo
+section "A9  write / exec containment"
+grep -q 'remount-rw: refused' <<< "$out" && ok "/ cannot be remounted rw"      || bad "/ was remounted rw"
+grep -q 'tmp-exec: refused'   <<< "$out" && ok "noexec /tmp blocks execution"  || bad "a binary ran from /tmp"
+grep -q 'kptr-restrict: 2'    <<< "$out" && ok "kernel pointers restricted"    || bad "kptr_restrict not 2"
+
+echo
+section "A10  boot the stick over emulated USB (the real hardware path)"
+o10=$(boot_usb stick.img)
+if grep -q HEATOS-TEST-BEGIN <<< "$o10"; then
+	ok "booted from usb-storage via dm-mod.waitfor"
+	grep -qi 'secure boot is enabled' <<< "$o10" && ok "secure boot enforcing over USB" || bad "secure boot not enabled over USB"
+	grep -q 'write-to-root: refused'  <<< "$o10" && ok "root unwritable over USB"       || bad "root writable over USB"
+else
+	bad "stick did not boot over emulated USB (waitfor may have timed out)"
 fi
 
 echo
