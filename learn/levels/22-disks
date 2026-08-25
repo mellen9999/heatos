@@ -306,3 +306,40 @@ q: mount the unlocked state device with nothing on it able to run
 a: mount -o nosuid,nodev,noexec /dev/mapper/state /state
 ref: mount
 teach: mount -o
+---
+setup: A disk someone hands you is untrusted input, and a filesystem driver is
+setup: a parser that runs it in your kernel. The safest read of a disk you do
+setup: not trust is dd at the block level, where no parser runs at all.
+q: image the whole removable disk /dev/sda to a file, reading raw bytes with no filesystem
+a: dd if=@txt@ of=disk.img
+state: exists:disk.img
+ref: dd
+teach: dd
+hint: no mount, no parser -- just the bytes. this is the forensically safe read
+---
+q: mount a fat32 usb stick read-only, with nothing on it able to run
+a: mount -t vfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
+ref: mount
+teach: mount -t
+hint: ro, and noexec, because you do not trust what is on it
+---
+q: mount an exfat sd card read-only and safely
+a: mount -t exfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
+ref: mount
+teach: mount -t
+---
+q: mount a windows ntfs disk read-only
+a: mount -t ntfs3 -o ro,nosuid,nodev,noexec /dev/sda2 /mnt
+ref: mount
+teach: mount -t
+hint: read only -- vos will not write ntfs, by design
+---
+q: loop-mount an iso image read-only without burning it
+a: mount -t iso9660 -o ro,loop image.iso /mnt
+ref: mount
+teach: mount -t
+---
+q: attach disk.img to a loop device first, then you can mount or examine it
+a: losetup -f disk.img
+ref: losetup
+teach: losetup -f

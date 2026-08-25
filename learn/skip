@@ -287,3 +287,37 @@ ls -L                           # follow every symlink; -l shows the target anyw
 ls -v                           # natural-number ordering within names
 ls -w                           # force an output width
 ls -X                           # sort by extension
+
+# ── recon applets: niche flags on tools drilled for their core use ──
+# ping6 and traceroute6 take the SAME flags as ping and traceroute, drilled in
+# the reachability level. teaching them twice teaches nothing new.
+ping6 -A
+ping6 -c
+ping6 -i
+ping6 -I
+ping6 -p
+ping6 -q
+ping6 -s
+ping6 -w
+ping6 -W
+traceroute6 -f
+traceroute6 -i
+traceroute6 -I
+traceroute6 -p
+traceroute6 -q
+traceroute6 -r
+traceroute6 -s
+traceroute6 -t
+traceroute6 -v
+traceroute6 -w
+traceroute6 -z
+fuser -4          # ipv4-only socket filter, for the network mode fuser is rarely used in
+fuser -6
+fuser -s          # already drilled: silent, exit-status only
+fuser -SIGNAL     # a --help placeholder for any signal, not a literal flag
+ipcalc -h         # emit hostname; the address math is the point
+killall -q        # quiet; already the drilled idea on pkill
+microcom -d       # inter-character delay, a tuning knob
+microcom -X       # disable special-character handling
+pidof -o          # omit a pid; -s is the discriminator worth knowing
+pmap -q           # quiet, drop header/footer; -x is the informative one

@@ -212,3 +212,24 @@ q: show netstat with wide columns so long addresses are not truncated
 a: netstat -W
 ref: netstat
 teach: netstat -W
+---
+q: ping an ipv6 host three times
+a: ping6 -c 3 ::1
+ref: ping6
+teach: ping6
+hint: the whole world is moving to ipv6; the tools have a 6 on the end
+---
+q: trace the ipv6 path to a host
+a: traceroute6 ::1
+ref: traceroute6
+teach: traceroute6
+---
+q: trace the ipv6 path without resolving names
+a: traceroute6 -n ::1
+ref: traceroute6
+teach: traceroute6 -n
+---
+q: trace an ipv6 path no further than 10 hops
+a: traceroute6 -m 10 ::1
+ref: traceroute6
+teach: traceroute6 -m

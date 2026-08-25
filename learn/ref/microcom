@@ -1,0 +1,10 @@
+microcom
+Usage: microcom [-d DELAY_MS] [-t TIMEOUT_MS ] [-s SPEED] [-X] TTY
+
+Copy bytes from stdin to TTY and from TTY to stdout
+
+	-d DELAY	Wait up to DELAY ms for TTY output before sending
+			every next byte to it
+	-t TIMEOUT	Exit if both stdin and TTY are silent for TIMEOUT ms
+	-s SPEED	Set serial line to SPEED
+	-X		Disable special meaning of NUL and Ctrl-X from stdin

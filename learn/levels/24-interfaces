@@ -219,3 +219,33 @@ q: arping in a mode that does not require a source address
 a: arping -A -c 1 @ip@
 ref: arping
 teach: arping -A
+---
+q: work out the network settings for the address @ip@/24
+a: ipcalc @ip@/24
+ref: ipcalc
+teach: ipcalc
+---
+q: show just the broadcast address for @ip@/24
+a: ipcalc -b @ip@/24
+ref: ipcalc
+teach: ipcalc -b
+---
+q: show just the network address for @ip@/24
+a: ipcalc -n @ip@/24
+ref: ipcalc
+teach: ipcalc -n
+---
+q: show just the netmask for a /24
+a: ipcalc -m @ip@/24
+ref: ipcalc
+teach: ipcalc -m
+---
+q: show the prefix length for a given netmask
+a: ipcalc -p @ip@ 255.255.255.0
+ref: ipcalc
+teach: ipcalc -p
+---
+q: get ipcalc output without any resolved hostnames, for a script
+a: ipcalc -s @ip@/24
+ref: ipcalc
+teach: ipcalc -s

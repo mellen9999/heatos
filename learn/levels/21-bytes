@@ -131,3 +131,9 @@ q: split @log@ using 3-character suffixes instead of 2
 a: split -a 3 -l 2 @log@
 ref: split
 teach: split -a
+---
+q: open @bin@ in a hex editor to change bytes in place, not just read them
+a: hexedit @bin@
+ref: hexedit
+teach: hexedit
+hint: hexdump shows you bytes; this is how you change them

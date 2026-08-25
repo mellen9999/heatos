@@ -20,3 +20,10 @@ fdisk blkid findfs losetup blockdev
 hexdump od strings cmp diff less tee
 top pgrep pkill watch timeout nohup flock
 seq tac split readlink realpath which whoami tty mkfifo nproc
+# reconnaissance: knowing the machine you plugged into. lspci/lsusb name its
+# hardware, lsof/pstree/pidof/fuser/pmap/pwdx map what is running, ipcalc does
+# subnet math, ping6/traceroute6 reach ipv6 hosts, microcom talks to a serial
+# console when ethernet is dead, hexedit patches bytes we can currently only
+# read. free -- all already inside the one static busybox.
+lspci lsusb lsof pstree pidof fuser pmap pwdx
+ipcalc ping6 traceroute6 microcom hexedit killall logger

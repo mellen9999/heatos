@@ -1,0 +1,8 @@
+logger
+Usage: logger [-s] [-t TAG] [-p PRIO] [MESSAGE]
+
+Write MESSAGE (or stdin) to syslog
+
+	-s	Log to stderr as well as the system log
+	-t TAG	Log using the specified tag (defaults to user name)
+	-p PRIO	Priority (number or FACILITY.LEVEL pair)

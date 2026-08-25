@@ -109,6 +109,9 @@ if grep -q vos.test /proc/cmdline; then
 	# trusting the config, the same way every other claim here is asserted.
 	printf 'fs-ext4: '; grep -qw ext4 /proc/filesystems && echo yes || echo "no (BAD)"
 	printf 'fs-vfat: '; grep -qw vfat /proc/filesystems && echo yes || echo "no (BAD)"
+	printf 'fs-exfat: '; grep -qw exfat /proc/filesystems && echo yes || echo "no (BAD)"
+	printf 'fs-iso9660: '; grep -qw iso9660 /proc/filesystems && echo yes || echo "no (BAD)"
+	printf 'fs-ntfs3: '; grep -qw ntfs3 /proc/filesystems && echo yes || echo "no (BAD)"
 	# /proc/crypto lists INSTANTIATED algorithms. xts and hmac are templates and
 	# do not appear until something asks for xts(aes) or hmac(sha512), so their
 	# absence here means nothing -- G14 asserts them from the built config

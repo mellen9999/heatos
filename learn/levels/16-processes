@@ -159,3 +159,70 @@ q: list @proc@ processes showing the full command line of each
 a: pgrep -a @proc@
 ref: pgrep
 teach: pgrep -a
+---
+q: find the process id of @proc@ in one step
+a: pidof @proc@
+ref: pidof
+teach: pidof
+---
+q: find only a single pid for @proc@, not all of them
+a: pidof -s @proc@
+ref: pidof
+teach: pidof -s
+---
+q: show the whole process tree, who started what
+a: pstree
+ref: pstree
+teach: pstree
+---
+q: show the process tree with each process's pid
+a: pstree -p
+ref: pstree
+teach: pstree -p
+---
+q: list every open file on the system
+a: lsof
+ref: lsof
+teach: lsof
+hint: on unix almost everything is a file, so this shows almost everything
+---
+q: find which processes have @log@ open
+a: fuser @log@
+ref: fuser
+teach: fuser
+---
+q: find what is using the mount point @dir@
+a: fuser -m @dir@
+ref: fuser
+teach: fuser -m
+---
+q: find and then kill whatever has @log@ open
+a: fuser -k @log@
+ref: fuser
+teach: fuser -k
+---
+q: show the memory map of process 1
+a: pmap 1
+ref: pmap
+teach: pmap
+---
+q: show process 1's memory map with full per-mapping detail
+a: pmap -x 1
+ref: pmap
+teach: pmap -x
+---
+q: print the working directory of process 1
+a: pwdx 1
+ref: pwdx
+teach: pwdx
+---
+q: kill every process named @proc@ by name
+a: killall @proc@
+ref: killall
+teach: killall
+---
+q: list the signal names killall knows
+a: killall -l
+out: KILL
+ref: killall
+teach: killall -l

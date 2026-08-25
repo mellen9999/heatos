@@ -303,7 +303,10 @@ grep -q 'luks-integrity-active: integrity: hmac' <<< "$out" \
 grep -q 'luks-wrong-pass-refused: refused' <<< "$out" \
 	&& ok "the wrong passphrase is refused" || bad "a wrong passphrase opened the volume"
 grep -q 'fs-ext4: yes' <<< "$out" && ok "ext4 is available for the state filesystem" || bad "no ext4"
-grep -q 'fs-vfat: yes' <<< "$out" && ok "vfat is available, so removable media can be mounted" || bad "no vfat"
+grep -q 'fs-vfat: yes' <<< "$out" && ok "vfat available (usb sticks, esp)" || bad "no vfat"
+grep -q 'fs-exfat: yes' <<< "$out" && ok "exfat available (large sd cards, modern sticks)" || bad "no exfat"
+grep -q 'fs-iso9660: yes' <<< "$out" && ok "iso9660 available (loop-mount an image)" || bad "no iso9660"
+grep -q 'fs-ntfs3: yes' <<< "$out" && ok "ntfs available (read a windows disk)" || bad "no ntfs"
 grep -q 'entropy-trusted: random.trust_cpu=1' <<< "$out" \
 	&& ok "the entropy source is pinned on the signed cmdline" \
 	|| bad "random.trust_cpu is not pinned -- keys may be generated on a thin pool"

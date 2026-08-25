@@ -260,3 +260,55 @@ q: wait two seconds and then continue
 a: sleep 2
 ref: sleep
 teach: sleep
+---
+q: list every pci device on this machine
+a: lspci
+ref: lspci
+teach: lspci
+hint: this is how you find out what network and storage hardware a strange box has
+---
+q: list pci devices showing which kernel driver is bound to each
+a: lspci -k
+ref: lspci
+teach: lspci -k
+---
+q: list pci devices in a form easy to parse
+a: lspci -m
+ref: lspci
+teach: lspci -m
+---
+q: list every usb device
+a: lsusb
+ref: lsusb
+teach: lsusb
+---
+q: write a line into the system log
+a: logger hello from vos
+ref: logger
+teach: logger
+---
+q: log a line tagged with a name of your choosing
+a: logger -t vos investigating
+ref: logger
+teach: logger -t
+---
+q: log a line and also print it to your own terminal
+a: logger -s checking
+ref: logger
+teach: logger -s
+---
+q: log a line at a chosen priority
+a: logger -p user.warn suspicious
+ref: logger
+teach: logger -p
+---
+q: open a serial console to a device at 115200 baud
+a: microcom -s 115200 /dev/ttyS0
+ref: microcom
+teach: microcom -s
+hint: when ethernet is dead, this is how you reach a router or another machine
+---
+q: talk to a serial device giving up after 10 seconds of silence
+a: microcom -t 10000 /dev/ttyS0
+ref: microcom
+teach: microcom -t
