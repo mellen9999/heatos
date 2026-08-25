@@ -40,12 +40,26 @@ coverage at the bottom.
 and one link pointing backwards: `dbx`, the revocation list, which is the only
 part of the chain that can say an image is *old*.
 
+## install
+
+    ./build.sh install        # the whole thing, one command
+
+`install` builds the image if it is not already there, auto-detects the usb
+stick (only ever a **removable** disk -- your fixed drives are never listed, so
+it cannot target the wrong one), flashes it, **reads every byte back and checks
+it against the pinned digest**, and offers to add the encrypted state partition.
+name the disk explicitly -- `./build.sh install /dev/sdX` -- if more than one
+removable disk is attached. before it writes anything it makes you type the
+disk's model back, so a wrong path cannot wipe a drive on a slip of the enter
+key.
+
 ## build
 
     ./build.sh all            # sources verified against pinned digests, then built
     ./selftest.sh             # adversarial self-test: asserts every tamper attempt is refused
     ./build.sh boot           # boots the real chain in qemu (dev only)
-    ./build.sh usb /dev/sdX   # write a real bootable stick
+    ./build.sh usb /dev/sdX   # write a real bootable stick (install wraps this)
+    ./build.sh addstate /dev/sdX  # add the encrypted state partition to a flashed stick
     ./build.sh revoke IMG     # retire a superseded image so it can never boot again
 
 qemu is the development and test rig -- the self-test needs to byte-flip boot

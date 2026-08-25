@@ -1301,8 +1301,15 @@ bootusb() {
 # only thing that makes anything persist. it touches the free space only; it
 # never writes to p1 or p2. run it once, against the physical stick.
 addstate() {
-  local dev="$1"
+  local dev="${1:-}"
   [ -b "$dev" ] || { echo "usage: $0 addstate /dev/sdX  (the whole stick, not a partition)" >&2; return 1; }
+  # tools addstate needs that a plain build does not -- check them here so it
+  # fails with a clear message up front, never half way through partitioning.
+  local t miss=""
+  for t in cryptsetup:cryptsetup mkfs.ext4:e2fsprogs partx:util-linux sfdisk:util-linux; do
+    command -v "${t%%:*}" >/dev/null 2>&1 || miss="$miss ${t%%:*}(${t##*:})"
+  done
+  [ -z "$miss" ] || { echo "FAIL: addstate needs:$miss" >&2; return 1; }
   local n; n=$(basename "$dev")
   [ "$(cat "/sys/block/$n/removable" 2>/dev/null)" = 1 ] \
     || { echo "FAIL: $dev is not removable -- refusing to touch a fixed disk" >&2; return 1; }
@@ -1333,13 +1340,80 @@ SFDISK
 # thin wrapper so the mkfs call sits behind a name (keeps blunt greps happy).
 make_ext4() { "mkfs.ext4" -q -L vos-state "$1"; }
 
+
+# detect_removable -- echo the removable whole-disks currently attached, one per
+# line. the host's fixed disks are excluded, so this cannot surface the drive
+# you booted the build machine from.
+detect_removable() {
+  local d n
+  for d in /sys/block/*; do
+    n=$(basename "$d")
+    [ "$(cat "$d/removable" 2>/dev/null)" = 1 ] || continue
+    # skip zero-size card readers with no card in them
+    [ "$(cat "$d/size" 2>/dev/null || echo 0)" -gt 0 ] || continue
+    echo "/dev/$n"
+  done
+}
+
+# install [DEV] -- the whole install, in one command: pick the stick, flash a
+# verified vos onto it, and offer to add encrypted persistent state. safe by
+# construction -- it only ever writes a removable disk, verifies every byte it
+# wrote against the pinned digest, and makes you type the disk model before it
+# touches anything. with no DEV it auto-detects, and only proceeds when exactly
+# one removable disk is present.
+install() {
+  local dev="${1:-}"
+  if [ -z "$dev" ]; then
+    local found; found=$(detect_removable)
+    local count; count=$(printf '%s\n' "$found" | grep -c . || true)
+    if [ "$count" = 0 ]; then
+      echo "FAIL: no removable disk found -- plug in the usb stick and try again" >&2
+      echo "  (fixed disks are never listed, on purpose)" >&2
+      return 1
+    elif [ "$count" -gt 1 ]; then
+      echo "FAIL: more than one removable disk is attached:" >&2
+      printf '%s\n' "$found" | while read -r c; do
+        [ -n "$c" ] && echo "    $c  ($(( $(cat "/sys/block/$(basename "$c")/size") / 2048 )) MiB)" >&2
+      done
+      echo "  name the one you mean: ./build.sh install /dev/sdX" >&2
+      return 1
+    fi
+    dev=$(printf '%s\n' "$found" | grep . | head -1)
+    echo "  auto-detected the only removable disk: $dev"
+  fi
+
+  # build everything if it is not already sitting here, so a fresh clone can go
+  # straight to install.
+  [ -f stick.img ] || { echo "  no stick.img yet -- building the whole image first"; all || return 1; }
+
+  # the flash + byte-for-byte verification lives in usb(); reuse it rather than
+  # keeping a second copy of the careful part.
+  usb "$dev" || return 1
+
+  # offer persistent state. declining leaves a perfectly good ephemeral stick.
+  echo
+  local ans
+  read -rp "  add encrypted persistent state (p3) now? [y/N]: " ans
+  case "$ans" in
+    y|Y|yes)
+      addstate "$dev" || { echo "  state setup failed -- the stick still boots, just without persistence" >&2; return 0; }
+      ;;
+    *)
+      echo "  skipped. add it later with: ./build.sh addstate $dev"
+      ;;
+  esac
+
+  echo
+  printf '  \033[1;32minstall complete\033[0m\n'
+}
+
 case "${1:-all}" in
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|size|boot|bootusb) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|addstate|install|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|size|boot|bootusb) "$@" ;;
   all)
     deps; fetch; kernel; headers; busybox; tls; ii_; abduco; cryptsetup_; rootfs; verity; keys
     # clean clone makes plaintext keys; seal them so uki's unlock has db.key.enc
     # and G11 stays green. a sealed tree short-circuits keys() and skips this.
     if [ -f keys/db.key ]; then seal; fi
     uki; stick; size ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|dbx|revoke IMAGE|stick|usb <dev>|pin|seed|size|boot|bootusb|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|addstate|install|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|dbx|revoke IMAGE|stick|usb <dev>|pin|seed|size|boot|bootusb|all}"; exit 1 ;;
 esac
