@@ -12,7 +12,7 @@ pass=0; fail=0; skip=0; sections=0
 # the gate runner already learned this: a run that dies partway through prints
 # a smaller number and looks exactly like a clean one. count the checks that
 # actually ran and refuse to report a result if any of them went missing.
-EXPECTED_SECTIONS=14
+EXPECTED_SECTIONS=16
 section() { sections=$((sections+1)); echo; echo "$1"; }
 
 # p2 (root) starts after the 1 MiB gap + the ESP. keep in step with build.sh
@@ -43,7 +43,7 @@ skipped() { printf '  \033[1;33mSKIP\033[0m  %s\n' "$1"; skip=$((skip+1)); }
 # boots the real chain over VIRTIO: firmware -> enrolled key -> signed UKI ->
 # verity root resolved by PARTUUID off the stick's p2.
 boot_img() {
-	timeout 120 qemu-system-x86_64 -machine q35,smm=on -m 256 \
+	timeout 240 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		-global driver=cfi.pflash01,property=secure,value=on \
 		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
 		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
@@ -54,8 +54,28 @@ boot_img() {
 
 # same chain but over an emulated xHCI USB mass-storage device -- the real
 # hardware path, including usb enumeration and the dm-mod.waitfor poll.
+# boot with a second virtio disk attached (becomes /dev/vdb), for the p3 test.
+boot_state() {
+	timeout 240 qemu-system-x86_64 -machine q35,smm=on -m 512 \
+		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
+		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
+		-drive file=stick.img,if=virtio,format=raw,readonly=on \
+		-drive file="$1",if=virtio,format=raw \
+		-nic user,model=virtio-net-pci -nographic -no-reboot < /dev/null 2>&1
+}
+
+# boot with the hardware clock forced years into the past. proves the floor.
+boot_backclock() {
+	timeout 240 qemu-system-x86_64 -machine q35,smm=on -m 512 \
+		-rtc base=2010-01-01T00:00:00 \
+		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
+		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
+		-drive file="$1",if=virtio,format=raw,readonly=on \
+		-nic user,model=virtio-net-pci -nographic -no-reboot < /dev/null 2>&1
+}
+
 boot_usb() {
-	timeout 120 qemu-system-x86_64 -machine q35,smm=on -m 256 \
+	timeout 240 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		-global driver=cfi.pflash01,property=secure,value=on \
 		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
 		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
@@ -310,6 +330,47 @@ grep -q 'fs-ntfs3: yes' <<< "$out" && ok "ntfs available (read a windows disk)" 
 grep -q 'entropy-trusted: random.trust_cpu=1' <<< "$out" \
 	&& ok "the entropy source is pinned on the signed cmdline" \
 	|| bad "random.trust_cpu is not pinned -- keys may be generated on a thin pool"
+# the clock floor. no RTC is compiled in, so system time is set by luck; the
+# floor makes it impossible to push BELOW the build date, which is the property
+# TLS validation needs -- a clock set backwards revalidates revoked certs.
+grep -q 'clock-floor: [0-9]' <<< "$out" && ok "a signed clock floor is pinned on the cmdline" \
+	|| bad "no clock floor -- time can be set to anything, incl. before a revocation"
+grep -q 'clock-not-before-floor: yes' <<< "$out" \
+	&& ok "the running clock is at or above the floor" \
+	|| bad "the clock is below the floor -- init did not raise it"
+
+echo
+section "A15  a clock set to the past cannot fall below the signed floor"
+# boot with the RTC at 2010. the floor is the build date; init must raise the
+# clock to it. this is the property that stops an attacker on the network from
+# winding time back to before a certificate was revoked.
+backout=$(boot_backclock stick.img)
+grep -q 'clock-not-before-floor: yes' <<< "$backout" \
+	&& ok "clock forced to 2010 was raised to the build-date floor" \
+	|| bad "the clock stayed in the past -- the floor did not hold"
+
+echo
+section "A16  state survives a real power cycle"
+# the whole reason p3 exists. a blank disk is attached and vos is booted twice.
+# boot 1 provisions it -- LUKS2 with integrity, a filesystem, a marker file.
+# boot 2 gets the SAME disk and must read the marker back. the file is a plain
+# image (no host root needed); vos, which is root inside qemu, does every
+# privileged step. this is "reboot and your work is still there", proven.
+p3disk=/tmp/vos-p3test.img
+rm -f "$p3disk"; truncate -s 64M "$p3disk"
+b1=$(boot_state "$p3disk")
+if grep -q 'teststate-phase: provision' <<< "$b1" \
+   && grep -q 'teststate-format: ok' <<< "$b1" \
+   && grep -q 'teststate-mkfs: ok' <<< "$b1"; then
+	ok "boot 1 provisioned p3 (luks2 + integrity + a filesystem)"
+else
+	bad "boot 1 did not provision p3"
+fi
+b2=$(boot_state "$p3disk")
+grep -q 'teststate-prior-marker: survived-a-reboot' <<< "$b2" \
+	&& ok "boot 2 read the marker back -- state survived the power cycle" \
+	|| bad "the marker did not survive the reboot"
+rm -f "$p3disk"
 
 printf '  %d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
 if [ "$sections" -ne "$EXPECTED_SECTIONS" ]; then

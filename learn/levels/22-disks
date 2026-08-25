@@ -343,3 +343,33 @@ q: attach disk.img to a loop device first, then you can mount or examine it
 a: losetup -f disk.img
 ref: losetup
 teach: losetup -f
+---
+q: make an ext filesystem on the unlocked state device
+a: mke2fs /dev/mapper/state
+ref: mke2fs
+teach: mke2fs
+---
+q: make an ext filesystem without being asked to confirm
+a: mke2fs -F /dev/mapper/state
+ref: mke2fs
+teach: mke2fs -F
+---
+q: make an ext filesystem giving it a label
+a: mke2fs -L data /dev/mapper/state
+ref: mke2fs
+teach: mke2fs -L
+---
+q: reserve no blocks for admin, so all space is usable, when making the filesystem
+a: mke2fs -m 0 /dev/mapper/state
+ref: mke2fs
+teach: mke2fs -m
+---
+q: format a usb stick partition as fat32
+a: mkdosfs /dev/sda1
+ref: mkdosfs
+teach: mkdosfs
+---
+q: format a fat filesystem with a volume label
+a: mkdosfs -n BACKUP /dev/sda1
+ref: mkdosfs
+teach: mkdosfs -n

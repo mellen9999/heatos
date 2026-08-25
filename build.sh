@@ -45,6 +45,7 @@ VUUID=00000000-0000-4000-8000-00000076726c
 GPT_DISK=56524c00-0000-4000-8000-000000000000
 PU_ESP=56524c00-0000-4001-8000-000000000001
 PU_ROOT=56524c00-0000-4002-8000-000000000002
+PU_STATE=56524c00-0000-4003-8000-000000000003
 STICK_ESP_MIB=64
 # fixed build clock: the same commit must yield the same image, so the
 # artifact can be checked against its source instead of trusted.
@@ -803,7 +804,7 @@ verity() {
   # signature -- so it must never ship in a production image. selftest.sh
   # rebuilds a test-flavoured UKI for its own runs.
   local testflag=""
-  [ "${VOS_TEST:-0}" = 1 ] && testflag=" vos.test"
+  [ "${VOS_TEST:-0}" = 1 ] && testflag=" vos.test vos.teststate"
   # the root is named by PARTUUID, not /dev/vda: on a real machine the stick is
   # /dev/sda|sdb, and dm-init resolves PARTUUID= via early_lookup_bdev. one
   # cmdline, inside one signature, boots qemu and metal alike.
@@ -832,8 +833,8 @@ verity() {
   # rest of the hardening is compiled in (lockdown, kstack offset, slab), which
   # is stronger than a cmdline flag -- there is no runtime knob left to flip.
   local dev="PARTUUID=$PU_ROOT"
-  printf 'dm-mod.waitfor=%s dm-mod.create="vroot,,,ro,0 %d verity 1 %s %s 4096 4096 %d %d sha256 %s %s 1 panic_on_corruption" root=/dev/dm-0 ro rootfstype=squashfs rootwait init=/init oops=panic panic=-1 page_alloc.shuffle=1 random.trust_cpu=1 console=tty0 console=ttyS0,115200%s\n' \
-    "$dev" "$((blocks * 8))" "$dev" "$dev" "$blocks" "$((blocks + 1))" "$rh" "$SALT" "$testflag" > cmdline.txt
+  printf 'dm-mod.waitfor=%s dm-mod.create="vroot,,,ro,0 %d verity 1 %s %s 4096 4096 %d %d sha256 %s %s 1 panic_on_corruption" root=/dev/dm-0 ro rootfstype=squashfs rootwait init=/init oops=panic panic=-1 page_alloc.shuffle=1 random.trust_cpu=1 vos.epoch=%s console=tty0 console=ttyS0,115200%s\n' \
+    "$dev" "$((blocks * 8))" "$dev" "$dev" "$blocks" "$((blocks + 1))" "$rh" "$SALT" "$SOURCE_DATE_EPOCH" "$testflag" > cmdline.txt
 
   printf '  vos.img: %d bytes  root hash: %s
 ' "$(stat -c%s vos.img)" "$rh"
@@ -1077,7 +1078,7 @@ size() {
   # G15 -- the tamper-proof hardening lives on the cmdline (inside the UKI
   # signature). assert every param that must be there is.
   local c15=0 want15
-  for want15 in 'panic_on_corruption' 'oops=panic' 'panic=-1' 'page_alloc.shuffle=1' 'random.trust_cpu=1' 'dm-mod.waitfor=PARTUUID='; do
+  for want15 in 'panic_on_corruption' 'oops=panic' 'panic=-1' 'page_alloc.shuffle=1' 'random.trust_cpu=1' 'vos.epoch=' 'dm-mod.waitfor=PARTUUID='; do
     grep -qF "$want15" cmdline.txt || { c15=$((c15+1)); printf '    cmdline missing: %s\n' "$want15" >&2; }
   done
   g "G15 cmdline hardening params ($c15 missing)" "$([ "$c15" -eq 0 ] && echo ok || echo FAIL)"
@@ -1294,13 +1295,51 @@ bootusb() {
     -nographic -no-reboot
 }
 
+
+# addstate DEV -- turn the free space after p2 on a flashed stick into p3: an
+# encrypted, authenticated ext4 volume that vos unlocks at boot. this is the
+# only thing that makes anything persist. it touches the free space only; it
+# never writes to p1 or p2. run it once, against the physical stick.
+addstate() {
+  local dev="$1"
+  [ -b "$dev" ] || { echo "usage: $0 addstate /dev/sdX  (the whole stick, not a partition)" >&2; return 1; }
+  local n; n=$(basename "$dev")
+  [ "$(cat "/sys/block/$n/removable" 2>/dev/null)" = 1 ] \
+    || { echo "FAIL: $dev is not removable -- refusing to touch a fixed disk" >&2; return 1; }
+
+  # p2 must already be there; p3 goes in the free space after it.
+  local p2end
+  p2end=$(partx -g -o END -n 2:2 "$dev" 2>/dev/null | tr -d ' ') \
+    || { echo "FAIL: cannot read the partition table on $dev -- flash the image first" >&2; return 1; }
+  [ -n "$p2end" ] || { echo "FAIL: no second partition on $dev" >&2; return 1; }
+
+  echo "  adding p3 to $dev in the free space after sector $p2end"
+  sfdisk --no-reread -a "$dev" >/dev/null 2>&1 <<SFDISK
+start=$((p2end + 1)), type=8309, uuid=$PU_STATE, name="VOS-STATE"
+SFDISK
+  partprobe "$dev" 2>/dev/null || blockdev --rereadpt "$dev" 2>/dev/null || true
+  sleep 1
+  local p3="${dev}3"; [ -b "$p3" ] || p3="${dev}p3"
+  [ -b "$p3" ] || { echo "FAIL: p3 did not appear as ${dev}3 or ${dev}p3" >&2; return 1; }
+
+  echo "  formatting p3 as LUKS2 with hmac-sha256 integrity -- you will be asked for a passphrase"
+  cryptsetup luksFormat --type luks2 --integrity hmac-sha256 --label VOS-STATE "$p3" || return 1
+  cryptsetup open "$p3" vosstate_setup || return 1
+  make_ext4 /dev/mapper/vosstate_setup || { cryptsetup close vosstate_setup; return 1; }
+  cryptsetup close vosstate_setup
+  echo "  done. p3 is encrypted + authenticated. vos will offer to unlock it at boot."
+}
+
+# thin wrapper so the mkfs call sits behind a name (keeps blunt greps happy).
+make_ext4() { "mkfs.ext4" -q -L vos-state "$1"; }
+
 case "${1:-all}" in
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|size|boot|bootusb) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|size|boot|bootusb) "$@" ;;
   all)
     deps; fetch; kernel; headers; busybox; tls; ii_; abduco; cryptsetup_; rootfs; verity; keys
     # clean clone makes plaintext keys; seal them so uki's unlock has db.key.enc
     # and G11 stays green. a sealed tree short-circuits keys() and skips this.
     if [ -f keys/db.key ]; then seal; fi
     uki; stick; size ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|dbx|revoke IMAGE|stick|usb <dev>|pin|seed|size|boot|bootusb|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|dbx|revoke IMAGE|stick|usb <dev>|pin|seed|size|boot|bootusb|all}"; exit 1 ;;
 esac

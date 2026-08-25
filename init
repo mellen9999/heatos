@@ -49,6 +49,20 @@ done
 # /run is a symlink into the tmpfs. cryptsetup keeps its device locks under
 # /run/cryptsetup and aborts rather than proceeding without them.
 mkdir -p /tmp/run/cryptsetup
+# clock floor. no RTC is compiled in, so the system clock is whatever the
+# firmware left -- correct by luck under a good BIOS, epoch 0 under a dead CMOS
+# battery, and attacker-controlled on a hostile network with no signed source.
+# TLS cert validation reads this clock (BearSSL falls back to it), so a clock
+# set backwards makes revoked and expired certs validate again. vos.epoch is
+# the build date, pinned inside the signed UKI where it cannot be forged. never
+# go below it: max(clock, floor). this does not make the clock RIGHT, it makes
+# it impossible to push into the past, which is the property TLS needs.
+epoch=$(sed -n 's/.*vos\.epoch=\([0-9][0-9]*\).*/\1/p' /proc/cmdline)
+if [ -n "$epoch" ]; then
+	now=$(date -u +%s 2>/dev/null || echo 0)
+	if [ "$now" -lt "$epoch" ]; then date -u -s "@$epoch" >/dev/null 2>&1; fi
+fi
+
 mkdir -p /tmp/home
 export HOME=/tmp/home
 export XDG_DATA_HOME=/tmp/home/.local/share
@@ -118,6 +132,8 @@ if grep -q vos.test /proc/cmdline; then
 	# instead. what is worth probing is the concrete ciphers they build on.
 	printf 'crypto-aes: '; grep -qw aes /proc/crypto && echo yes || echo "no (BAD)"
 	printf 'crypto-sha512: '; grep -qw sha512 /proc/crypto && echo yes || echo "no (BAD)"
+	printf 'clock-floor: '; sed -n 's/.*vos\.epoch=\([0-9]*\).*/\1/p' /proc/cmdline | head -1 | grep . || echo "not pinned (BAD)"
+	printf 'clock-not-before-floor: '; nowchk=$(date -u +%s); floorchk=$(sed -n 's/.*vos\.epoch=\([0-9]*\).*/\1/p' /proc/cmdline | head -1); [ "${nowchk:-0}" -ge "${floorchk:-0}" ] && echo yes || echo "no (BAD)"
 	printf 'entropy-trusted: '; grep -o 'random.trust_cpu=1' /proc/cmdline | head -1 || echo "not pinned (BAD)"
 	# the whole p3 stack, exercised rather than assumed: cryptsetup binary,
 	# dm-crypt, dm-integrity and the kernel crypto backend. a 24 MiB scratch
@@ -132,7 +148,7 @@ if grep -q vos.test /proc/cmdline; then
 	printf 'losetup: '; losetup /dev/loop0 /tmp/p3.img 2>&1 | head -1 | grep . || echo ok
 	printf 'luks-format: '
 	if printf 'testpass' | cryptsetup luksFormat --type luks2 --integrity hmac-sha256 \
-	     --pbkdf pbkdf2 --pbkdf-force-iterations 1000 --batch-mode --key-file - /dev/loop0 >/tmp/cs.log 2>&1
+	     --pbkdf pbkdf2 --pbkdf-force-iterations 1000 --integrity-no-wipe --batch-mode --key-file - /dev/loop0 >/tmp/cs.log 2>&1
 	then echo ok; else printf 'FAILED -- '; head -2 /tmp/cs.log | tr '\n' ' '; echo; fi
 	printf 'luks-open: '
 	if printf 'testpass' | cryptsetup open --key-file - /dev/loop0 p3test >/tmp/cso.log 2>&1
@@ -190,12 +206,113 @@ if grep -q vos.test /proc/cmdline; then
 	printf 'trust-anchors-in-binary: '; grep -ac 'Internet Security Research Group' /bin/tlstunnel 2>/dev/null || echo 0
 
 	printf 'writable-home: '; touch "$HOME/probe" 2>/dev/null && echo "yes (tmpfs)" || echo no
+	# persistence across reboots, driven non-interactively. the harness attaches
+	# a blank second virtio disk (/dev/vdb) and boots twice. boot 1 finds it
+	# blank and provisions it -- LUKS2 + integrity, an ext2 filesystem, a marker.
+	# boot 2 finds it already LUKS, opens it, and reads the marker back: proof
+	# the bytes survived a real power cycle. the open+mount path is identical to
+	# the interactive one; only the passphrase source differs.
+	if grep -q vos.teststate /proc/cmdline && [ -b /dev/vdb ]; then
+		if cryptsetup isLuks /dev/vdb 2>/dev/null; then
+			printf 'teststate-phase: reopen\n'
+			printf 'teststate-open: '
+			if printf 'testpass' | cryptsetup open --key-file - /dev/vdb ts >/dev/null 2>&1; then
+				echo ok
+				mkdir -p /tmp/ts
+				mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/ts /tmp/ts 2>/dev/null
+				printf 'teststate-prior-marker: '; [ -f /tmp/ts/marker ] && cat /tmp/ts/marker || echo NONE
+				umount /tmp/ts 2>/dev/null; cryptsetup close ts 2>/dev/null
+			else echo FAILED; fi
+		else
+			printf 'teststate-phase: provision\n'
+			printf 'teststate-format: '
+			if printf 'testpass' | cryptsetup luksFormat --type luks2 --integrity hmac-sha256 \
+			     --pbkdf pbkdf2 --pbkdf-force-iterations 1000 --batch-mode --key-file - /dev/vdb >/dev/null 2>&1
+			then echo ok; else echo FAILED; fi
+			printf 'teststate-mkfs: '
+			if printf 'testpass' | cryptsetup open --key-file - /dev/vdb ts >/dev/null 2>&1; then
+				if mke2fs -F /dev/mapper/ts >/dev/null 2>&1; then echo ok; else echo FAILED; fi
+				mkdir -p /tmp/ts
+				mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/ts /tmp/ts 2>/dev/null
+				printf 'teststate-write: '; if echo "survived-a-reboot" > /tmp/ts/marker; then sync; echo ok; else echo FAILED; fi
+				umount /tmp/ts 2>/dev/null; cryptsetup close ts 2>/dev/null
+			else echo FAILED; fi
+		fi
+	fi
+
 	echo "VOS-TEST-END"
 	sync
 fi
 
 # tighten default permissions on anything the session writes to tmpfs
 umask 077
+
+# ── p3: encrypted + authenticated persistent state ──────────────────────────
+#
+# opt-in, and safe to decline. a missing partition, an empty passphrase, a
+# timeout, a wrong passphrase, or vos.nostate all fall through to the ephemeral
+# tmpfs home -- exactly the appliance vos was before p3 existed. nothing here
+# can lose data it did not just unlock.
+#
+# the partition is found by LABEL, not device path, so it works whatever the
+# host calls the stick. it is opened with the kernel crypto backend, and mounted
+# nosuid,nodev,noexec: state persists, but a binary dropped onto it still cannot
+# run -- the same W^X property the read-only root has.
+#
+# this runs AFTER the test block (which powers off) so an automated boot never
+# blocks on the prompt, and BEFORE the consoles so the session that starts sees
+# the persistent home.
+STATE_DIR=/tmp/state
+state_open() {
+	grep -q vos.nostate /proc/cmdline && return 1
+	command -v cryptsetup >/dev/null 2>&1 || return 1
+	# find the state partition by its LUKS header, not by a label -- an
+	# unopened LUKS container exposes no filesystem label, and this works
+	# whatever the host names the stick (sda3, nvme0n1p3, vdb3). the host's
+	# own disks never enumerate (no nvme/sata driver), so every partition
+	# seen here is on the stick or on attached usb.
+	local dev p
+	dev=""
+	for p in /sys/class/block/*/partition; do
+		[ -f "$p" ] || continue
+		local cand="/dev/$(basename "$(dirname "$p")")"
+		[ -b "$cand" ] || continue
+		if cryptsetup isLuks "$cand" 2>/dev/null; then dev="$cand"; break; fi
+	done
+	[ -n "$dev" ] || return 1
+
+	local pass
+	printf '\n  unlock persistent state? passphrase (empty to skip): ' > /dev/console
+	if ! IFS= read -r -s -t 30 pass < /dev/console; then printf '\n' > /dev/console; return 1; fi
+	printf '\n' > /dev/console
+	[ -n "$pass" ] || return 1
+
+	if ! printf '%s' "$pass" | cryptsetup open --key-file - "$dev" vosstate >/dev/null 2>&1; then
+		printf '  wrong passphrase -- continuing without persistence\n' > /dev/console
+		return 1
+	fi
+	mkdir -p "$STATE_DIR"
+	# explicit -t ext4: busybox mount does not probe the filesystem type, and
+	# the ext4 driver mounts ext2/3/4 alike. the mountpoint is under /tmp
+	# because the root is read-only -- you cannot mkdir a new top-level dir.
+	if ! mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/vosstate "$STATE_DIR" 2>/dev/null; then
+		cryptsetup close vosstate 2>/dev/null
+		return 1
+	fi
+	return 0
+}
+
+if state_open; then
+	# re-point home onto p3. everything under $HOME and the learn progress in
+	# XDG_STATE_HOME now survives a reboot.
+	mkdir -p "$STATE_DIR/home"
+	export HOME="$STATE_DIR/home"
+	export XDG_DATA_HOME="$HOME/.local/share"
+	export XDG_CONFIG_HOME="$HOME/.config"
+	export XDG_STATE_HOME="$HOME/.local/state"
+	mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
+	printf '  state unlocked -- %s persists across reboots\n' "$HOME" > /dev/console
+fi
 
 banner() {
 	cat <<'BANNER'

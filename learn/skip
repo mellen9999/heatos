@@ -321,3 +321,12 @@ microcom -d       # inter-character delay, a tuning knob
 microcom -X       # disable special-character handling
 pidof -o          # omit a pid; -s is the discriminator worth knowing
 pmap -q           # quiet, drop header/footer; -x is the informative one
+
+# ── mkfs tuning knobs ──
+# the level teaches making a filesystem and labelling it. these tune internals
+# you set once in a blue moon and look up when you do.
+mke2fs -b       # block size
+mke2fs -i       # inode ratio
+mke2fs -I       # inode size
+mke2fs -n       # dry run
+mkdosfs -v      # verbose
