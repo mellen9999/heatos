@@ -12,7 +12,7 @@ pass=0; fail=0; skip=0; sections=0
 # the gate runner already learned this: a run that dies partway through prints
 # a smaller number and looks exactly like a clean one. count the checks that
 # actually ran and refuse to report a result if any of them went missing.
-EXPECTED_SECTIONS=13
+EXPECTED_SECTIONS=14
 section() { sections=$((sections+1)); echo; echo "$1"; }
 
 # p2 (root) starts after the 1 MiB gap + the ESP. keep in step with build.sh
@@ -280,6 +280,33 @@ tty_n=$(grep -oP 'ttys-spawned: \K[0-9]+' <<< "$out" | head -1)
 # PID 1 used to BE the shell, so a shell exiting was a kernel panic.
 grep -q 'Kernel panic' <<< "$out" && bad "the boot panicked" \
 	|| ok "PID 1 survived every console session"
+
+echo
+section "A14  state can be encrypted AND authenticated"
+# p3's whole reason for existing. encryption alone gives confidentiality: an
+# attacker cannot read it. it does not stop them CHANGING it -- decrypting
+# tampered ciphertext yields attacker-controlled garbage the filesystem parses
+# as root. --integrity makes tampering refused instead, which is the same
+# fail-closed property verity gives the read-only root.
+grep -q 'flock-works: yes' <<< "$out" && ok "file locking works" \
+	|| bad "flock() is ENOSYS -- cryptsetup cannot lock, and the flock applet is a lie"
+grep -q 'cryptsetup-runs: yes' <<< "$out" \
+	&& ok "cryptsetup runs, using the kernel crypto backend" \
+	|| bad "cryptsetup missing, or linked against a crypto library instead of the kernel"
+grep -q 'luks-format: ok' <<< "$out" && ok "a LUKS2 volume can be created with integrity" \
+	|| bad "luksFormat failed"
+grep -q 'luks-open: ok' <<< "$out" && ok "it unlocks with the right passphrase" \
+	|| bad "luksOpen failed"
+grep -q 'luks-integrity-active: integrity: hmac' <<< "$out" \
+	&& ok "the opened volume really is authenticated, not merely encrypted" \
+	|| bad "no integrity on the opened volume -- encryption without authentication"
+grep -q 'luks-wrong-pass-refused: refused' <<< "$out" \
+	&& ok "the wrong passphrase is refused" || bad "a wrong passphrase opened the volume"
+grep -q 'fs-ext4: yes' <<< "$out" && ok "ext4 is available for the state filesystem" || bad "no ext4"
+grep -q 'fs-vfat: yes' <<< "$out" && ok "vfat is available, so removable media can be mounted" || bad "no vfat"
+grep -q 'entropy-trusted: random.trust_cpu=1' <<< "$out" \
+	&& ok "the entropy source is pinned on the signed cmdline" \
+	|| bad "random.trust_cpu is not pinned -- keys may be generated on a thin pool"
 
 printf '  %d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
 if [ "$sections" -ne "$EXPECTED_SECTIONS" ]; then

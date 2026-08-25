@@ -46,6 +46,9 @@ do
   [ -e "$p" ] || continue
   echo "$v" > "$p" 2>/dev/null || echo "sysctl FAILED: ${kv%=*}"
 done
+# /run is a symlink into the tmpfs. cryptsetup keeps its device locks under
+# /run/cryptsetup and aborts rather than proceeding without them.
+mkdir -p /tmp/run/cryptsetup
 mkdir -p /tmp/home
 export HOME=/tmp/home
 export XDG_DATA_HOME=/tmp/home/.local/share
@@ -102,6 +105,43 @@ if grep -q vos.test /proc/cmdline; then
 	printf 'rootfs-digest: '; sha256sum /dev/dm-0 2>/dev/null | cut -d' ' -f1 || echo none
 	printf 'verity-roothash: '; sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline | head -1
 	printf 'verity-onerror: '; grep -o 'panic_on_corruption' /proc/cmdline | head -1 || echo none
+	# p3 depends on all of these existing in the kernel. assert them rather than
+	# trusting the config, the same way every other claim here is asserted.
+	printf 'fs-ext4: '; grep -qw ext4 /proc/filesystems && echo yes || echo "no (BAD)"
+	printf 'fs-vfat: '; grep -qw vfat /proc/filesystems && echo yes || echo "no (BAD)"
+	# /proc/crypto lists INSTANTIATED algorithms. xts and hmac are templates and
+	# do not appear until something asks for xts(aes) or hmac(sha512), so their
+	# absence here means nothing -- G14 asserts them from the built config
+	# instead. what is worth probing is the concrete ciphers they build on.
+	printf 'crypto-aes: '; grep -qw aes /proc/crypto && echo yes || echo "no (BAD)"
+	printf 'crypto-sha512: '; grep -qw sha512 /proc/crypto && echo yes || echo "no (BAD)"
+	printf 'entropy-trusted: '; grep -o 'random.trust_cpu=1' /proc/cmdline | head -1 || echo "not pinned (BAD)"
+	# the whole p3 stack, exercised rather than assumed: cryptsetup binary,
+	# dm-crypt, dm-integrity and the kernel crypto backend. a 24 MiB scratch
+	# file in tmpfs stands in for the partition. --pbkdf pbkdf2 because argon2
+	# would spend seconds grinding memory for a throwaway test.
+	echo 0 > /proc/sys/kernel/printk
+	printf 'flock-works: '; if flock -x /tmp/lk true 2>/dev/null; then echo yes; else echo "no (BAD)"; fi
+	printf 'cryptsetup-runs: '; cryptsetup --version 2>&1 | head -1 | grep -q KERNEL_CAPI && echo yes || echo "no (BAD)"
+	dd if=/dev/zero of=/tmp/p3.img bs=1M count=64 2>/dev/null
+	printf 'loop-node: '; [ -b /dev/loop0 ] && echo present || echo "absent (BAD)"
+	printf 'dm-control: '; [ -c /dev/mapper/control ] && echo present || echo "absent (BAD)"
+	printf 'losetup: '; losetup /dev/loop0 /tmp/p3.img 2>&1 | head -1 | grep . || echo ok
+	printf 'luks-format: '
+	if printf 'testpass' | cryptsetup luksFormat --type luks2 --integrity hmac-sha256 \
+	     --pbkdf pbkdf2 --pbkdf-force-iterations 1000 --batch-mode --key-file - /dev/loop0 >/tmp/cs.log 2>&1
+	then echo ok; else printf 'FAILED -- '; head -2 /tmp/cs.log | tr '\n' ' '; echo; fi
+	printf 'luks-open: '
+	if printf 'testpass' | cryptsetup open --key-file - /dev/loop0 p3test >/tmp/cso.log 2>&1
+	then echo ok; else printf 'FAILED -- '; head -2 /tmp/cso.log | tr '\n' ' '; echo; fi
+	printf 'luks-integrity-active: '
+	cryptsetup status p3test 2>/dev/null | grep -o 'integrity:.*' | head -1 || echo none
+	printf 'luks-wrong-pass-refused: '
+	if printf 'wrongpass' | cryptsetup open --key-file - /dev/loop0 p3bad >/dev/null 2>&1
+	then echo "ACCEPTED (BAD)"; else echo "refused (good)"; fi
+	cryptsetup close p3test >/dev/null 2>&1
+	losetup -d /dev/loop0 2>/dev/null; rm -f /tmp/p3.img
+	echo 1 > /proc/sys/kernel/printk
 	printf 'abduco-runs: '; abduco 2>&1 | head -1 | grep -q 'Active sessions' && echo yes || echo no
 	# the property that matters is not "abduco starts" but "the program outlives
 	# the thing that started it". start a counter detached, wait, and read the

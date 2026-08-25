@@ -1,0 +1,45 @@
+cryptsetup
+Usage: cryptsetup <action> [options] <device> [name]
+
+Set up encrypted block devices. On vos this is what p3 -- the state
+partition -- is built with, and it is the only way anything survives a
+reboot.
+
+This page documents the actions and options vos itself uses. cryptsetup
+upstream has many more; these are the ones that matter here, and the ones
+the curriculum drills.
+
+actions
+	luksFormat	write a new LUKS2 header, destroying what was there
+	open		unlock a device and expose it as /dev/mapper/NAME
+	close		lock it again and remove the mapping
+	status		is NAME open, and with what cipher
+	luksDump	print the header: cipher, key slots, kdf
+
+	--type		luks2 (the default) or plain
+	--integrity	add authentication as well as encryption
+	--cipher	which cipher, e.g. aes-xts-plain64
+	--key-size	key length in bits
+	--pbkdf		which key-derivation function, argon2id or pbkdf2
+	--batch-mode	never prompt or ask to confirm
+	--readonly	open without allowing writes
+	--verbose	say what is happening
+
+Encryption alone is not enough. Plain LUKS gives confidentiality: an
+attacker cannot READ your data. It does not stop them CHANGING it --
+decrypting tampered ciphertext yields attacker-controlled garbage, which
+the filesystem driver then parses as root. --integrity adds an
+authentication tag per sector, so tampering is refused rather than
+parsed. That is the same fail-closed property dm-verity gives the
+read-only root, and it is why vos uses both.
+
+	cryptsetup luksFormat --integrity hmac-sha256 /dev/sda3
+	cryptsetup open /dev/sda3 state
+	mount -o nosuid,nodev,noexec /dev/mapper/state /state
+	cryptsetup close state
+
+The passphrase is typed on a keyboard belonging to a machine you do not
+own. Against a malicious BIOS or a hardware keylogger it is captured no
+matter what this tool does. That is why p3 stays locked by default.
+
+See also: mount, losetup, blkid, dd

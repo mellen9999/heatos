@@ -7,10 +7,20 @@ BBVER="${BBVER:-1.37.0}"
 IIVER="${IIVER:-2.0}"
 BSSLVER="${BSSLVER:-0.6}"
 ABDVER="${ABDVER:-0.6}"
+# p3 needs cryptsetup, and cryptsetup needs four libraries. that takes this repo
+# from four pinned upstreams to nine, which is the largest single increase in
+# trust surface it has ever taken -- recorded in SOURCES.md rather than waved
+# through. the kernel crypto backend (AF_ALG) is what avoids a fifth: no
+# openssl, no gcrypt, no nettle.
+CSVER="${CSVER:-2.7.5}"
+LVMVER="${LVMVER:-2.03.27}"
+POPTVER="${POPTVER:-1.19}"
+JSONCVER="${JSONCVER:-0.18-20240915}"
+UTLVER="${UTLVER:-2.40.2}"
 # the binaries that are not busybox applets. this was written out three separate
 # times -- seed(), and twice inside G24 -- so adding one meant editing three
 # places and forgetting any of them failed confusingly. one list, read everywhere.
-EXTRA_BINS="ii tlstunnel learn abduco"
+EXTRA_BINS="ii tlstunnel learn abduco cryptsetup"
 # plaintext private keys live ONLY here, only while unlocked. /dev/shm is
 # tmpfs, so nothing lands on disk. the path is scoped to THIS tree: /dev/shm is
 # shared across every checkout and worktree a user has open, so a bare per-uid
@@ -118,6 +128,20 @@ fetch() {
   # of stale: four C files that do one thing.
   get "https://www.brain-dump.org/projects/abduco/abduco-$ABDVER.tar.gz" \
       "abduco-$ABDVER.tar.gz" "abduco-$ABDVER"
+  # cryptsetup and its four libraries. kernel.org publishes sha256sums for
+  # cryptsetup and util-linux; the other three are trust-on-first-use. see
+  # SOURCES.md, which records which is which rather than letting one digest
+  # list look as authoritative as another.
+  get "https://cdn.kernel.org/pub/linux/utils/cryptsetup/v2.7/cryptsetup-$CSVER.tar.xz" \
+      "cryptsetup-$CSVER.tar.xz" "cryptsetup-$CSVER"
+  get "https://sourceware.org/pub/lvm2/LVM2.$LVMVER.tgz" \
+      "LVM2.$LVMVER.tgz" "LVM2.$LVMVER"
+  get "http://ftp.rpm.org/popt/releases/popt-1.x/popt-$POPTVER.tar.gz" \
+      "popt-$POPTVER.tar.gz" "popt-$POPTVER"
+  get "https://github.com/json-c/json-c/archive/refs/tags/json-c-$JSONCVER.tar.gz" \
+      "json-c-$JSONCVER.tar.gz" "json-c-json-c-$JSONCVER"
+  get "https://cdn.kernel.org/pub/linux/utils/util-linux/v2.40/util-linux-$UTLVER.tar.xz" \
+      "util-linux-$UTLVER.tar.xz" "util-linux-$UTLVER"
   # bearssl: also no upstream signature -- see SOURCES.md
   get "https://bearssl.org/bearssl-$BSSLVER.tar.gz" \
       "bearssl-$BSSLVER.tar.gz" "bearssl-$BSSLVER"
@@ -125,10 +149,10 @@ fetch() {
   # completeness: now that every source is present, re-check the whole pinned
   # set. this catches a tarball that is pinned but no longer fetched, which the
   # per-source checks above cannot see.
-  ( cd src && grep -E '\.tar\.(xz|bz2|gz)$' ../sources.sha256 | sha256sum -c --strict - >/dev/null ) || {
+  ( cd src && grep -E '\.(tar\.(xz|bz2|gz)|tgz)$' ../sources.sha256 | sha256sum -c --strict - >/dev/null ) || {
     echo "FAIL: pinned source set does not match src/" >&2; return 1; }
   printf '  %d sources verified against sources.sha256\n' \
-    "$(grep -cE '\.tar\.(xz|bz2|gz)$' sources.sha256)"
+    "$(grep -cE '\.(tar\.(xz|bz2|gz)|tgz)$' sources.sha256)"
 }
 
 kernel() {
@@ -299,6 +323,73 @@ tls() {
   printf '  tlstunnel: %d bytes\n' "$(stat -c%s tlstunnel)"
 }
 
+cryptsetup_() {
+  say "building cryptsetup $CSVER + its four libraries (musl static-pie)"
+  local specs="$PWD/musl-static-pie.specs" root="$PWD"
+  local cc="gcc -specs=$specs" cf="-fPIE -Os -isystem $root/sysroot/include"
+  local dep="$root/src/cs-dep"
+  rm -rf "$dep"; mkdir -p "$dep/lib" "$dep/include/json-c" "$dep/include/uuid"
+
+  # pkg-config on the BUILD HOST will happily answer for the host's shared
+  # libraries -- it pulled in -ludev and broke the static link. point it at an
+  # empty directory so only what we built here can be found.
+  mkdir -p "$dep/nopc"
+  export PKG_CONFIG_LIBDIR="$dep/nopc" PKG_CONFIG_PATH="$dep/nopc"
+
+  # libdevmapper: the dm ioctl wrapper. only the library is wanted -- lvm2's
+  # own dmsetup tool wants libblkid and is not built.
+  local d="src/LVM2.$LVMVER"
+  ( cd "$d" && ./configure --enable-static_link --disable-selinux --disable-udev_sync \
+      --disable-udev_rules --disable-readline --disable-nls --disable-shared \
+      --with-cache=none --with-thin=none --with-vdo=none --with-writecache=none \
+      CC="$cc" CFLAGS="$cf" >/dev/null 2>&1 && make -C libdm >/dev/null 2>&1 ) || true
+  [ -f "$d/libdm/ioctl/libdevmapper.a" ] || { echo "FAIL: libdevmapper did not build" >&2; return 1; }
+  cp "$d/libdm/ioctl/libdevmapper.a" "$dep/lib/"
+  cp "$d/libdm/libdevmapper.h" "$dep/include/"
+
+  d="src/popt-$POPTVER"
+  ( cd "$d" && ./configure --disable-shared --enable-static --disable-nls \
+      CC="$cc" CFLAGS="$cf" >/dev/null 2>&1 && make -j"$JOBS" >/dev/null 2>&1 ) || true
+  [ -f "$d/src/.libs/libpopt.a" ] || { echo "FAIL: popt did not build" >&2; return 1; }
+  cp "$d/src/.libs/libpopt.a" "$dep/lib/"; cp "$d/src/popt.h" "$dep/include/"
+
+  d="src/json-c-json-c-$JSONCVER"
+  ( cd "$d" && cmake -S . -B b -DCMAKE_C_COMPILER=gcc -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+      -DCMAKE_C_FLAGS="-specs=$specs $cf" -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON \
+      -DDISABLE_WERROR=ON -DBUILD_TESTING=OFF -DBUILD_APPS=OFF >/dev/null 2>&1 \
+    && cmake --build b -j"$JOBS" >/dev/null 2>&1 ) || true
+  [ -f "$d/b/libjson-c.a" ] || { echo "FAIL: json-c did not build" >&2; return 1; }
+  cp "$d/b/libjson-c.a" "$dep/lib/"; cp "$d"/*.h "$d"/b/*.h "$dep/include/json-c/" 2>/dev/null
+
+  d="src/util-linux-$UTLVER"
+  ( cd "$d" && ./configure --disable-all-programs --enable-libuuid --disable-shared \
+      --enable-static --without-systemd --without-udev --disable-nls --disable-asciidoc \
+      CC="$cc" CFLAGS="$cf" >/dev/null 2>&1 && make -j"$JOBS" >/dev/null 2>&1 ) || true
+  [ -f "$d/.libs/libuuid.a" ] || { echo "FAIL: libuuid did not build" >&2; return 1; }
+  cp "$d/.libs/libuuid.a" "$dep/lib/"; cp "$d/libuuid/src/uuid.h" "$dep/include/uuid/"
+
+  d="src/cryptsetup-$CSVER"
+  ( cd "$d" && ./configure --disable-shared --enable-static --enable-static-cryptsetup \
+      --with-crypto_backend=kernel --disable-ssh-token --disable-external-tokens \
+      --disable-selinux --disable-nls --disable-blkid --disable-udev \
+      --disable-veritysetup --disable-integritysetup --disable-asciidoc \
+      CC="$cc" CFLAGS="$cf -I$dep/include" LDFLAGS="-L$dep/lib" \
+      DEVMAPPER_CFLAGS="-I$dep/include" DEVMAPPER_LIBS="-L$dep/lib -ldevmapper" \
+      JSON_C_CFLAGS="-I$dep/include/json-c" JSON_C_LIBS="-L$dep/lib -ljson-c" \
+      UUID_CFLAGS="-I$dep/include" UUID_LIBS="-L$dep/lib -luuid" \
+      POPT_LIBS="-L$dep/lib -lpopt" >/dev/null 2>&1 \
+    && make -j"$JOBS" >/dev/null 2>&1 ) || true
+  [ -f "$d/cryptsetup.static" ] || { echo "FAIL: cryptsetup did not build" >&2; return 1; }
+  cp "$d/cryptsetup.static" cryptsetup; strip cryptsetup
+  unset PKG_CONFIG_LIBDIR PKG_CONFIG_PATH
+
+  # form gates pass on a binary that segfaults, and this one must also have the
+  # KERNEL_CAPI backend -- an openssl-linked build would be a silent dependency.
+  { ./cryptsetup --version 2>&1 || true; } | has 'KERNEL_CAPI' \
+    || { echo "FAIL: cryptsetup missing or not using the kernel crypto backend" >&2; return 1; }
+  printf '  cryptsetup: %d bytes\n' "$(stat -c%s cryptsetup)"
+}
+
 abduco() {
   say "building abduco $ABDVER (session detach, musl static-pie)"
   local d="src/abduco-$ABDVER" specs="$PWD/musl-static-pie.specs"
@@ -357,7 +448,7 @@ rootfs() {
   # binary silently produced a smaller image that still passed every gate.
   # a build that ships less than it claims must fail, not shrink.
   local b
-  for b in ii tlstunnel abduco; do
+  for b in ii tlstunnel abduco cryptsetup; do
     [ -f "$b" ] || { echo "FAIL: $b not built -- run ./build.sh all" >&2; return 1; }
     cp "$b" "root/bin/$b"
   done
@@ -392,6 +483,9 @@ rootfs() {
   printf 'root:x:0:\n' > root/etc/group
   # root is read-only, so resolv.conf must live on the tmpfs udhcpc writes to
   ln -sf /tmp/resolv.conf root/etc/resolv.conf
+  # same reason: cryptsetup takes lock files under /run/cryptsetup and refuses
+  # to touch a device without them. /run points into the tmpfs init creates.
+  ln -sf /tmp/run root/run
   # squashfs-tools >= 4.6 reads SOURCE_DATE_EPOCH itself and clamps every
   # timestamp to it -- and hard-errors if you also pass -mkfs-time, which is
   # how this was caught. -processors 1 keeps block ordering deterministic.
@@ -726,12 +820,19 @@ verity() {
   # nothing essential needed it. panic_on_corruption makes ANY corruption
   # anywhere fatal -- the machine refuses to run at all, which is the point.
   #
+  # random.trust_cpu=1: nothing persists here, so the entropy pool starts empty
+  # on every boot with no seed file to carry across. 6.12 already defaults this
+  # to true and dropped the Kconfig symbol, so pinning it on the signed cmdline
+  # is how it stays true across a kernel bump. the kernel always MIXES rdrand
+  # rather than using it alone -- a backdoored instruction cannot dictate the
+  # output, only fail to contribute.
+  #
   # oops=panic + panic=-1: any oops becomes a fatal, non-recoverable halt (no
   # boot-and-limp). page_alloc.shuffle=1 activates SHUFFLE_PAGE_ALLOCATOR. the
   # rest of the hardening is compiled in (lockdown, kstack offset, slab), which
   # is stronger than a cmdline flag -- there is no runtime knob left to flip.
   local dev="PARTUUID=$PU_ROOT"
-  printf 'dm-mod.waitfor=%s dm-mod.create="vroot,,,ro,0 %d verity 1 %s %s 4096 4096 %d %d sha256 %s %s 1 panic_on_corruption" root=/dev/dm-0 ro rootfstype=squashfs rootwait init=/init oops=panic panic=-1 page_alloc.shuffle=1 console=tty0 console=ttyS0,115200%s\n' \
+  printf 'dm-mod.waitfor=%s dm-mod.create="vroot,,,ro,0 %d verity 1 %s %s 4096 4096 %d %d sha256 %s %s 1 panic_on_corruption" root=/dev/dm-0 ro rootfstype=squashfs rootwait init=/init oops=panic panic=-1 page_alloc.shuffle=1 random.trust_cpu=1 console=tty0 console=ttyS0,115200%s\n' \
     "$dev" "$((blocks * 8))" "$dev" "$dev" "$blocks" "$((blocks + 1))" "$rh" "$SALT" "$testflag" > cmdline.txt
 
   printf '  vos.img: %d bytes  root hash: %s
@@ -976,7 +1077,7 @@ size() {
   # G15 -- the tamper-proof hardening lives on the cmdline (inside the UKI
   # signature). assert every param that must be there is.
   local c15=0 want15
-  for want15 in 'panic_on_corruption' 'oops=panic' 'panic=-1' 'page_alloc.shuffle=1' 'dm-mod.waitfor=PARTUUID='; do
+  for want15 in 'panic_on_corruption' 'oops=panic' 'panic=-1' 'page_alloc.shuffle=1' 'random.trust_cpu=1' 'dm-mod.waitfor=PARTUUID='; do
     grep -qF "$want15" cmdline.txt || { c15=$((c15+1)); printf '    cmdline missing: %s\n' "$want15" >&2; }
   done
   g "G15 cmdline hardening params ($c15 missing)" "$([ "$c15" -eq 0 ] && echo ok || echo FAIL)"
@@ -1194,12 +1295,12 @@ bootusb() {
 }
 
 case "${1:-all}" in
-  deps|fetch|kernel|headers|busybox|ii_|abduco|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|size|boot|bootusb) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|size|boot|bootusb) "$@" ;;
   all)
-    deps; fetch; kernel; headers; busybox; tls; ii_; abduco; rootfs; verity; keys
+    deps; fetch; kernel; headers; busybox; tls; ii_; abduco; cryptsetup_; rootfs; verity; keys
     # clean clone makes plaintext keys; seal them so uki's unlock has db.key.enc
     # and G11 stays green. a sealed tree short-circuits keys() and skips this.
     if [ -f keys/db.key ]; then seal; fi
     uki; stick; size ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|dbx|revoke IMAGE|stick|usb <dev>|pin|seed|size|boot|bootusb|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|dbx|revoke IMAGE|stick|usb <dev>|pin|seed|size|boot|bootusb|all}"; exit 1 ;;
 esac

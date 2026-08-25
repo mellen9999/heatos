@@ -241,3 +241,68 @@ a: flock -s lock.file echo held
 out: held
 ref: flock
 teach: flock -s
+---
+setup: p3 is the state partition -- the only thing on this stick that survives
+setup: a reboot, and the only place a key can live. It is encrypted, and it is
+setup: also authenticated, which is a different property and the harder one.
+q: write a new LUKS2 header on /dev/sda3, with authentication as well as encryption
+a: cryptsetup luksFormat --type luks2 --integrity hmac-sha256 /dev/sda3
+ref: cryptsetup
+teach: cryptsetup --type
+teach: cryptsetup --integrity
+hint: encryption stops them reading it; integrity stops them changing it
+---
+q: unlock /dev/sda3 and expose it as /dev/mapper/state
+a: cryptsetup open /dev/sda3 state
+ref: cryptsetup
+teach: cryptsetup
+---
+q: unlock it without allowing any writes
+a: cryptsetup open --readonly /dev/sda3 state
+ref: cryptsetup
+teach: cryptsetup --readonly
+---
+q: lock it again and remove the mapping
+a: cryptsetup close state
+ref: cryptsetup
+teach: cryptsetup
+---
+q: is state currently open, and with what cipher
+a: cryptsetup status state
+ref: cryptsetup
+teach: cryptsetup
+---
+q: print the LUKS header of /dev/sda3 -- cipher, key slots and kdf
+a: cryptsetup luksDump /dev/sda3
+ref: cryptsetup
+teach: cryptsetup
+---
+q: format /dev/sda3 choosing the cipher explicitly
+a: cryptsetup luksFormat --cipher aes-xts-plain64 /dev/sda3
+ref: cryptsetup
+teach: cryptsetup --cipher
+---
+q: format with a 512 bit key
+a: cryptsetup luksFormat --key-size 512 /dev/sda3
+ref: cryptsetup
+teach: cryptsetup --key-size
+---
+q: format choosing pbkdf2 rather than the argon2id default
+a: cryptsetup luksFormat --pbkdf pbkdf2 /dev/sda3
+ref: cryptsetup
+teach: cryptsetup --pbkdf
+---
+q: format without any prompt or confirmation, for a script
+a: cryptsetup luksFormat --batch-mode /dev/sda3
+ref: cryptsetup
+teach: cryptsetup --batch-mode
+---
+q: open a device saying out loud what is happening
+a: cryptsetup open --verbose /dev/sda3 state
+ref: cryptsetup
+teach: cryptsetup --verbose
+---
+q: mount the unlocked state device with nothing on it able to run
+a: mount -o nosuid,nodev,noexec /dev/mapper/state /state
+ref: mount
+teach: mount -o

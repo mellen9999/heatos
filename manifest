@@ -10,6 +10,7 @@ bin/[
 bin/ii
 bin/tlstunnel
 bin/abduco
+bin/cryptsetup
 bin/learn
 usr/share/learn/ref/ls
 usr/share/learn/ref/sh
