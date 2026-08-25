@@ -128,11 +128,12 @@ the build fails, loudly, on any of:
 
 a build that reports success while quietly dropping features is the failure
 mode this is built against. every claim above has a check that fails when it
-stops being true. the attack harness then boots the real chain ten ways and
-expects every attack to fail: a flipped root byte, a flipped hash-tree byte, an
-unsigned kernel, a tampered signature, a cert outside the trust store, and it
-reads back from inside the running system that /dev/mem and kcore are gone,
-lockdown is enforcing, and neither the root nor /tmp will run injected code.
+stops being true. the self-test then boots the real chain in a vm and expects
+every attack to fail: a flipped root byte, a flipped hash-tree byte, an unsigned
+kernel, a tampered signature, a superseded image the firmware has revoked, a
+cert outside the trust store, and it reads back from inside the running system
+that /dev/mem and kcore are gone, lockdown is enforcing, and neither the root
+nor /tmp will run injected code -- over both virtio and emulated USB.
 
 ## hardening
 
@@ -175,11 +176,11 @@ two things guard the guard, because a revocation that silently matches nothing
 is indistinguishable from one that works:
 
 - the digest is the *authenticode* hash, not `sha256sum` of the file -- three
-  regions are excluded from it. G15 checks `pehash.py` against the digest
+  regions are excluded from it. G21 checks `pehash.py` against the digest
   inside the image's own PKCS#7 signature, which sbsign already signed, so a
   wrong hash function fails the build instead of quietly revoking nothing.
-- A7 boots a superseded-but-validly-signed image in a vm and fails unless the
-  firmware actually refuses it.
+- A11 boots a superseded-but-validly-signed image in a vm and fails unless
+  the firmware actually refuses it.
 
 entries are permanent. removing one un-revokes a known-bad image, which is the
 whole reason the file is tracked and the image is not.
