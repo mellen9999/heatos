@@ -12,22 +12,22 @@ CMDCHAMP_SRC="${CMDCHAMP_SRC:-$HOME/projects/cmdchamp}"
 # tmpfs, so nothing lands on disk. the path is scoped to THIS tree: /dev/shm is
 # shared across every checkout and worktree a user has open, so a bare per-uid
 # path let one tree's unlock silently satisfy another tree's.
-RAMKEYS="/dev/shm/heatos-keys-$(id -u)-$(printf %s "$PWD" | sha256sum | cut -c1-12)"
+RAMKEYS="/dev/shm/vrl-keys-$(id -u)-$(printf %s "$PWD" | sha256sum | cut -c1-12)"
 JOBS="$(nproc)"
 IMAGE_MAX=8388608
-SALT=48454154534f530000000000000000000000000000000000000000000000000a
+SALT=56524c000000000000000000000000000000000000000000000000000000000a
 SBGUID=11111111-2222-3333-4444-555555555555
 # the verity superblock carries a UUID that veritysetup randomises per format.
 # it sits outside the hash tree so it changes no security property -- it just
 # made every build produce different bytes, which is the property that lets
 # anyone check the artifact against this source.
-VUUID=00000000-0000-4000-8000-000068656174
+VUUID=00000000-0000-4000-8000-00000076726c
 # fixed GPT identifiers so the stick is byte-deterministic AND so ONE signed
 # cmdline (which names the root by PARTUUID, never by /dev/sdX) boots the same
 # image whether it is p2 on a real usb stick or the whole disk under qemu.
-GPT_DISK=48454154-4f53-4000-8000-000000000000
-PU_ESP=48454154-4f53-4001-8000-000000000001
-PU_ROOT=48454154-4f53-4002-8000-000000000002
+GPT_DISK=56524c00-0000-4000-8000-000000000000
+PU_ESP=56524c00-0000-4001-8000-000000000001
+PU_ROOT=56524c00-0000-4002-8000-000000000002
 STICK_ESP_MIB=64
 # fixed build clock: the same commit must yield the same image, so the
 # artifact can be checked against its source instead of trusted.
@@ -36,8 +36,8 @@ export SOURCE_DATE_EPOCH=1755648000
 # the same source builds differently in a different timezone.
 export TZ=UTC
 export KBUILD_BUILD_TIMESTAMP="$(date -u -d "@$SOURCE_DATE_EPOCH" 2>/dev/null)"
-export KBUILD_BUILD_USER=heatos
-export KBUILD_BUILD_HOST=heatos
+export KBUILD_BUILD_USER=vrl
+export KBUILD_BUILD_HOST=vrl
 
 say() { printf '\n\033[1;33m==> %s\033[0m\n' "$*"; }
 
@@ -305,14 +305,14 @@ rootfs() {
   # names come from busybox itself, not our config list -- the two drift
   # (CONFIG_TEST1 is the applet named "["), and a missing applet makes
   # shell tests fail open rather than fail loud.
-  ./busybox --list > /tmp/heatos-applets.$$ 2>/dev/null || {
+  ./busybox --list > /tmp/vrl-applets.$$ 2>/dev/null || {
     echo "FAIL: busybox --list unavailable (enable the busybox applet)" >&2; return 1; }
-  [ -s /tmp/heatos-applets.$$ ] || { echo "FAIL: empty applet list" >&2; return 1; }
+  [ -s /tmp/vrl-applets.$$ ] || { echo "FAIL: empty applet list" >&2; return 1; }
   while read -r a; do
     ln -sf busybox "root/bin/$a"
-  done < /tmp/heatos-applets.$$
-  grep -qx '\[' /tmp/heatos-applets.$$ || { echo "FAIL: '[' applet missing -- shell tests would fail open" >&2; rm -f /tmp/heatos-applets.$$; return 1; }
-  rm -f /tmp/heatos-applets.$$
+  done < /tmp/vrl-applets.$$
+  grep -qx '\[' /tmp/vrl-applets.$$ || { echo "FAIL: '[' applet missing -- shell tests would fail open" >&2; rm -f /tmp/vrl-applets.$$; return 1; }
+  rm -f /tmp/vrl-applets.$$
   # every component is REQUIRED. these were `[ -f x ] && cp x` -- one missing
   # binary silently produced a smaller image that still passed every gate.
   # a build that ships less than it claims must fail, not shrink.
@@ -350,7 +350,7 @@ rootfs() {
 
   cp init root/init
   chmod +x root/init
-  echo 'heatos' > root/etc/hostname
+  echo 'vrl' > root/etc/hostname
   # without /etc/passwd, anything calling getpwuid() fails -- ii did exactly that
   printf 'root:x:0:0:root:/root:/bin/sh\n' > root/etc/passwd
   printf 'root:x:0:\n' > root/etc/group
@@ -364,7 +364,7 @@ rootfs() {
 }
 
 keys() {
-  say "generating heatos secure boot keys"
+  say "generating vrl secure boot keys"
   # idempotent against BOTH states: plaintext keys/db.key (freshly generated)
   # and sealed keys/db.key.enc (seal deletes db.key, so checking only the
   # plaintext made `all` regenerate certs over a sealed key -- old key, new
@@ -373,11 +373,11 @@ keys() {
   mkdir -p keys
   for k in PK KEK db; do
     openssl req -new -x509 -newkey rsa:2048 -nodes -sha256 -days 3650 \
-      -subj "/CN=heatos $k/" -keyout "keys/$k.key" -out "keys/$k.crt" 2>/dev/null
+      -subj "/CN=vrl $k/" -keyout "keys/$k.key" -out "keys/$k.crt" 2>/dev/null
     openssl x509 -in "keys/$k.crt" -outform DER -out "keys/$k.der"
   done
   chmod 700 keys; chmod 600 keys/*.key
-  echo "  PK/KEK/db written to keys/ (gitignored, heatos-only -- NOT heatpc's)"
+  echo "  PK/KEK/db written to keys/ (gitignored, vrl-only -- NOT heatpc's)"
 }
 
 seal() {
@@ -390,14 +390,14 @@ seal() {
   fi
   [ -f keys/db.key ] || { echo "FAIL: no keys/db.key -- run ./build.sh keys first" >&2; return 1; }
   local pass
-  if [ -n "${HEATOS_KEYPASS:-}" ]; then pass="$HEATOS_KEYPASS"
-  else read -rsp "  passphrase for heatos signing keys: " pass; echo; fi
+  if [ -n "${VRL_KEYPASS:-}" ]; then pass="$VRL_KEYPASS"
+  else read -rsp "  passphrase for vrl signing keys: " pass; echo; fi
   [ -n "$pass" ] || { echo "FAIL: empty passphrase" >&2; return 1; }
   local k
   for k in PK KEK db; do
     [ -f "keys/$k.key" ] || continue
-    HEATOS_PASS="$pass" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
-      -in "keys/$k.key" -out "keys/$k.key.enc" -pass env:HEATOS_PASS || return 1
+    VRL_PASS="$pass" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
+      -in "keys/$k.key" -out "keys/$k.key.enc" -pass env:VRL_PASS || return 1
     shred -u "keys/$k.key" 2>/dev/null || rm -f "keys/$k.key"
   done
   chmod 600 keys/*.enc
@@ -408,14 +408,14 @@ reseal() {
   say "changing the signing passphrase"
   unlock || return 1
   local newpass
-  if [ -n "${HEATOS_NEWKEYPASS:-}" ]; then newpass="$HEATOS_NEWKEYPASS"
+  if [ -n "${VRL_NEWKEYPASS:-}" ]; then newpass="$VRL_NEWKEYPASS"
   else read -rsp "  NEW passphrase: " newpass; echo; fi
   [ -n "$newpass" ] || { echo "FAIL: empty passphrase" >&2; return 1; }
   local k
   for k in PK KEK db; do
     [ -f "$RAMKEYS/$k.key" ] || continue
-    HEATOS_PASS="$newpass" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
-      -in "$RAMKEYS/$k.key" -out "keys/$k.key.enc.new" -pass env:HEATOS_PASS || return 1
+    VRL_PASS="$newpass" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
+      -in "$RAMKEYS/$k.key" -out "keys/$k.key.enc.new" -pass env:VRL_PASS || return 1
     mv "keys/$k.key.enc.new" "keys/$k.key.enc"
   done
   lock
@@ -440,14 +440,14 @@ unlock() {
   [ -f "$RAMKEYS/db.key" ] && { echo "  cached key does not match keys/db.crt -- re-unlocking"; rm -rf "$RAMKEYS"; }
   [ -f keys/db.key.enc ] || { echo "FAIL: keys/db.key.enc missing -- run ./build.sh keys then seal" >&2; return 1; }
   local pass
-  if [ -n "${HEATOS_KEYPASS:-}" ]; then pass="$HEATOS_KEYPASS"
+  if [ -n "${VRL_KEYPASS:-}" ]; then pass="$VRL_KEYPASS"
   else read -rsp "  passphrase to unlock signing keys: " pass; echo; fi
   mkdir -p "$RAMKEYS"; chmod 700 "$RAMKEYS"
   local k
   for k in PK KEK db; do
     [ -f "keys/$k.key.enc" ] || continue
-    HEATOS_PASS="$pass" openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
-      -in "keys/$k.key.enc" -out "$RAMKEYS/$k.key" -pass env:HEATOS_PASS 2>/dev/null \
+    VRL_PASS="$pass" openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+      -in "keys/$k.key.enc" -out "$RAMKEYS/$k.key" -pass env:VRL_PASS 2>/dev/null \
       || { rm -rf "$RAMKEYS"; echo "FAIL: wrong passphrase" >&2; return 1; }
   done
   chmod 600 "$RAMKEYS"/*.key
@@ -474,15 +474,15 @@ uki() {
     echo "FAIL: kernel lacks EFI_STUB -- firmware cannot load it" >&2; return 1; }
 
   unlock || return 1
-  ukify build --linux=bzImage --cmdline="$(cat cmdline.txt)" --stub="$stub" --output=heatos.efi >/dev/null
-  sbsign --key "$RAMKEYS/db.key" --cert keys/db.crt --output heatos-signed.efi heatos.efi >/dev/null \
-    || { echo "FAIL: signing failed -- refusing to ship an unsigned image" >&2; rm -f heatos-signed.efi; return 1; }
-  [ -f heatos-signed.efi ] || { echo "FAIL: no signed image produced" >&2; return 1; }
-  sbverify --cert keys/db.crt heatos-signed.efi >/dev/null 2>&1 || {
+  ukify build --linux=bzImage --cmdline="$(cat cmdline.txt)" --stub="$stub" --output=vrl.efi >/dev/null
+  sbsign --key "$RAMKEYS/db.key" --cert keys/db.crt --output vrl-signed.efi vrl.efi >/dev/null \
+    || { echo "FAIL: signing failed -- refusing to ship an unsigned image" >&2; rm -f vrl-signed.efi; return 1; }
+  [ -f vrl-signed.efi ] || { echo "FAIL: no signed image produced" >&2; return 1; }
+  sbverify --cert keys/db.crt vrl-signed.efi >/dev/null 2>&1 || {
     echo "FAIL: signature does not verify" >&2; return 1; }
 
   mkdir -p esp/EFI/BOOT
-  cp heatos-signed.efi esp/EFI/BOOT/BOOTX64.EFI
+  cp vrl-signed.efi esp/EFI/BOOT/BOOTX64.EFI
 
   cp "$OVMF_VARS" ovmf-vars.fd
   # errors here used to go to /dev/null with no status check: enrollment could
@@ -493,7 +493,7 @@ uki() {
     --add-kek "$SBGUID" keys/KEK.der \
     --add-db  "$SBGUID" keys/db.der >/dev/null 2>&1 \
     || { echo "FAIL: could not enroll keys into ovmf-vars.fd" >&2; return 1; }
-  printf '  signed UKI: %d bytes, keys enrolled into ovmf-vars.fd\n' "$(stat -c%s heatos-signed.efi)"
+  printf '  signed UKI: %d bytes, keys enrolled into ovmf-vars.fd\n' "$(stat -c%s vrl-signed.efi)"
   dbx || return 1
 }
 
@@ -533,7 +533,7 @@ revoke() {
   fi
   # revoking the image you are about to ship bricks the next boot. G14 catches
   # it at build time, but say it here too, while it is still one line to undo.
-  if [ -f heatos-signed.efi ] && [ "$h" = "$(python3 pehash.py heatos-signed.efi)" ]; then
+  if [ -f vrl-signed.efi ] && [ "$h" = "$(python3 pehash.py vrl-signed.efi)" ]; then
     echo "FAIL: that is the CURRENT signed image -- revoking it would refuse your own boot" >&2
     return 1
   fi
@@ -543,7 +543,7 @@ revoke() {
 }
 
 # assemble the bootable stick image: GPT (fixed GUIDs) + FAT32 ESP carrying the
-# signed UKI and the public keys for enrollment + raw heatos.img as p2. entirely
+# signed UKI and the public keys for enrollment + raw vrl.img as p2. entirely
 # deterministic (no root, no loop mount -- sfdisk + mtools), so the layout is
 # reproducible even though we do not pin it: everything that MATTERS on the stick
 # is already covered (p2 by image.sha256 + the verity tree, BOOTX64.EFI by the db
@@ -551,13 +551,13 @@ revoke() {
 # most deny boot, never change what runs.
 stick() {
   say "assembling stick.img"
-  [ -f heatos-signed.efi ] || { echo "FAIL: no signed UKI -- run ./build.sh uki" >&2; return 1; }
-  [ -f heatos.img ]        || { echo "FAIL: no heatos.img -- run ./build.sh verity" >&2; return 1; }
+  [ -f vrl-signed.efi ] || { echo "FAIL: no signed UKI -- run ./build.sh uki" >&2; return 1; }
+  [ -f vrl.img ]        || { echo "FAIL: no vrl.img -- run ./build.sh verity" >&2; return 1; }
   for k in PK KEK db; do [ -f "keys/$k.der" ] || { echo "FAIL: keys/$k.der missing" >&2; return 1; }; done
 
   local esp_bytes root_bytes esp_start_s esp_size_s root_start_s root_size_s total
   esp_bytes=$((STICK_ESP_MIB * 1024 * 1024))
-  root_bytes=$(stat -c%s heatos.img)                 # already a 4K multiple (verity padded it)
+  root_bytes=$(stat -c%s vrl.img)                 # already a 4K multiple (verity padded it)
   esp_start_s=2048                                    # 1 MiB, in 512B sectors
   esp_size_s=$((esp_bytes / 512))
   root_start_s=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 / 512 ))
@@ -573,21 +573,21 @@ stick() {
   sfdisk stick.img >/dev/null <<EOF
 label: gpt
 label-id: $GPT_DISK
-start=$esp_start_s, size=$esp_size_s, type=C12A7328-F81F-11D2-BA4B-00A08693446B, uuid=$PU_ESP, name="HEATOS-ESP"
-start=$root_start_s, size=$root_size_s, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=$PU_ROOT, name="HEATOS-ROOT"
+start=$esp_start_s, size=$esp_size_s, type=C12A7328-F81F-11D2-BA4B-00A08693446B, uuid=$PU_ESP, name="VRL-ESP"
+start=$root_start_s, size=$root_size_s, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=$PU_ROOT, name="VRL-ROOT"
 EOF
 
   # FAT32 in a temp file, then dd into the ESP slot. --invariant drops the
   # volume id + creation timestamp that would otherwise randomise the bytes.
   rm -f esp.part; truncate -s "$esp_bytes" esp.part
-  mkfs.fat --invariant -F 32 -n HEATOS esp.part >/dev/null
+  mkfs.fat --invariant -F 32 -n VRL esp.part >/dev/null
   # pin mtime of everything we copy so mcopy writes deterministic dir entries
-  touch -d "@$SOURCE_DATE_EPOCH" heatos-signed.efi keys/PK.der keys/KEK.der keys/db.der
-  mmd   -i esp.part ::/EFI ::/EFI/BOOT ::/heatos-keys
-  mcopy -pm -i esp.part heatos-signed.efi ::/EFI/BOOT/BOOTX64.EFI
-  mcopy -pm -i esp.part keys/PK.der keys/KEK.der keys/db.der ::/heatos-keys/
+  touch -d "@$SOURCE_DATE_EPOCH" vrl-signed.efi keys/PK.der keys/KEK.der keys/db.der
+  mmd   -i esp.part ::/EFI ::/EFI/BOOT ::/vrl-keys
+  mcopy -pm -i esp.part vrl-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+  mcopy -pm -i esp.part keys/PK.der keys/KEK.der keys/db.der ::/vrl-keys/
   dd if=esp.part    of=stick.img bs=1M seek=1                     conv=notrunc status=none
-  dd if=heatos.img  of=stick.img bs=1M seek=$((1 + STICK_ESP_MIB)) conv=notrunc status=none
+  dd if=vrl.img  of=stick.img bs=1M seek=$((1 + STICK_ESP_MIB)) conv=notrunc status=none
   rm -f esp.part
   printf '  stick.img: %d bytes (esp %d MiB + root %d bytes)\n' "$(stat -c%s stick.img)" "$STICK_ESP_MIB" "$root_bytes"
 }
@@ -636,30 +636,30 @@ usb() {
   [ "$want_stick" = "$have_stick" ] || { echo "FAIL: stick readback mismatch -- write did not land" >&2; return 1; }
   root_off=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 ))
   want_root=$(awk '$1=="image"{print $2}' image.sha256)
-  have_root=$(dd if="$dev" bs=1M skip=$((1 + STICK_ESP_MIB)) iflag=direct count=$(( ($(stat -c%s heatos.img) + 1048575) / 1048576 )) status=none | head -c "$(stat -c%s heatos.img)" | sha256sum | awk '{print $1}')
+  have_root=$(dd if="$dev" bs=1M skip=$((1 + STICK_ESP_MIB)) iflag=direct count=$(( ($(stat -c%s vrl.img) + 1048575) / 1048576 )) status=none | head -c "$(stat -c%s vrl.img)" | sha256sum | awk '{print $1}')
   if [ -n "$want_root" ] && [ "$want_root" != "$have_root" ]; then
     echo "FAIL: root partition on disk does not match pinned image digest" >&2; return 1; fi
   sync
-  printf '\n  \033[1;32mdone -- %s carries a verified heatos\033[0m\n' "$dev"
+  printf '\n  \033[1;32mdone -- %s carries a verified vrl\033[0m\n' "$dev"
   echo "  boot it: firmware boot menu -> USB. secure boot: enroll keys from the"
-  echo "  stick's /heatos-keys (db, KEK, then PK last). see README."
+  echo "  stick's /vrl-keys (db, KEK, then PK last). see README."
 }
 
 verity() {
   say "building verity hash tree"
-  cp rootfs.squashfs heatos.img
+  cp rootfs.squashfs vrl.img
   local data blocks
-  data=$(stat -c%s heatos.img)
+  data=$(stat -c%s vrl.img)
   if [ $((data % 4096)) -ne 0 ]; then
     data=$(( (data / 4096 + 1) * 4096 ))
-    truncate -s "$data" heatos.img
+    truncate -s "$data" vrl.img
   fi
   blocks=$((data / 4096))
 
   # fixed salt AND fixed uuid: the image must be reproducible. a random salt
   # would change the root hash for identical content; a random uuid left the
   # root hash stable and still changed the image bytes on every single build.
-  veritysetup format heatos.img heatos.img \
+  veritysetup format vrl.img vrl.img \
     --hash-offset="$data" --data-blocks="$blocks" --salt="$SALT" --uuid="$VUUID" > verity.info
   local rh
   rh=$(awk '/Root hash/{print $NF}' verity.info)
@@ -669,11 +669,11 @@ verity() {
   # veritysetup writes a superblock AT the hash offset, so the hash tree
   # itself starts one block later -- pointing the table at $blocks lands on
   # the superblock and the root mount fails with no verity error at all.
-  # heatos.test is DEBUG scaffolding, and the cmdline lives INSIDE the UKI
+  # vrl.test is DEBUG scaffolding, and the cmdline lives INSIDE the UKI
   # signature -- so it must never ship in a production image. selftest.sh
   # rebuilds a test-flavoured UKI for its own runs.
   local testflag=""
-  [ "${HEATOS_TEST:-0}" = 1 ] && testflag=" heatos.test"
+  [ "${VRL_TEST:-0}" = 1 ] && testflag=" vrl.test"
   # the root is named by PARTUUID, not /dev/vda: on a real machine the stick is
   # /dev/sda|sdb, and dm-init resolves PARTUUID= via early_lookup_bdev. one
   # cmdline, inside one signature, boots qemu and metal alike.
@@ -698,8 +698,8 @@ verity() {
   printf 'dm-mod.waitfor=%s dm-mod.create="vroot,,,ro,0 %d verity 1 %s %s 4096 4096 %d %d sha256 %s %s 1 panic_on_corruption" root=/dev/dm-0 ro rootfstype=squashfs rootwait init=/init oops=panic panic=-1 page_alloc.shuffle=1 console=tty0 console=ttyS0,115200%s\n' \
     "$dev" "$((blocks * 8))" "$dev" "$dev" "$blocks" "$((blocks + 1))" "$rh" "$SALT" "$testflag" > cmdline.txt
 
-  printf '  heatos.img: %d bytes  root hash: %s
-' "$(stat -c%s heatos.img)" "$rh"
+  printf '  vrl.img: %d bytes  root hash: %s
+' "$(stat -c%s vrl.img)" "$rh"
 }
 
 toolchain() {
@@ -726,12 +726,12 @@ repin() {
 
 pin() {
   say "pinning the bytes this source produces"
-  [ -f heatos.img ] || { echo "FAIL: no heatos.img -- build first" >&2; return 1; }
+  [ -f vrl.img ] || { echo "FAIL: no vrl.img -- build first" >&2; return 1; }
   { echo "# the exact artifact this source builds. regenerate with ./build.sh pin."
     echo "# G13 compares against this. a mismatch on the SAME toolchain means the"
     echo "# image no longer corresponds to the source; on a different toolchain it"
     echo "# only means you cannot independently verify this build."
-    printf 'image     %s\n'   "$(sha256sum < heatos.img      | awk '{print $1}')"
+    printf 'image     %s\n'   "$(sha256sum < vrl.img      | awk '{print $1}')"
     printf 'squashfs  %s\n'   "$(sha256sum < rootfs.squashfs | awk '{print $1}')"
     printf 'roothash  %s\n'   "$(cat verity.roothash)"
     printf 'toolchain %s\n'   "$(toolchain)"
@@ -746,7 +746,7 @@ size() {
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
-  local sz; sz=$(stat -c%s heatos.img)
+  local sz; sz=$(stat -c%s vrl.img)
   g "G1 image <= $IMAGE_MAX ($sz)" "$([ "$sz" -le "$IMAGE_MAX" ] && echo ok || echo FAIL)"
 
   local elfs interp exec_type
@@ -809,7 +809,7 @@ size() {
     want_img=$(awk '$1=="image"{print $2}'     image.sha256)
     want_sq=$(awk '$1=="squashfs"{print $2}'   image.sha256)
     want_tc=$(awk '$1=="toolchain"{print $2}'  image.sha256)
-    have_img=$(sha256sum < heatos.img | awk '{print $1}')
+    have_img=$(sha256sum < vrl.img | awk '{print $1}')
     have_sq=$(sha256sum < rootfs.squashfs | awk '{print $1}')
     have_tc=$(toolchain)
     if [ "$want_tc" != "$have_tc" ]; then
@@ -836,20 +836,20 @@ size() {
   # and the next boot is refused by our own firmware, with a secure boot error
   # that looks like an attack rather than a typo.
   local cur="" rev=0
-  if [ -f heatos-signed.efi ]; then
-    cur=$(python3 pehash.py heatos-signed.efi 2>/dev/null || true)
+  if [ -f vrl-signed.efi ]; then
+    cur=$(python3 pehash.py vrl-signed.efi 2>/dev/null || true)
     [ -n "$cur" ] && rev=$(grep -c "^$cur" revoked || true)
   fi
   g "G20 shipped image is not revoked" \
     "$([ -n "$cur" ] && [ "$rev" = 0 ] && echo ok || echo FAIL)"
-  [ -n "$cur" ] || printf '    no heatos-signed.efi to check -- run ./build.sh uki\n' >&2
+  [ -n "$cur" ] || printf '    no vrl-signed.efi to check -- run ./build.sh uki\n' >&2
 
   # G21 -- the revocation hash function agrees with the signature it revokes.
   # dbx matches an authenticode digest, not sha256sum of the file; if pehash.py
   # computed the wrong number every dbx entry would match nothing, revoke
   # nothing, and look exactly like revocation that works.
   g "G21 revocation digest matches signature" \
-    "$([ -n "$cur" ] && python3 pehash.py --verify heatos-signed.efi >/dev/null 2>&1 && echo ok || echo FAIL)"
+    "$([ -n "$cur" ] && python3 pehash.py --verify vrl-signed.efi >/dev/null 2>&1 && echo ok || echo FAIL)"
 
   g "G7 kernel has no module loader" "$(grep -q '^CONFIG_MODULES=y' "src/linux-$KVER/.config" && echo FAIL || echo ok)"
 
@@ -888,18 +888,18 @@ size() {
   g "G18 no firmware blobs in image ($fw)" "$([ "${fw:-0}" -eq 0 ] && echo ok || echo FAIL)"
 
   # G17 -- stick.img is coherent with the pinned artifacts: right PARTUUIDs, p2
-  # byte-equal to heatos.img, ESP carries the exact signed UKI.
+  # byte-equal to vrl.img, ESP carries the exact signed UKI.
   if [ -f stick.img ]; then
     local s_ok=1 j pe pr root_off
     j=$(sfdisk -J stick.img 2>/dev/null || true)
     printf '%s' "$j" | grep -qi "\"$PU_ESP\""  || { s_ok=0; printf '    esp PARTUUID absent\n' >&2; }
     printf '%s' "$j" | grep -qi "\"$PU_ROOT\"" || { s_ok=0; printf '    root PARTUUID absent\n' >&2; }
     root_off=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 ))
-    cmp -s -n "$(stat -c%s heatos.img)" heatos.img <(dd if=stick.img bs=1M skip=$((1 + STICK_ESP_MIB)) count=$(( ($(stat -c%s heatos.img) + 1048575) / 1048576 )) status=none 2>/dev/null) \
-      || { s_ok=0; printf '    p2 region != heatos.img\n' >&2; }
-    mcopy -n -i stick.img@@1M ::/EFI/BOOT/BOOTX64.EFI /tmp/heatos-esp-uki.$$ 2>/dev/null \
-      && cmp -s heatos-signed.efi /tmp/heatos-esp-uki.$$ || { s_ok=0; printf '    ESP UKI != heatos-signed.efi\n' >&2; }
-    rm -f /tmp/heatos-esp-uki.$$
+    cmp -s -n "$(stat -c%s vrl.img)" vrl.img <(dd if=stick.img bs=1M skip=$((1 + STICK_ESP_MIB)) count=$(( ($(stat -c%s vrl.img) + 1048575) / 1048576 )) status=none 2>/dev/null) \
+      || { s_ok=0; printf '    p2 region != vrl.img\n' >&2; }
+    mcopy -n -i stick.img@@1M ::/EFI/BOOT/BOOTX64.EFI /tmp/vrl-esp-uki.$$ 2>/dev/null \
+      && cmp -s vrl-signed.efi /tmp/vrl-esp-uki.$$ || { s_ok=0; printf '    ESP UKI != vrl-signed.efi\n' >&2; }
+    rm -f /tmp/vrl-esp-uki.$$
     g "G17 stick.img coherent with artifacts" "$([ "$s_ok" -eq 1 ] && echo ok || echo FAIL)"
   else
     g "G17 stick.img coherent" FAIL
@@ -908,12 +908,12 @@ size() {
 
   # G19 -- the whole bootable system fits the size claim, not just the disk
   # image. the UKI (kernel + cmdline) lives on the ESP and was never gated.
-  if [ -f heatos-signed.efi ]; then
-    local whole; whole=$(( $(stat -c%s heatos-signed.efi) + $(stat -c%s heatos.img) ))
+  if [ -f vrl-signed.efi ]; then
+    local whole; whole=$(( $(stat -c%s vrl-signed.efi) + $(stat -c%s vrl.img) ))
     g "G19 UKI + image <= $IMAGE_MAX ($whole)" "$([ "$whole" -le "$IMAGE_MAX" ] && echo ok || echo FAIL)"
   else
     g "G19 UKI + image size" FAIL
-    printf '    no heatos-signed.efi -- run ./build.sh uki\n' >&2
+    printf '    no vrl-signed.efi -- run ./build.sh uki\n' >&2
   fi
 
   # a gate that dies mid-run under set -e looked exactly like a passing one,

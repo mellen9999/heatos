@@ -1,7 +1,7 @@
 Every certificate authority in this directory can issue a certificate for ANY
-domain that heatos will believe. That is what a trust store is.
+domain that vrl will believe. That is what a trust store is.
 
-A normal distro ships ~150 of these. heatos ships the ones it needs and no
+A normal distro ships ~150 of these. vrl ships the ones it needs and no
 more, and because they live in git, adding one is a visible commit with a
 diff -- not an invisible default.
 

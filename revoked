@@ -1,7 +1,7 @@
 # images that must never boot again, by authenticode sha-256.
 #
 # secure boot answers one question: was this signed by a key you hold. it has
-# no notion of WHEN. every image heatos has ever signed stays bootable forever,
+# no notion of WHEN. every image vrl has ever signed stays bootable forever,
 # so an old release -- old kernel, old CVEs, old bugs -- can be dropped back
 # onto the ESP and the firmware will run it with every signature checking out
 # and every build gate green. this file is the only part of the chain that can

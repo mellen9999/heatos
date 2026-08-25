@@ -15,8 +15,8 @@ syslinux.cfg
 sysroot/
 esp/
 ovmf-vars.fd
-heatos.efi
-heatos-signed.efi
+vrl.efi
+vrl-signed.efi
 verity.info
 verity.roothash
 cmdline.txt

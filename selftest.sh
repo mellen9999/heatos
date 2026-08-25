@@ -1,5 +1,5 @@
 #!/bin/bash
-# defensive self-test. boots heatos in a throwaway qemu vm and asserts its own
+# defensive self-test. boots vrl in a throwaway qemu vm and asserts its own
 # tamper-detection refuses every alteration -- no external target, no secrets,
 # no network exploit. each check asserts an EXPECTED FAILURE: the harness fails
 # if a tampered image is accepted.
@@ -17,7 +17,7 @@ section() { sections=$((sections+1)); echo; echo "$1"; }
 
 # p2 (root) starts after the 1 MiB gap + the ESP. keep in step with build.sh
 # STICK_ESP_MIB (64). the whole stick is what boots on real hardware, so the
-# harness attacks the stick, not the bare heatos.img.
+# harness attacks the stick, not the bare vrl.img.
 ROOT_OFF=$(( (1 + 64) * 1024 * 1024 ))
 
 # production carries no test hook, so build a test-flavoured UKI + stick for this
@@ -26,11 +26,11 @@ ROOT_OFF=$(( (1 + 64) * 1024 * 1024 ))
 ./build.sh unlock || { echo "cannot unlock signing keys"; exit 1; }
 # uki rebuilds ovmf-vars.fd from the pristine OVMF template, so restore() also
 # discards the throwaway dbx entry A11 enrolls into firmware.
-HEATOS_TEST=1 ./build.sh verity >/dev/null && ./build.sh uki >/dev/null && ./build.sh stick >/dev/null
+VRL_TEST=1 ./build.sh verity >/dev/null && ./build.sh uki >/dev/null && ./build.sh stick >/dev/null
 restore() {
 	./build.sh verity >/dev/null 2>&1 && ./build.sh uki >/dev/null 2>&1 && ./build.sh stick >/dev/null 2>&1
 	./build.sh lock >/dev/null 2>&1
-	rm -f /tmp/heatos-a*.img /tmp/heatos-a*.efi
+	rm -f /tmp/vrl-a*.img /tmp/vrl-a*.efi
 }
 trap restore EXIT
 ok()  { printf '  \033[1;32mPASS\033[0m  %s\n' "$1"; pass=$((pass+1)); }
@@ -70,9 +70,9 @@ flip() { python3 -c "import pathlib;p=pathlib.Path('$1');b=bytearray(p.read_byte
 
 echo
 section "A1  flip one byte in the root filesystem -- boot must refuse"
-cp stick.img /tmp/heatos-a1.img
-flip /tmp/heatos-a1.img $((ROOT_OFF + 100000))
-out=$(boot_img /tmp/heatos-a1.img)
+cp stick.img /tmp/vrl-a1.img
+flip /tmp/vrl-a1.img $((ROOT_OFF + 100000))
+out=$(boot_img /tmp/vrl-a1.img)
 # verity detects lazily, when the block is actually read, so the machine may
 # execute briefly first. what must be true is that it dies rather than
 # continuing -- panic_on_corruption makes that unconditional.
@@ -81,7 +81,7 @@ if grep -q 'is corrupted' <<< "$out" && grep -q 'dm-verity device corrupted' <<<
 else
 	bad "corrupted image did not panic (verity error present: $(grep -c 'is corrupted' <<< "$out"))"
 fi
-rm -f /tmp/heatos-a1.img
+rm -f /tmp/vrl-a1.img
 
 echo
 section "A2  clean stick -- must boot, and root must be unwritable"
@@ -92,28 +92,28 @@ grep -q 'busybox-runs: yes'      <<< "$out" && ok "userland actually executes"  
 
 echo
 section "A3  unsigned UKI -- firmware must refuse it"
-cp stick.img /tmp/heatos-a3.img
-mcopy -o -i /tmp/heatos-a3.img@@1M heatos.efi ::/EFI/BOOT/BOOTX64.EFI
-o3=$(boot_img /tmp/heatos-a3.img)
-if grep -q HEATOS-TEST-BEGIN <<< "$o3"; then
+cp stick.img /tmp/vrl-a3.img
+mcopy -o -i /tmp/vrl-a3.img@@1M vrl.efi ::/EFI/BOOT/BOOTX64.EFI
+o3=$(boot_img /tmp/vrl-a3.img)
+if grep -q VRL-TEST-BEGIN <<< "$o3"; then
 	bad "unsigned kernel booted -- secure boot is not enforcing"
 else
 	grep -qi 'access denied' <<< "$o3" && ok "firmware rejected the unsigned image" \
 		|| bad "unsigned image did not boot, but not visibly refused by secure boot"
 fi
-rm -f /tmp/heatos-a3.img
+rm -f /tmp/vrl-a3.img
 
 echo
 section "A4  tamper the signed UKI -- signature must break"
-cp heatos-signed.efi /tmp/heatos-a4.efi
-flip /tmp/heatos-a4.efi $(( $(stat -c%s heatos-signed.efi) / 2 ))
-sbverify --cert keys/db.crt /tmp/heatos-a4.efi >/dev/null 2>&1 \
+cp vrl-signed.efi /tmp/vrl-a4.efi
+flip /tmp/vrl-a4.efi $(( $(stat -c%s vrl-signed.efi) / 2 ))
+sbverify --cert keys/db.crt /tmp/vrl-a4.efi >/dev/null 2>&1 \
 	&& bad "tampered UKI still verified" || ok "one flipped bit invalidates the signature"
-cp stick.img /tmp/heatos-a4.img
-mcopy -o -i /tmp/heatos-a4.img@@1M /tmp/heatos-a4.efi ::/EFI/BOOT/BOOTX64.EFI
-o4=$(boot_img /tmp/heatos-a4.img)
-grep -q HEATOS-TEST-BEGIN <<< "$o4" && bad "tampered UKI booted" || ok "firmware refused the tampered image"
-rm -f /tmp/heatos-a4.efi /tmp/heatos-a4.img
+cp stick.img /tmp/vrl-a4.img
+mcopy -o -i /tmp/vrl-a4.img@@1M /tmp/vrl-a4.efi ::/EFI/BOOT/BOOTX64.EFI
+o4=$(boot_img /tmp/vrl-a4.img)
+grep -q VRL-TEST-BEGIN <<< "$o4" && bad "tampered UKI booted" || ok "firmware refused the tampered image"
+rm -f /tmp/vrl-a4.efi /tmp/vrl-a4.img
 
 echo
 section "A5  no dynamic loader to preload into"
@@ -146,12 +146,12 @@ section "A7  flip a byte in the verity HASH TREE -- boot must refuse"
 # NOT covered -- dm-mod.create ignores it -- which is the one honest gap here.
 blocks=$(grep -oE '4096 4096 [0-9]+ [0-9]+' cmdline.txt | head -1 | awk '{print $3}')
 if [ -n "${blocks:-}" ]; then
-	cp stick.img /tmp/heatos-a7.img
-	flip /tmp/heatos-a7.img $((ROOT_OFF + (blocks + 1) * 4096 + 16))
-	o7=$(boot_img /tmp/heatos-a7.img)
+	cp stick.img /tmp/vrl-a7.img
+	flip /tmp/vrl-a7.img $((ROOT_OFF + (blocks + 1) * 4096 + 16))
+	o7=$(boot_img /tmp/vrl-a7.img)
 	grep -q 'dm-verity device corrupted' <<< "$o7" && ok "hash-tree corruption panicked the kernel" \
 		|| bad "a flipped hash-tree byte did not panic"
-	rm -f /tmp/heatos-a7.img
+	rm -f /tmp/vrl-a7.img
 else
 	bad "could not parse data-block count from cmdline.txt"
 fi
@@ -174,7 +174,7 @@ grep -q 'kptr-restrict: 2'    <<< "$out" && ok "kernel pointers restricted"    |
 echo
 section "A10  boot the stick over emulated USB (the real hardware path)"
 o10=$(boot_usb stick.img)
-if grep -q HEATOS-TEST-BEGIN <<< "$o10"; then
+if grep -q VRL-TEST-BEGIN <<< "$o10"; then
 	ok "booted from usb-storage via dm-mod.waitfor"
 	grep -qi 'secure boot is enabled' <<< "$o10" && ok "secure boot enforcing over USB" || bad "secure boot not enabled over USB"
 	grep -q 'write-to-root: refused'  <<< "$o10" && ok "root unwritable over USB"       || bad "root writable over USB"
@@ -193,15 +193,15 @@ R=$(./build.sh ramkeys)
 if [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
 	skipped "no stub or unlocked key -- A11 not evaluated"
 else
-	ukify build --linux=bzImage --cmdline="$(cat cmdline.txt) heatos.rel=old" \
-		--stub="$stub" --output=/tmp/heatos-a11.efi >/dev/null 2>&1
+	ukify build --linux=bzImage --cmdline="$(cat cmdline.txt) vrl.rel=old" \
+		--stub="$stub" --output=/tmp/vrl-a11.efi >/dev/null 2>&1
 	sbsign --key "$R/db.key" --cert keys/db.crt \
-		--output /tmp/heatos-a11-signed.efi /tmp/heatos-a11.efi >/dev/null 2>&1
-	if ! sbverify --cert keys/db.crt /tmp/heatos-a11-signed.efi >/dev/null 2>&1; then
+		--output /tmp/vrl-a11-signed.efi /tmp/vrl-a11.efi >/dev/null 2>&1
+	if ! sbverify --cert keys/db.crt /tmp/vrl-a11-signed.efi >/dev/null 2>&1; then
 		bad "could not build a validly-signed superseded image to test with"
 	else
 		ok "the superseded image is validly signed by db"
-		h=$(python3 pehash.py --verify /tmp/heatos-a11-signed.efi) \
+		h=$(python3 pehash.py --verify /tmp/vrl-a11-signed.efi) \
 			&& ok "authenticode digest agrees with its own signature" \
 			|| bad "pehash.py disagrees with the signature -- dbx would revoke nothing"
 		# revoke it in firmware only; the tracked `revoked` file is untouched.
@@ -209,10 +209,10 @@ else
 			--add-dbx-hash "$SBGUID_T" "$h" >/dev/null 2>&1 \
 			|| bad "could not enroll the test revocation into dbx"
 		# drop the revoked image into a copy of the stick's ESP and boot that
-		cp stick.img /tmp/heatos-a11.img
-		mcopy -o -i /tmp/heatos-a11.img@@1M /tmp/heatos-a11-signed.efi ::/EFI/BOOT/BOOTX64.EFI
-		o11=$(boot_img /tmp/heatos-a11.img)
-		if grep -q HEATOS-TEST-BEGIN <<< "$o11"; then
+		cp stick.img /tmp/vrl-a11.img
+		mcopy -o -i /tmp/vrl-a11.img@@1M /tmp/vrl-a11-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+		o11=$(boot_img /tmp/vrl-a11.img)
+		if grep -q VRL-TEST-BEGIN <<< "$o11"; then
 			bad "a revoked image still booted -- dbx is not being enforced"
 		else
 			has_denied=$(grep -ic 'access denied\|security violation' <<< "$o11" || true)
@@ -222,11 +222,11 @@ else
 		fi
 		# revocation must not have collaterally killed the good image
 		o11b=$(boot_img stick.img)
-		grep -q HEATOS-TEST-BEGIN <<< "$o11b" \
+		grep -q VRL-TEST-BEGIN <<< "$o11b" \
 			&& ok "the current image still boots with dbx enrolled" \
 			|| bad "dbx enrollment broke the image we actually ship"
 	fi
-	rm -f /tmp/heatos-a11.efi /tmp/heatos-a11-signed.efi /tmp/heatos-a11.img
+	rm -f /tmp/vrl-a11.efi /tmp/vrl-a11-signed.efi /tmp/vrl-a11.img
 fi
 
 printf '  %d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"

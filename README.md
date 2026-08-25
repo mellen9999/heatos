@@ -1,8 +1,8 @@
-# heatos
+# vrl
 
-an operating system that lives on a usb stick and can prove it hasn't been
+verified root linux -- an operating system that lives on a usb stick and can prove it hasn't been
 altered. plug it in, boot it, and your machine's own disks are never touched --
-heatos ships no driver that can see them. pull the stick and nothing remains;
+vrl ships no driver that can see them. pull the stick and nothing remains;
 nothing was ever written.
 
 every block of the root filesystem is covered by a hash tree. the tree's root
@@ -20,7 +20,7 @@ disk, refuses a mounted one, makes you type the disk's model back before it
 writes, and reads every byte back with direct I/O to confirm the write landed.
 
 boot it from your firmware's boot menu. with secure boot off, the firmware just
-runs it. with secure boot on, enroll your heatos keys first (see below) and the
+runs it. with secure boot on, enroll your vrl keys first (see below) and the
 firmware verifies the signature on every boot.
 
 the root is named on the cmdline by PARTUUID, never by `/dev/sda`, and the
@@ -66,7 +66,7 @@ static linking survivable when a dependency gets a CVE.
 
 `./build.sh all` generates a platform key (PK), key-exchange key (KEK) and
 signing key (db) under `keys/`, and the public halves land on the stick under
-`/heatos-keys/`. to turn secure boot on:
+`/vrl-keys/`. to turn secure boot on:
 
 1. in your firmware setup, clear the existing keys / enter setup mode.
 2. enroll from the stick: `db.der`, then `KEK.der`, then `PK.der` last --
@@ -158,7 +158,7 @@ protection, and linked with a non-executable stack.
 
 a signature says who signed an image. it never says when.
 
-so every image heatos has ever signed stays bootable forever. an old release --
+so every image vrl has ever signed stays bootable forever. an old release --
 older kernel, older bugs, whatever CVE you rebuilt to escape -- can be dropped
 back onto the ESP, and the firmware runs it. the signature is valid, because it
 is valid. verity passes, because that old image has its own consistent root
