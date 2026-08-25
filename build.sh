@@ -17,10 +17,15 @@ LVMVER="${LVMVER:-2.03.27}"
 POPTVER="${POPTVER:-1.19}"
 JSONCVER="${JSONCVER:-0.18-20240915}"
 UTLVER="${UTLVER:-2.40.2}"
+# phase 4, remote access: wireguard userland + dropbear ssh. wireguard is in the
+# kernel; wg only configures it. dropbear is the one listening service vos runs,
+# and only ever on the wireguard interface.
+WGTVER="${WGTVER:-1.0.20210914}"
+DBVER="${DBVER:-2024.86}"
 # the binaries that are not busybox applets. this was written out three separate
 # times -- seed(), and twice inside G24 -- so adding one meant editing three
 # places and forgetting any of them failed confusingly. one list, read everywhere.
-EXTRA_BINS="ii tlstunnel learn abduco cryptsetup"
+EXTRA_BINS="ii tlstunnel learn abduco cryptsetup wg dropbear dbclient dropbearkey"
 # plaintext private keys live ONLY here, only while unlocked. /dev/shm is
 # tmpfs, so nothing lands on disk. the path is scoped to THIS tree: /dev/shm is
 # shared across every checkout and worktree a user has open, so a bare per-uid
@@ -143,6 +148,12 @@ fetch() {
       "json-c-$JSONCVER.tar.gz" "json-c-json-c-$JSONCVER"
   get "https://cdn.kernel.org/pub/linux/utils/util-linux/v2.40/util-linux-$UTLVER.tar.xz" \
       "util-linux-$UTLVER.tar.xz" "util-linux-$UTLVER"
+  # wireguard-tools: git.zx2c4.com publishes no per-release signature; the
+  # github mirror tag is trust-on-first-use over TLS. dropbear likewise.
+  get "https://github.com/WireGuard/wireguard-tools/archive/refs/tags/v$WGTVER.tar.gz" \
+      "wireguard-tools-$WGTVER.tar.gz" "wireguard-tools-$WGTVER"
+  get "https://github.com/mkj/dropbear/archive/refs/tags/DROPBEAR_$DBVER.tar.gz" \
+      "dropbear-$DBVER.tar.gz" "dropbear-DROPBEAR_$DBVER"
   # bearssl: also no upstream signature -- see SOURCES.md
   get "https://bearssl.org/bearssl-$BSSLVER.tar.gz" \
       "bearssl-$BSSLVER.tar.gz" "bearssl-$BSSLVER"
@@ -324,6 +335,46 @@ tls() {
   printf '  tlstunnel: %d bytes\n' "$(stat -c%s tlstunnel)"
 }
 
+wg_() {
+  say "building wireguard-tools (wg, musl static-pie)"
+  local d="src/wireguard-tools-$WGTVER/src" specs="$PWD/musl-static-pie.specs"
+  [ -d "$d" ] || { echo "FAIL: wireguard-tools source missing, run fetch" >&2; return 1; }
+  make -C "$d" clean >/dev/null 2>&1 || true
+  # RUNSTATEDIR is normally set by the makefile's own CFLAGS; supplying our
+  # own CFLAGS drops it, so define it back or the socket path will not compile.
+  make -C "$d" CC="gcc -specs=$specs" \
+    CFLAGS="-fPIE -Os -isystem $PWD/sysroot/include -DRUNSTATEDIR='\"/run\"'" \
+    LDFLAGS="" WITH_BASHCOMPLETION=no WITH_WGQUICK=no WITH_SYSTEMDUNITS=no wg >/dev/null 2>&1
+  [ -f "$d/wg" ] || { echo "FAIL: wg did not build" >&2; return 1; }
+  strip "$d/wg"; cp "$d/wg" wg
+  { ./wg --version 2>&1 || true; } | has 'wireguard-tools' \
+    || { echo "FAIL: built wg does not run" >&2; return 1; }
+  printf '  wg: %d bytes\n' "$(stat -c%s wg)"
+}
+
+dropbear_() {
+  say "building dropbear $DBVER (ssh, pubkey-only, musl static-pie)"
+  local d="src/dropbear-DROPBEAR_$DBVER" specs="$PWD/musl-static-pie.specs"
+  [ -d "$d" ] || { echo "FAIL: dropbear source missing, run fetch" >&2; return 1; }
+  [ -f dropbear.localoptions.h ] || { echo "FAIL: dropbear.localoptions.h missing" >&2; return 1; }
+  # our hardening (no password auth, ed25519 only) as a tracked overlay, so the
+  # security-relevant deltas from upstream defaults show up in a diff.
+  cp dropbear.localoptions.h "$d/src/localoptions.h"
+  ( cd "$d" && ./configure --disable-zlib --disable-lastlog --disable-utmp \
+      --disable-utmpx --disable-wtmp --disable-wtmpx --disable-pututline \
+      --disable-pututxline \
+      CC="gcc -specs=$specs" CFLAGS="-fPIE -Os -isystem $PWD/../sysroot/include" \
+      >/dev/null 2>&1 ) || { echo "FAIL: dropbear configure failed" >&2; return 1; }
+  # do NOT pass STATIC=1 -- it injects a plain -static that fights the specs
+  # file's -static-pie and produces a fixed-load-address (ASLR-off) binary.
+  make -C "$d" PROGRAMS="dropbear dbclient dropbearkey" MULTI=1 >/dev/null 2>&1
+  [ -f "$d/dropbearmulti" ] || { echo "FAIL: dropbear did not build" >&2; return 1; }
+  strip "$d/dropbearmulti"; cp "$d/dropbearmulti" dropbearmulti
+  { ./dropbearmulti dropbear -V 2>&1 || true; } | has 'Dropbear' \
+    || { echo "FAIL: built dropbear does not run" >&2; return 1; }
+  printf '  dropbearmulti: %d bytes\n' "$(stat -c%s dropbearmulti)"
+}
+
 cryptsetup_() {
   say "building cryptsetup $CSVER + its four libraries (musl static-pie)"
   local specs="$PWD/musl-static-pie.specs" root="$PWD"
@@ -449,10 +500,16 @@ rootfs() {
   # binary silently produced a smaller image that still passed every gate.
   # a build that ships less than it claims must fail, not shrink.
   local b
-  for b in ii tlstunnel abduco cryptsetup; do
+  for b in ii tlstunnel abduco cryptsetup wg; do
     [ -f "$b" ] || { echo "FAIL: $b not built -- run ./build.sh all" >&2; return 1; }
     cp "$b" "root/bin/$b"
   done
+  # dropbear is a multi-call binary like busybox: one file, argv[0] chooses the
+  # tool. the ssh server, client and keygen are three names for it.
+  [ -f dropbearmulti ] || { echo "FAIL: dropbearmulti not built -- run ./build.sh all" >&2; return 1; }
+  cp dropbearmulti root/bin/dropbearmulti
+  local dbn
+  for dbn in dropbear dbclient dropbearkey; do ln -sf dropbearmulti "root/bin/$dbn"; done
 
   # learn is this repo's own: an ash script over a plain-text corpus. on a
   # read-only root the filesystem IS the lookup table, so it needs no shell
@@ -480,8 +537,11 @@ rootfs() {
   chmod +x root/init
   echo 'vos' > root/etc/hostname
   # without /etc/passwd, anything calling getpwuid() fails -- ii did exactly that
-  printf 'root:x:0:0:root:/root:/bin/sh\n' > root/etc/passwd
+  printf 'root:x:0:0:root:/tmp/home:/bin/sh\n' > root/etc/passwd
   printf 'root:x:0:\n' > root/etc/group
+  # ssh: the dir where a baked authorized_keys lives (verity-covered). empty by
+  # default -- add titan's PUBLIC key here to enable remote login, then rebuild.
+  mkdir -p root/etc/dropbear
   # root is read-only, so resolv.conf must live on the tmpfs udhcpc writes to
   ln -sf /tmp/resolv.conf root/etc/resolv.conf
   # same reason: cryptsetup takes lock files under /run/cryptsetup and refuses
@@ -804,7 +864,7 @@ verity() {
   # signature -- so it must never ship in a production image. selftest.sh
   # rebuilds a test-flavoured UKI for its own runs.
   local testflag=""
-  [ "${VOS_TEST:-0}" = 1 ] && testflag=" vos.test vos.teststate"
+  [ "${VOS_TEST:-0}" = 1 ] && testflag=" vos.test vos.teststate vos.testwg"
   # the root is named by PARTUUID, not /dev/vda: on a real machine the stick is
   # /dev/sda|sdb, and dm-init resolves PARTUUID= via early_lookup_bdev. one
   # cmdline, inside one signature, boots qemu and metal alike.
@@ -1361,7 +1421,7 @@ detect_removable() {
 # wrote against the pinned digest, and makes you type the disk model before it
 # touches anything. with no DEV it auto-detects, and only proceeds when exactly
 # one removable disk is present.
-install() {
+stick_install() {
   local dev="${1:-}"
   if [ -z "$dev" ]; then
     local found; found=$(detect_removable)
@@ -1408,12 +1468,13 @@ install() {
 }
 
 case "${1:-all}" in
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|addstate|install|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|size|boot|bootusb) "$@" ;;
+  install) shift; stick_install "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|size|boot|bootusb) "$@" ;;
   all)
-    deps; fetch; kernel; headers; busybox; tls; ii_; abduco; cryptsetup_; rootfs; verity; keys
+    deps; fetch; kernel; headers; busybox; tls; ii_; abduco; cryptsetup_; wg_; dropbear_; rootfs; verity; keys
     # clean clone makes plaintext keys; seal them so uki's unlock has db.key.enc
     # and G11 stays green. a sealed tree short-circuits keys() and skips this.
     if [ -f keys/db.key ]; then seal; fi
     uki; stick; size ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|addstate|install|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|dbx|revoke IMAGE|stick|usb <dev>|pin|seed|size|boot|bootusb|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|dbx|revoke IMAGE|stick|usb <dev>|pin|seed|size|boot|bootusb|all}"; exit 1 ;;
 esac

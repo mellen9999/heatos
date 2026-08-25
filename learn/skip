@@ -330,3 +330,15 @@ mke2fs -i       # inode ratio
 mke2fs -I       # inode size
 mke2fs -n       # dry run
 mkdosfs -v      # verbose
+
+# ── dropbear / dbclient: flags the vos flow does not use ──
+# the level teaches the tunnel end to end -- keys, server on wg, client in.
+# these are the extras.
+dropbear -s      # disable password logins -- already compiled out on vos
+dropbear -w      # disable root password logins -- ditto, no passwords at all
+dropbear -g      # disable root password logins -- ditto
+dbclient -l      # username as a flag; user@host is the form taught
+dbclient -N      # forward ports without a shell; -L teaches forwarding
+dbclient -R      # remote-to-local forward; -L teaches the idea
+dbclient -J      # proxy through a command, a jump-host nicety
+dbclient -f      # background after auth

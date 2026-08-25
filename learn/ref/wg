@@ -1,0 +1,29 @@
+wg
+Usage: wg [show|showconf|set|setconf|genkey|pubkey|genpsk] ...
+
+Configure a wireguard interface -- the encrypted tunnel vos dials out
+through, so it never has to listen on a network it does not trust.
+
+	show [IFACE]		current state: peers, endpoints, handshakes
+	showconf IFACE		the config, in a form you can save
+	set IFACE ...		change keys, peers, endpoints at runtime
+	setconf IFACE FILE	apply a whole config file
+	genkey			make a new private key (to stdout)
+	pubkey			read a private key on stdin, print its public key
+	genpsk			make a pre-shared key
+
+	wg genkey | tee private.key | wg pubkey > public.key
+	wg set wg0 private-key private.key
+	wg set wg0 peer PUBKEY endpoint HOST:PORT allowed-ips 10.9.0.0/24
+	wg show
+
+The interface itself is made and addressed with ip:
+	ip link add wg0 type wireguard
+	ip addr add 10.9.0.2/24 dev wg0
+	ip link set wg0 up
+
+wireguard roams: it survives the underlying address changing and resumes
+a dropped link rather than resetting it, which is half of why a dropped
+ssh session over it can be picked back up.
+
+See also: ip, dropbear, dbclient

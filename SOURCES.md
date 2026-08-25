@@ -16,6 +16,8 @@ what that first sighting was anchored to. They are not equal:
 | lvm2 | none matched (sourceware publishes signatures, not yet checked here) | **weakest -- trust-on-first-use over TLS only** |
 | popt | none available | **weakest -- trust-on-first-use over TLS only** |
 | json-c | github release tarball, no signature | **weakest -- trust-on-first-use over TLS only** |
+| wireguard-tools | github release tag, no signature | **weakest -- trust-on-first-use over TLS only** |
+| dropbear | github release tag, no signature | **weakest -- trust-on-first-use over TLS only** |
 
 Those pins protect against a *later* substitution, not against the tarball
 having been wrong when first fetched. That is a real gap and is recorded here
@@ -37,6 +39,12 @@ than six; an openssl or gcrypt backend would have been a sixth, and a large one.
 lvm2 is the one worth revisiting: sourceware does publish signatures for it, and
 this pin does not yet check them. That is a known gap, written down here rather
 than left for someone to assume was handled.
+
+wireguard-tools and dropbear are the remote-access userland. dropbear is the one
+listening service on the whole system, so its pin matters more than most; it is
+pinned by digest but the digest was taken on first fetch, not matched against a
+maintainer signature. dropbear does publish signed releases upstream -- matching
+that signature is the obvious hardening, and another known gap named here.
 
 `learn` and its corpus are first-party: written in this repo, reviewed in its
 diffs, covered by the hash tree like everything else. The reference entries are

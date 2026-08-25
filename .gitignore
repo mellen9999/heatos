@@ -30,3 +30,5 @@ bzImage.config.sha256
 /learn/lessons/
 /learn/challenges/
 /cryptsetup
+/wg
+/dropbearmulti

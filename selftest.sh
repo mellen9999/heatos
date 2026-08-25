@@ -12,7 +12,7 @@ pass=0; fail=0; skip=0; sections=0
 # the gate runner already learned this: a run that dies partway through prints
 # a smaller number and looks exactly like a clean one. count the checks that
 # actually ran and refuse to report a result if any of them went missing.
-EXPECTED_SECTIONS=16
+EXPECTED_SECTIONS=17
 section() { sections=$((sections+1)); echo; echo "$1"; }
 
 # p2 (root) starts after the 1 MiB gap + the ESP. keep in step with build.sh
@@ -371,6 +371,26 @@ grep -q 'teststate-prior-marker: survived-a-reboot' <<< "$b2" \
 	&& ok "boot 2 read the marker back -- state survived the power cycle" \
 	|| bad "the marker did not survive the reboot"
 rm -f "$p3disk"
+
+echo
+section "A17  remote access: wireguard up, ssh in over it, invisible otherwise"
+# the "ssh in from titan and attach to what is running" ask. a full two-machine
+# handshake is verified on real hardware; here every component is proven: the
+# wireguard interface comes up and wg configures it, dropbear accepts a real
+# ed25519 pubkey login end to end, and a wrong key is refused. dropbear only
+# ever binds to the wireguard address in the real flow, so vos stays invisible
+# on the network it is plugged into.
+grep -q 'wg-iface-up: ok' <<< "$out" && ok "a wireguard interface comes up" \
+	|| bad "no wireguard -- the kernel or wg userland is missing"
+grep -q 'wg-show: ok' <<< "$out" && ok "wg configures the interface (key, port)" \
+	|| bad "wg could not configure the interface"
+grep -q 'ssh-listening: yes' <<< "$out" && ok "dropbear listens" || bad "dropbear did not start"
+grep -q 'ssh-pubkey-login: ok' <<< "$out" \
+	&& ok "an ed25519 public-key login works end to end" \
+	|| bad "pubkey ssh login failed"
+grep -q 'ssh-wrong-key-refused: refused' <<< "$out" \
+	&& ok "a key not in authorized_keys is refused" \
+	|| bad "the wrong key was accepted -- auth is not enforced"
 
 printf '  %d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
 if [ "$sections" -ne "$EXPECTED_SECTIONS" ]; then

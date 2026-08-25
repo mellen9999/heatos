@@ -1,0 +1,21 @@
+dbclient
+Usage: dbclient [-i KEYFILE] [-p PORT] [-l USER] [USER@]HOST [COMMAND]
+
+The ssh CLIENT. Connect out from vos to another machine.
+
+	-i FILE		identity (private key) to authenticate with
+	-p PORT		remote port
+	-l USER		remote username
+	-J CMD		proxy through a command
+	-N		do not run a command (just forward ports)
+	-L l:h:p	forward a local port to a remote host:port
+	-R l:h:p	forward a remote port back to a local host:port
+	-f		background after authenticating
+
+	dbclient -i /state/id root@10.9.0.1
+	dbclient -i /state/id root@10.9.0.1 'abduco -a work'
+
+The last form is how you drop straight back into a running session: ssh
+in and attach to abduco in one command.
+
+See also: dropbear, dropbearkey, wg, abduco

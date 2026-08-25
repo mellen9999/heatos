@@ -68,3 +68,91 @@ q: list every channel ii has joined
 a: find $HOME/irc -maxdepth 2 -type d -name '#*'
 ref: find
 teach: find -type
+---
+setup: Remote access on vos works by dialing OUT to a machine you control over
+setup: wireguard, so vos never listens on the network it is plugged into. These
+setup: are the pieces. None can run in this practice sandbox, so they are graded
+setup: on what you type.
+q: generate a new wireguard private key and save it to private.key
+a: wg genkey > private.key
+ref: wg
+teach: wg
+---
+q: derive the public key from private.key
+a: wg pubkey < private.key
+ref: wg
+teach: wg
+---
+q: create a wireguard interface called wg0
+a: ip link add wg0 type wireguard
+ref: ip
+teach: ip
+---
+q: give wg0 the address 10.9.0.2 in a /24
+a: ip addr add 10.9.0.2/24 dev wg0
+ref: ip
+teach: ip
+---
+q: bring wg0 up
+a: ip link set wg0 up
+ref: ip
+teach: ip
+---
+q: set wg0's private key from private.key
+a: wg set wg0 private-key private.key
+ref: wg
+teach: wg
+---
+q: add a peer to wg0 by its public key, endpoint and allowed ips
+a: wg set wg0 peer PUBKEY endpoint titan.example:51820 allowed-ips 10.9.0.0/24
+ref: wg
+teach: wg
+---
+q: show the state of every wireguard interface
+a: wg show
+ref: wg
+teach: wg
+---
+q: make an ed25519 ssh key at /state/id
+a: dropbearkey -t ed25519 -f /state/id
+ref: dropbearkey
+teach: dropbearkey -t
+teach: dropbearkey -f
+---
+q: print the public half of /state/id, to hand to the other machine
+a: dropbearkey -y -f /state/id
+ref: dropbearkey
+teach: dropbearkey -y
+---
+q: run the ssh server with an ed25519 host key, bound only to the wireguard address
+a: dropbear -r /state/host_key -p 10.9.0.1:22
+ref: dropbear
+teach: dropbear -r
+teach: dropbear -p
+---
+q: run the ssh server in the foreground, logging to stderr
+a: dropbear -r /state/host_key -F -E
+ref: dropbear
+teach: dropbear -F
+teach: dropbear -E
+---
+q: ssh out to root at 10.9.0.1 using the key /state/id
+a: dbclient -i /state/id root@10.9.0.1
+ref: dbclient
+teach: dbclient -i
+---
+q: ssh in and attach to a running abduco session in one command
+a: dbclient -i /state/id root@10.9.0.1 'abduco -a work'
+ref: dbclient
+teach: dbclient
+hint: the whole point -- reconnect straight into the work that survived the drop
+---
+q: ssh to a host on a non-standard port
+a: dbclient -p 2222 root@10.9.0.1
+ref: dbclient
+teach: dbclient -p
+---
+q: forward local port 8080 to a service on the far side, over ssh
+a: dbclient -L 8080:localhost:80 root@10.9.0.1
+ref: dbclient
+teach: dbclient -L

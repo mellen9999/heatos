@@ -76,6 +76,39 @@ binaries, and the build preferred them over building from source.
 `git pull && ./build.sh all` relinks the whole system, which is what makes
 static linking survivable when a dependency gets a CVE.
 
+## remote access
+
+off by default, and it can only be switched on from the encrypted state
+partition -- so an attacker holding the stick cannot even see that it exists,
+let alone enable it.
+
+the model is dial-OUT. vos connects to a machine you control (call it titan)
+over wireguard, and the ssh server binds to the wireguard address alone. vos
+never opens a port on the network it is plugged into: `nmap` from that LAN finds
+nothing. you reach vos by sshing back down the tunnel.
+
+three things make a dropped connection survivable, each solving a different
+failure: wireguard roams, so a changed IP or a dead link resumes rather than
+resets; dropbear-on-wireguard keeps vos invisible; and abduco keeps the session
+alive, so you ssh back in and `abduco -a work` straight into what was running.
+
+to enable it, put two files on p3 (which is encrypted, so this is the opt-in):
+
+    /tmp/home/wg0.conf          your wireguard config: private key, titan's
+                                public key + endpoint, an Address = line
+    authorized_keys             titan's PUBLIC ssh key -- either baked into the
+                                image at etc/dropbear/authorized_keys (verity
+                                covers it) or dropped on p3
+
+on the next unlock, init brings up `wg0`, generates the ssh host key on p3 if it
+is not there yet (a host key in the reproducible image would be a *published*
+private key), and starts dropbear bound to the tunnel. pubkey only -- password
+auth is compiled out, and vos is single-user root, so there is no password to
+guess and no second account to find.
+
+`dropbearkey`, `dbclient` and `wg` ship for making keys and driving the tunnel
+by hand; `learn` teaches the whole flow end to end.
+
 ## secure boot: enrolling your keys
 
 `./build.sh all` generates a platform key (PK), key-exchange key (KEK) and
@@ -210,7 +243,9 @@ whole reason the file is tracked and the image is not.
 
 ## userland
 
-busybox, ii (irc), a tls tunnel, and `learn` -- musl, `-static-pie`, every one
+busybox, ii (irc), a tls tunnel, `learn`, abduco (session detach),
+cryptsetup (encrypted state), and wg + dropbear (remote access) -- musl,
+`-static-pie`, every one
 of them built from a pinned source in this repo. `manifest` declares what the
 image must hold; the component copies used to be `[ -f x ] && cp x`, so a
 component that failed to build shrank the image and every gate still went green.
@@ -234,10 +269,13 @@ cmdchamp cost the corpus that needed bash; on a read-only root the filesystem is
 already a lookup table, so `learn` reads `ref/<cmd>` and needs no associative
 array at all.
 
-24 lessons and 99 questions cover the whole surface in dependency order, from
-`ls` to reading a suspect disk's bytes without mounting it. then 8 challenges,
-25 scenarios, no hints and no reference lookups -- the last one chains twelve
-distinct commands in a single pipeline. `learn` resumes the curriculum,
+30 levels and 800-odd questions cover the whole surface in dependency order,
+from `ls` to reading a suspect disk's bytes without mounting it to proving, from
+inside the running system, that the machine underneath you is the one you built.
+the questions are generated, not fixed: each rolls its own filenames and values
+and is graded by running what you type, so `sort -u` and `sort | uniq` both
+pass. every level ends with a named boss -- five questions, thirty seconds each,
+no hints and no reference -- and the last level is the machine itself. `learn` resumes the curriculum,
 `learn challenge` is the second track.
 
 five rules govern it, and all five are gates rather than intentions:
@@ -246,17 +284,20 @@ five rules govern it, and all five are gates rather than intentions:
   the same check compares `busybox --list` against `busybox.config.applets`,
   which closes a real hole: an applet dropped for an unmet dependency used to
   ship silently, because `manifest` names only a handful of them by hand.
-- a lesson may only use commands an earlier lesson introduced (G26), so
-  "teach in the right order" survives someone adding a lesson in a hurry.
-- no question may be asked whose answer is not in the entry it points at (G25).
-  busybox ships no man pages, so these entries *are* the manual -- and every one
-  is generated from the help text of the binary this image contains, which means
-  a flag documented here exists here. this gate has already caught a lesson
-  teaching `nc -l`, which upstream busybox supports and this build does not.
-- every documented command is introduced by some lesson (G27), so "teaches
-  everything" is a build property rather than a promise that decays.
-- the challenge track escalates (G29): the last challenge must chain strictly
-  more distinct commands than the first, and at least four.
+- no question may be asked whose answer is not in the corpus, and every flag an
+  answer uses is documented in the entry it points at (G25). the build runs
+  `learn`'s own checker under the built busybox, so there is one implementation,
+  used at build time and on the machine. it grades by *running* each answer in a
+  throwaway sandbox, so it has caught questions teaching flags this build does
+  not have -- `nc -l`, `xargs -d`, `flock` when file locking was compiled out.
+- every documented flag is either taught by a question or retired in
+  `learn/skip` with a written reason (G26): "we teach everything vos can do" is a
+  number the build reports, zero open, not a promise. checkable only because the
+  command surface is fixed at build time -- a busybox bump that adds a flag lands
+  in neither set and stops the build until someone rules on it.
+- a level may only use commands it or an earlier level introduced (G27), so
+  "teach in the right order" survives someone moving a question. it found six
+  real violations the first time it ran.
 
 the reference is complete; the curriculum is selective. a lesson's `uses:` are
 drilled with questions, its `mentions:` are named and explained but not drilled
@@ -276,7 +317,8 @@ SOURCES.md.
 
 ## not this
 
-not a daily driver. no package manager, no persistence, nothing survives a
+not a general distro. no package manager, no compiler. persistence is opt-in
+and encrypted (p3) -- decline it and nothing survives a
 reboot. pre-xHCI machines (roughly pre-2012) are out of scope: the stick
 enumerates over xHCI only.
 don't enroll these keys on hardware whose own secure boot chain you still need.

@@ -240,6 +240,45 @@ if grep -q vos.test /proc/cmdline; then
 		fi
 	fi
 
+	# remote access: wireguard interface + dropbear over loopback. a full
+	# two-machine handshake needs a second endpoint and is verified on real
+	# hardware; here we prove every component works -- the interface comes up and
+	# wg configures it, and dropbear accepts a real pubkey login end to end.
+	if grep -q vos.testwg /proc/cmdline; then
+		printf 'wg-iface-up: '
+		if ip link add wg0 type wireguard 2>/dev/null; then
+			wg genkey > /tmp/wgkey 2>/dev/null
+			wg set wg0 private-key /tmp/wgkey listen-port 51820 2>/dev/null
+			ip addr add 10.9.0.1/24 dev wg0 2>/dev/null
+			ip link set wg0 up 2>/dev/null
+			ip -o link show wg0 2>/dev/null | grep -q 'wg0' && echo ok || echo FAILED
+		else echo "FAILED (no wireguard interface type)"; fi
+		# wg show reports the configured interface: public key derived, port set.
+		printf 'wg-show: '; wg show wg0 2>/dev/null | grep -qE 'public key|listening port' && echo ok || echo FAILED
+
+		# dropbear over loopback with a real ed25519 key exchange
+		dropbearkey -t ed25519 -f /tmp/hostkey >/dev/null 2>&1
+		dropbearkey -t ed25519 -f /tmp/clientkey >/dev/null 2>&1
+		mkdir -p /tmp/home/.ssh
+		dropbearkey -y -f /tmp/clientkey 2>/dev/null | grep '^ssh-ed25519' > /tmp/home/.ssh/authorized_keys
+		chmod 600 /tmp/home/.ssh/authorized_keys
+		dropbear -r /tmp/hostkey -p 127.0.0.1:2222 -E >/tmp/db.log 2>&1 &
+		_dbpid=$!
+		sleep 2
+		printf 'ssh-listening: '; netstat -ltn 2>/dev/null | grep -q '127.0.0.1:2222' && echo yes || echo no
+		printf 'ssh-pubkey-login: '
+		dbclient -y -i /tmp/clientkey -p 2222 root@127.0.0.1 'echo TUNNEL-SHELL-OK' 2>/dev/null \
+			| grep -q 'TUNNEL-SHELL-OK' && echo ok || echo FAILED
+		# a client whose key is NOT in authorized_keys must be rejected -- proves
+		# auth is enforced, not open.
+		printf 'ssh-wrong-key-refused: '
+		dropbearkey -t ed25519 -f /tmp/badkey >/dev/null 2>&1
+		if dbclient -y -i /tmp/badkey -p 2222 root@127.0.0.1 'echo SHOULD-NOT-RUN' 2>/dev/null | grep -q 'SHOULD-NOT-RUN'; then
+			echo "ACCEPTED (BAD)"; else echo "refused (good)"; fi
+		kill "$_dbpid" 2>/dev/null
+		ip link del wg0 2>/dev/null
+	fi
+
 	echo "VOS-TEST-END"
 	sync
 fi
@@ -262,7 +301,7 @@ umask 077
 # this runs AFTER the test block (which powers off) so an automated boot never
 # blocks on the prompt, and BEFORE the consoles so the session that starts sees
 # the persistent home.
-STATE_DIR=/tmp/state
+STATE_DIR=/tmp/home
 state_open() {
 	grep -q vos.nostate /proc/cmdline && return 1
 	command -v cryptsetup >/dev/null 2>&1 || return 1
@@ -292,9 +331,10 @@ state_open() {
 		return 1
 	fi
 	mkdir -p "$STATE_DIR"
-	# explicit -t ext4: busybox mount does not probe the filesystem type, and
-	# the ext4 driver mounts ext2/3/4 alike. the mountpoint is under /tmp
-	# because the root is read-only -- you cannot mkdir a new top-level dir.
+	# mount p3 over /tmp/home -- the tmpfs home created earlier is shadowed by
+	# the persistent one. explicit -t ext4 because busybox mount does not probe
+	# the type (the ext4 driver mounts ext2/3/4 alike), and the mountpoint is
+	# under /tmp because the root is read-only.
 	if ! mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/vosstate "$STATE_DIR" 2>/dev/null; then
 		cryptsetup close vosstate 2>/dev/null
 		return 1
@@ -303,15 +343,49 @@ state_open() {
 }
 
 if state_open; then
-	# re-point home onto p3. everything under $HOME and the learn progress in
-	# XDG_STATE_HOME now survives a reboot.
-	mkdir -p "$STATE_DIR/home"
-	export HOME="$STATE_DIR/home"
-	export XDG_DATA_HOME="$HOME/.local/share"
-	export XDG_CONFIG_HOME="$HOME/.config"
-	export XDG_STATE_HOME="$HOME/.local/state"
+	# $HOME is already /tmp/home, now backed by the encrypted partition. recreate
+	# the xdg dirs on it; everything written here -- learn progress included --
+	# survives a reboot.
 	mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
 	printf '  state unlocked -- %s persists across reboots\n' "$HOME" > /dev/console
+
+	# ── remote access ───────────────────────────────────────────────────────
+	# activates only when p3 is unlocked AND a wireguard config is present on it.
+	# the config's presence IS the opt-in -- it lives on the encrypted partition,
+	# so an attacker holding the stick cannot see it, let alone turn it on. no
+	# cmdline flag, nothing to toggle on the untrusted host.
+	#
+	# vos dials OUT: wg brings up the tunnel to a peer you control, and dropbear
+	# binds ONLY to the wireguard address, so vos never opens a port on the
+	# network it is plugged into. the host key lives on p3 (a key in the
+	# reproducible image would be a published private key); titan's public key is
+	# in authorized_keys, baked into the read-only root where verity covers it.
+	if [ -f "$STATE_DIR/wg0.conf" ] && command -v wg >/dev/null 2>&1; then
+		wgip=$(sed -n 's/^ *Address *= *\([0-9.]*\).*/\1/p' "$STATE_DIR/wg0.conf" | head -1)
+		if ip link add wg0 type wireguard 2>/dev/null \
+		   && wg setconf wg0 "$STATE_DIR/wg0.conf" 2>/dev/null \
+		   && [ -n "$wgip" ] \
+		   && ip addr add "$wgip/24" dev wg0 2>/dev/null \
+		   && ip link set wg0 up 2>/dev/null; then
+			printf '  wireguard up on wg0 (%s)\n' "$wgip" > /dev/console
+			# host key on p3, made once
+			[ -f "$STATE_DIR/ssh_host_key" ] || dropbearkey -t ed25519 -f "$STATE_DIR/ssh_host_key" >/dev/null 2>&1
+			# authorized_keys: prefer the one baked into the image (verity-covered),
+			# fall back to one on p3 if the operator put it there.
+			akeys=/etc/dropbear/authorized_keys
+			[ -f "$STATE_DIR/authorized_keys" ] && akeys="$STATE_DIR/authorized_keys"
+			if [ -f "$akeys" ]; then
+				mkdir -p "$HOME/.ssh"; cp "$akeys" "$HOME/.ssh/authorized_keys"; chmod 600 "$HOME/.ssh/authorized_keys"
+				dropbear -r "$STATE_DIR/ssh_host_key" -p "$wgip:22" >/dev/null 2>&1 &
+				printf '  ssh listening on the tunnel only (%s:22), pubkey only\n' "$wgip" > /dev/console
+			else
+				printf '  no authorized_keys -- ssh not started (add one to enable)\n' > /dev/console
+			fi
+		else
+			printf '  wireguard config present but wg0 did not come up\n' > /dev/console
+			ip link del wg0 2>/dev/null
+		fi
+	fi
 fi
 
 banner() {

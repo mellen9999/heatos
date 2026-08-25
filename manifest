@@ -11,6 +11,11 @@ bin/ii
 bin/tlstunnel
 bin/abduco
 bin/cryptsetup
+bin/wg
+bin/dropbearmulti
+bin/dropbear
+bin/dbclient
+bin/dropbearkey
 bin/learn
 usr/share/learn/ref/ls
 usr/share/learn/ref/sh

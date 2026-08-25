@@ -1,0 +1,17 @@
+dropbearkey
+Usage: dropbearkey -t ed25519 -f FILE
+
+Make an ssh key.
+
+	-t TYPE		key type -- ed25519 on vos (nothing else is built)
+	-f FILE		where to write the private key
+	-y		read a private key and print its public half
+
+	dropbearkey -t ed25519 -f /state/id
+	dropbearkey -y -f /state/id        # print the public key to hand out
+
+The public half of titan's key goes in vos's authorized_keys, baked into
+the read-only image; vos's own host key is made once, on the encrypted
+state partition.
+
+See also: dropbear, dbclient
