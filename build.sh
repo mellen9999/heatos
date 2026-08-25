@@ -519,11 +519,13 @@ rootfs() {
   for part in ref lib pools levels; do
     [ -d "learn/$part" ] || { echo "FAIL: learn/$part missing -- run ./build.sh seed" >&2; return 1; }
   done
-  [ -f learn/skip ] || { echo "FAIL: learn/skip missing" >&2; return 1; }
+  for _f in skip builtins phrases; do
+    [ -f "learn/$_f" ] || { echo "FAIL: learn/$_f missing" >&2; return 1; }
+  done
   install -m 0755 learn/learn root/bin/learn
   mkdir -p root/usr/share/learn
   cp -r learn/ref learn/lib learn/pools learn/levels root/usr/share/learn/
-  cp learn/skip learn/builtins root/usr/share/learn/
+  cp learn/skip learn/builtins learn/phrases root/usr/share/learn/
 
   # hand-written shims for things busybox lacks
   # overlay carries the udhcpc script without

@@ -115,7 +115,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			if ! IFS= read -t "$BOSS_LIMIT" -r input; then
 				echo
 				no "out of time."
-				card_grade "$key" 0
+				card_grade "$key" 0; S_WRONG=$((S_WRONG + 1)); S_STREAK=0
 				return 1
 			fi
 		else
@@ -141,7 +141,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 				fi
 				continue ;;
 			skip)
-				card_grade "$key" 0
+				card_grade "$key" 0; S_STREAK=0
 				note "answer: $(printf '%s\n' "$Q_ANSWERS" | head -1)"
 				return 1 ;;
 		esac
@@ -149,13 +149,18 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 		if correct "$input"; then
 			card_grade "$key" 1
 			tier=$(card_tier "$key")
-			ok "right${tier:+  ${D}tier $tier${N}}"
+			S_RIGHT=$((S_RIGHT + 1)); S_STREAK=$((S_STREAK + 1))
+			[ "$S_STREAK" -gt "$S_BEST" ] && S_BEST=$S_STREAK
+			_stk=""
+			[ "$S_STREAK" -ge 3 ] && _stk="  ${Y}${S_STREAK} in a row${N}"
+			ok "right${tier:+  ${D}tier $tier${N}}$_stk"
 			return 0
 		fi
 
 		tries=$((tries + 1))
 		card_grade "$key" 0
 		if [ "$tries" -ge 2 ] || [ "$MODE" != learn ]; then
+			S_WRONG=$((S_WRONG + 1)); S_STREAK=0
 			no "wrong -- $(printf '%s\n' "$Q_ANSWERS" | head -1)"
 			return 1
 		fi
@@ -622,9 +627,35 @@ selftest() {
 	[ "$bad" -eq 0 ]
 }
 
+# ---- session summary ------------------------------------------------------
+
+# shown when a session of questions ends -- a run you can try to beat. only
+# printed when questions were actually attempted, so `learn ref ls` stays quiet.
+session_summary() {
+	[ $((S_RIGHT + S_WRONG)) -gt 0 ] || return 0
+	local secs=0 mins
+	[ "$S_START" -gt 0 ] && secs=$(( $(date +%s 2>/dev/null || echo "$S_START") - S_START ))
+	mins=$((secs / 60))
+	echo
+	rule
+	printf '  %ssession%s  %s%d right%s  %s%d wrong%s  best streak %s%d%s' \
+		"$B" "$N" "$G" "$S_RIGHT" "$N" "$R" "$S_WRONG" "$N" "$Y" "$S_BEST" "$N"
+	[ "$mins" -gt 0 ] && printf '  %s%dm%s' "$D" "$mins" "$N"
+	echo
+	# a line of encouragement scaled to how it went -- flavour, not a grade
+	if [ "$S_WRONG" -eq 0 ] && [ "$S_RIGHT" -ge 5 ]; then
+		note "clean run. nothing got past you."
+	elif [ "$S_BEST" -ge 10 ]; then
+		note "a ten-streak. that is muscle memory forming."
+	fi
+}
+
 # ---- dispatch -------------------------------------------------------------
 
 MODE=learn
+# session stats -- the game layer. streak is consecutive right; the summary at
+# the end turns a study session into a run you can beat next time.
+S_RIGHT=0; S_WRONG=0; S_STREAK=0; S_BEST=0; S_START=$(date +%s 2>/dev/null || echo 0)
 cards_init
 cards_decay
 ctx_init
@@ -645,7 +676,8 @@ usage() {
 case "${1:-}" in
 	'')       _all=1
 	          for _id in $(level_ids); do run_level "$_id" || { _all=0; break; }; done
-	          [ "$_all" = 1 ] && victory ;;
+	          [ "$_all" = 1 ] && victory
+	          session_summary ;;
 	ref)      shift; ref "$@" ;;
 	-k)       shift; search "$@" ;;
 	list)     surface ;;
@@ -657,6 +689,6 @@ case "${1:-}" in
 	-h|--help|help) usage ;;
 	[0-9]*)   _id=$(level_ids | grep "^0*$1-" | head -1)
 	          [ -n "$_id" ] || die "no level $1"
-	          run_level "$_id" ;;
+	          run_level "$_id"; session_summary ;;
 	*)        if [ -f "$REF/$1" ]; then ref "$1"; else usage; exit 1; fi ;;
 esac

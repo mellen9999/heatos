@@ -23,6 +23,7 @@ usr/share/learn/levels/01-first-steps
 usr/share/learn/pools/logs
 usr/share/learn/lib/ctx
 usr/share/learn/skip
+usr/share/learn/phrases
 bin/udhcpc
 bin/ip
 bin/setsid

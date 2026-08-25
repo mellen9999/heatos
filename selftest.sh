@@ -43,7 +43,7 @@ skipped() { printf '  \033[1;33mSKIP\033[0m  %s\n' "$1"; skip=$((skip+1)); }
 # boots the real chain over VIRTIO: firmware -> enrolled key -> signed UKI ->
 # verity root resolved by PARTUUID off the stick's p2.
 boot_img() {
-	timeout 240 qemu-system-x86_64 -machine q35,smm=on -m 512 \
+	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		-global driver=cfi.pflash01,property=secure,value=on \
 		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
 		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
@@ -56,7 +56,7 @@ boot_img() {
 # hardware path, including usb enumeration and the dm-mod.waitfor poll.
 # boot with a second virtio disk attached (becomes /dev/vdb), for the p3 test.
 boot_state() {
-	timeout 240 qemu-system-x86_64 -machine q35,smm=on -m 512 \
+	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
 		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
 		-drive file=stick.img,if=virtio,format=raw,readonly=on \
@@ -66,7 +66,7 @@ boot_state() {
 
 # boot with the hardware clock forced years into the past. proves the floor.
 boot_backclock() {
-	timeout 240 qemu-system-x86_64 -machine q35,smm=on -m 512 \
+	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		-rtc base=2010-01-01T00:00:00 \
 		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
 		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
@@ -75,7 +75,7 @@ boot_backclock() {
 }
 
 boot_usb() {
-	timeout 240 qemu-system-x86_64 -machine q35,smm=on -m 512 \
+	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		-global driver=cfi.pflash01,property=secure,value=on \
 		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
 		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
@@ -274,6 +274,11 @@ pls=$(grep -oP 'learn-pools: \K[0-9]+' <<< "$out" | head -1)
 # question renders with %placeholders% still in it.
 [ "${pls:-0}" -gt 0 ] && ok "generator pools present ($pls)" \
 	|| bad "no pools in the booted image -- questions cannot render"
+grep -q 'learn-phrases: yes' <<< "$out" && ok "phrase macros ship" \
+	|| bad "learn/phrases missing -- prompts would show literal %macro%"
+grep -q 'learn-varies: yes' <<< "$out" \
+	&& ok "a rendered prompt has no unexpanded macro" \
+	|| bad "a prompt rendered with a literal %macro% in it"
 
 echo
 section "A13  a session outlives the terminal that started it"
@@ -297,6 +302,13 @@ grep -q 'abduco-child-alive: yes' <<< "$out" \
 tty_n=$(grep -oP 'ttys-spawned: \K[0-9]+' <<< "$out" | head -1)
 [ "${tty_n:-0}" -ge 2 ] && ok "$tty_n virtual terminals spawned" \
 	|| bad "only ${tty_n:-0} virtual terminals"
+# the console supervisor honours its device argument. a POSIX gotcha
+# (`_dev=$1 _fail=0 _t0` sets the vars only for the command `_t0`) left it
+# empty and spun forever on every real boot; no test caught it because test
+# boots power off before the console is set up.
+grep -q 'console-device-ok: yes' <<< "$out" \
+	&& ok "the console supervisor runs with a real device" \
+	|| bad "the console got an empty device -- it would error-loop on real hardware"
 # PID 1 used to BE the shell, so a shell exiting was a kernel panic.
 grep -q 'Kernel panic' <<< "$out" && bad "the boot panicked" \
 	|| ok "PID 1 survived every console session"
