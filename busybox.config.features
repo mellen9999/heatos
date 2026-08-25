@@ -18,3 +18,6 @@ ASH_JOB_CONTROL      # jobs/fg/bg + ^Z
 ASH_ECHO             # echo/printf/test as builtins: no fork per call, and the
 ASH_PRINTF           # only versions guaranteed present when PATH is broken
 ASH_TEST
+FEATURE_EDITING_VI    # vi keybindings at the shell prompt (set -o vi); bash has
+                      # them, ash does not by default. we teach `set -o vi`, so
+                      # this makes that lesson real.

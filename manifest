@@ -22,8 +22,10 @@ usr/share/learn/ref/sh
 usr/share/learn/levels/01-first-steps
 usr/share/learn/pools/logs
 usr/share/learn/lib/ctx
+usr/share/learn/lib/edit
 usr/share/learn/skip
 usr/share/learn/phrases
+etc/shrc
 bin/udhcpc
 bin/ip
 bin/setsid

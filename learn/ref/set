@@ -8,6 +8,7 @@ With no arguments, print every shell variable.
 	-u	error on an undefined variable instead of using empty
 	-x	print each command before running it -- the debugging flag
 	-o	with no argument, list the current option settings
+	-o vi	edit the command line with vi keys (Esc for normal mode)
 
 	set -eu		the sane default at the top of a script
 	set -x		start tracing

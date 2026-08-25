@@ -69,6 +69,9 @@ export XDG_DATA_HOME=/tmp/home/.local/share
 export XDG_CONFIG_HOME=/tmp/home/.config
 export XDG_STATE_HOME=/tmp/home/.local/state
 export TERM=linux
+# ENV points every interactive ash at an rc file. that is how vi editing
+# becomes the DEFAULT -- you never type `set -o vi`; the shell is already in it.
+export ENV=/etc/shrc
 mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
 
 ip link set lo up 2>/dev/null
@@ -105,6 +108,7 @@ if grep -q vos.test /proc/cmdline; then
 	printf 'kptr-restrict: '; cat /proc/sys/kernel/kptr_restrict 2>/dev/null || echo '?'
 	printf 'dmesg-restrict: '; cat /proc/sys/kernel/dmesg_restrict 2>/dev/null || echo '?'
 	printf 'busybox-runs: '; busybox true && echo yes || echo no
+	printf 'shell-vi-default: '; ENV=/etc/shrc printf 'set +o\n' | ENV=/etc/shrc /bin/sh -i 2>&1 | grep -q 'o vi' && echo yes || echo "no (BAD)"
 	printf 'no-bash: '; if [ -e /bin/bash ]; then echo "present (BAD)"; else echo "absent (good)"; fi
 	# a pty is the thing every multiplexer and every ssh session needs. prove one
 	# can actually be allocated, not merely that the config claims to allow it.

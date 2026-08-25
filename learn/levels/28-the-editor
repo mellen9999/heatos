@@ -84,3 +84,11 @@ q: follow a growing file from inside less, the way tail -f does
 a: F
 ref: less
 teach: less
+---
+setup: The shell itself has a vi mode. Turn it on and the command line you type
+setup: at the prompt uses the same keys you just learned in the editor: Escape
+setup: for normal mode, then h j k l, w, dd, and / to search your history.
+q: turn on vi keybindings at the shell prompt
+a: set -o vi
+ref: set
+teach: set -o

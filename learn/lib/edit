@@ -1,0 +1,205 @@
+# edit -- a vi-mode line editor for learn's answer prompt, so answering a
+# question feels like a real shell: history with k/j, motions with h l w b 0 $,
+# edits with x dd i a A I, insert mode for typing. the same keys the curriculum
+# teaches for vi, at the prompt you use to answer questions about vi.
+#
+# ash has no ${var:off:len}, so the cursor is modelled as two strings -- L
+# (everything before the cursor) and R (the char under it and after). every
+# operation is then pure POSIX parameter expansion, no forks per keystroke:
+#   insert c   L="$L$c"
+#   backspace  L="${L%?}"
+#   left       last char of L moves to the front of R
+#   right      first char of R moves to the end of L
+# the whole line is "$L$R"; the cursor sits between them.
+#
+# not a tty (the build's automated runs, any pipe) falls straight back to a
+# plain read, so nothing here can break a headless learn.
+
+E_ESC=$(printf '\033'); E_DEL=$(printf '\177'); E_BS=$(printf '\010')
+EDIT_HIST="${EDIT_HIST:-$TMP/answers}"
+
+# redraw: reprint the line after the prompt, clear to end, park the cursor.
+_ed_draw() {   # $1 prompt  $2 L  $3 R
+	printf '\r%s%s%s\033[K' "$1" "$2" "$3"
+	[ -n "$3" ] && printf '\033[%dD' "${#3}"
+}
+
+# last char of a string, via expansion only
+_ed_last() { _r=${1#"${1%?}"}; }
+# first char of a string
+_ed_first() { _r=${1%"${1#?}"}; }
+
+read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
+	local prompt="$1" L="" R="" mode=insert c c2 c3 _r
+	if [ ! -t 0 ]; then
+		IFS= read -r REPLY_LINE || return 1
+		return 0
+	fi
+
+	local hn hi
+	hn=$([ -f "$EDIT_HIST" ] && grep -c '' "$EDIT_HIST" 2>/dev/null || echo 0)
+	hi=$hn   # index one past the newest entry == the fresh line being typed
+
+	_ed_draw "$prompt" "$L" "$R"
+	while :; do
+		IFS= read -rsn1 c || { printf '\n'; REPLY_LINE="$L$R"; return 1; }
+		[ -z "$c" ] && break   # Enter (read strips the newline -> empty)
+
+		case "$c" in
+		"$E_ESC")
+			# distinguish a bare ESC (enter normal mode) from an arrow sequence
+			# ESC [ X. ash read -t is integer-seconds -- too coarse to race the
+			# terminal -- so read the next byte BLOCKING. a real arrow sends its
+			# bytes back to back, so [ arrives at once; a human pressing ESC then
+			# a command has that command arrive as the next byte, and we run it.
+			IFS= read -rsn1 c2 2>/dev/null
+			if [ "$c2" = "[" ]; then
+				IFS= read -rsn1 c3 2>/dev/null
+				case "$c3" in
+					A) _ed_hist_prev ;;
+					B) _ed_hist_next ;;
+					C) [ -n "$R" ] && { _ed_first "$R"; L="$L$_r"; R="${R#?}"; } ;;
+					D) [ -n "$L" ] && { _ed_last "$L"; R="$_r$R"; L="${L%?}"; } ;;
+				esac
+			else
+				mode=normal
+				# vi convention: the cursor rests on a character, not past the end
+				[ -n "$L" ] && { _ed_last "$L"; R="$_r$R"; L="${L%?}"; }
+				if [ -z "$c2" ]; then
+					break            # ESC then Enter -> submit
+				else
+					_ed_normal "$c2"  # ESC then a command -> run it now
+				fi
+			fi
+			;;
+		"$E_DEL"|"$E_BS")
+			[ -n "$L" ] && L="${L%?}"
+			;;
+		*)
+			if [ "$mode" = insert ]; then
+				L="$L$c"
+			else
+				_ed_normal "$c"
+			fi
+			;;
+		esac
+		_ed_draw "$prompt" "$L" "$R"
+	done
+
+	printf '\n'
+	REPLY_LINE="$L$R"
+	# history: skip blanks and immediate repeats
+	if [ -n "$REPLY_LINE" ]; then
+		[ "$(tail -1 "$EDIT_HIST" 2>/dev/null)" = "$REPLY_LINE" ] \
+			|| printf '%s\n' "$REPLY_LINE" >> "$EDIT_HIST" 2>/dev/null
+	fi
+	return 0
+}
+
+# vi normal-mode dispatch. L and R are the caller's locals (same function scope
+# via the shell's dynamic scoping when called from read_line).
+# YANK holds the last deleted/yanked text, for p / P.
+_ed_normal() {   # $1 = key
+	local _k="$1" _c
+	case "$_k" in
+		h) [ -n "$L" ] && { _ed_last "$L"; R="$_r$R"; L="${L%?}"; } ;;
+		l|' ') [ "${R#?}" != "" ] && { _ed_first "$R"; L="$L$_r"; R="${R#?}"; } ;;
+		0|^) R="$L$R"; L="" ;;
+		'$') L="$L$R"; R=""; [ -n "$L" ] && { _ed_last "$L"; R="$_r"; L="${L%?}"; } ;;
+		x) [ -n "$R" ] && { _ed_first "$R"; YANK="$_r"; R="${R#?}"; }
+		   [ -z "$R" ] && [ -n "$L" ] && { _ed_last "$L"; R="$_r"; L="${L%?}"; } ;;
+		X) [ -n "$L" ] && { _ed_last "$L"; YANK="$_r"; L="${L%?}"; } ;;
+		i) mode=insert ;;
+		a) mode=insert; [ -n "$R" ] && { _ed_first "$R"; L="$L$_r"; R="${R#?}"; } ;;
+		A) mode=insert; L="$L$R"; R="" ;;
+		I) mode=insert; R="$L$R"; L="" ;;
+		s) [ -n "$R" ] && { _ed_first "$R"; YANK="$_r"; R="${R#?}"; }; mode=insert ;;
+		r) IFS= read -rsn1 _c 2>/dev/null; [ -n "$R" ] && [ -n "$_c" ] && R="$_c${R#?}" ;;
+		'~') if [ -n "$R" ]; then
+		        _ed_first "$R"
+		        _c=$(printf '%s' "$_r" | tr 'a-zA-Z' 'A-Za-z')
+		        L="$L$_c"; R="${R#?}"
+		     fi ;;
+		w|W) _ed_word_fwd ;;
+		e|E) _ed_word_end ;;
+		b|B) _ed_word_back ;;
+		p) [ -n "$YANK" ] && { L="$L$(printf '%s' "$R" | cut -c1)$YANK"; R="${R#?}"; } ;;
+		P) [ -n "$YANK" ] && L="$L$YANK" ;;
+		D) YANK="$R"; R="" ;;
+		C) YANK="$R"; R=""; mode=insert ;;
+		d) IFS= read -rsn1 c2 2>/dev/null
+		   case "$c2" in
+		     d) YANK="$L$R"; L=""; R="" ;;
+		     '$') YANK="$R"; R="" ;;
+		     0) YANK="$L"; L="" ;;
+		     w|W) _ed_del_word_fwd ;;
+		     b|B) _ed_del_word_back ;;
+		   esac ;;
+		c) IFS= read -rsn1 c2 2>/dev/null
+		   case "$c2" in
+		     c) YANK="$L$R"; L=""; R=""; mode=insert ;;
+		     '$') YANK="$R"; R=""; mode=insert ;;
+		     w|W) _ed_del_word_fwd; mode=insert ;;
+		   esac ;;
+	esac
+}
+
+# move cursor to the end of the current/next word
+_ed_word_end() {
+	local line="$L$R" p=${#L} n; n=${#line}
+	p=$((p+1))
+	while [ "$p" -lt "$n" ] && [ "$(_ed_at "$line" "$p")" = " " ]; do p=$((p+1)); done
+	while [ "$((p+1))" -lt "$n" ] && [ "$(_ed_at "$line" "$((p+1))")" != " " ]; do p=$((p+1)); done
+	_ed_split "$line" "$p"
+}
+# delete from cursor to start of next word (dw)
+_ed_del_word_fwd() {
+	local start="$L"
+	_ed_word_fwd            # advances L past the word+spaces
+	YANK=${L#"$start"}      # the text that was jumped over
+	L="$start"             # cursor back where it was; that text is now gone
+}
+_ed_del_word_back() {
+	local end="$L$R" endlen=${#R}
+    _ed_word_back
+	YANK=$(printf '%s' "$L$R" | cut -c$(( ${#L} + 1 ))-$(( ${#end} - endlen )) 2>/dev/null)
+	R=$(printf '%s' "$end" | cut -c$(( ${#end} - endlen + 1 ))- 2>/dev/null)
+}
+
+# word motions: whole line is "$L$R", cursor position is ${#L}
+_ed_word_fwd() {
+	local line="$L$R" p=${#L} n
+	n=${#line}
+	# skip current word chars, then spaces
+	while [ "$p" -lt "$n" ] && [ "$(_ed_at "$line" "$p")" != " " ]; do p=$((p+1)); done
+	while [ "$p" -lt "$n" ] && [ "$(_ed_at "$line" "$p")" = " " ]; do p=$((p+1)); done
+	_ed_split "$line" "$p"
+}
+_ed_word_back() {
+	local line="$L$R" p=${#L}
+	[ "$p" -gt 0 ] && p=$((p-1))
+	while [ "$p" -gt 0 ] && [ "$(_ed_at "$line" "$p")" = " " ]; do p=$((p-1)); done
+	while [ "$p" -gt 0 ] && [ "$(_ed_at "$line" "$((p-1))")" != " " ]; do p=$((p-1)); done
+	_ed_split "$line" "$p"
+}
+# char at index (fork, only on w/b which are rare)
+_ed_at() { printf '%s' "$1" | cut -c$(( $2 + 1 )); }
+# split line at index into L / R
+_ed_split() {
+	local line="$1" p="$2"
+	L=$(printf '%s' "$line" | cut -c1-"$p" 2>/dev/null); [ "$p" = 0 ] && L=""
+	R=$(printf '%s' "$line" | cut -c$(( p + 1 ))- 2>/dev/null)
+}
+
+_ed_hist_prev() {
+	[ "$hi" -gt 0 ] || return
+	hi=$((hi - 1))
+	local e; e=$(sed -n "$((hi + 1))p" "$EDIT_HIST" 2>/dev/null)
+	L="$e"; R=""
+}
+_ed_hist_next() {
+	[ "$hi" -lt "$hn" ] || return
+	hi=$((hi + 1))
+	if [ "$hi" -ge "$hn" ]; then L=""; R="";
+	else L=$(sed -n "$((hi + 1))p" "$EDIT_HIST" 2>/dev/null); R=""; fi
+}

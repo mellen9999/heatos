@@ -6,3 +6,6 @@ Edit FILE
 	-c CMD	Initial command to run ($EXINIT and ~/.exrc also available)
 	-R	Read-only
 	-H	List available features
+
+The shell has these keys too: `set -o vi` gives the command line vi
+editing, with / to search your command history.

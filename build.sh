@@ -544,6 +544,10 @@ rootfs() {
   # ssh: the dir where a baked authorized_keys lives (verity-covered). empty by
   # default -- add titan's PUBLIC key here to enable remote login, then rebuild.
   mkdir -p root/etc/dropbear
+  # sourced by every interactive ash (via $ENV). vi editing on by default --
+  # the shell has emacs keys too and there is no busybox option to remove them,
+  # but nothing here ever leaves vi, so it is vi-only in practice.
+  printf 'set -o vi\n' > root/etc/shrc
   # root is read-only, so resolv.conf must live on the tmpfs udhcpc writes to
   ln -sf /tmp/resolv.conf root/etc/resolv.conf
   # same reason: cryptsetup takes lock files under /run/cryptsetup and refuses

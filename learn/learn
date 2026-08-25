@@ -29,7 +29,7 @@ die() { echo "learn: $*" >&2; exit 1; }
 mkdir -p "$TMP" 2>/dev/null || die "cannot create $TMP"
 trap 'rm -rf "$TMP" 2>/dev/null' EXIT INT TERM
 
-for _l in ui ctx grade fixtures cards; do
+for _l in ui ctx grade fixtures cards edit; do
 	[ -f "$ROOT/lib/$_l" ] || die "missing lib/$_l"
 	. "$ROOT/lib/$_l"
 done
@@ -108,10 +108,11 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 	printf '  %s%s%s\n' "$W" "$Q_PROMPT" "$N"
 
 	while :; do
-		printf '  %s$%s ' "$C" "$N"
 		if [ "$MODE" = boss ]; then
 			# tradition, and a real test: thirty seconds is long enough to type
-			# what you know and far too short to go and look it up.
+			# what you know and far too short to go and look it up. no editor
+			# under the clock -- just type.
+			printf '  %s$%s ' "$C" "$N"
 			if ! IFS= read -t "$BOSS_LIMIT" -r input; then
 				echo
 				no "out of time."
@@ -119,7 +120,10 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 				return 1
 			fi
 		else
-			IFS= read -r input || return 2
+			# full vi-mode line editing with history (falls back to a plain read
+			# when stdin is not a terminal, e.g. the build's own checks).
+			read_line "$(printf '  %s$%s ' "$C" "$N")" || return 2
+			input="$REPLY_LINE"
 		fi
 		case "$input" in
 			quit|:q)  return 2 ;;
@@ -670,6 +674,10 @@ usage() {
 	learn list            every command vos ships
 	learn stats           what you have mastered
 	learn reset           forget all progress
+
+	at a question: type your answer with full vi editing -- Esc for normal
+	mode, then h l w b e x dd i a, and the up-arrow recalls what you typed.
+	?  hint    man  the reference    skip  reveal    quit  leave
 	EOF
 }
 

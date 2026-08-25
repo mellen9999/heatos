@@ -97,7 +97,7 @@ ref: sh
 teach: sh
 ---
 q: use case to print log when a filename ends in .log
-a: f=@log@; case $f in *.log) echo log ;; *) echo other ;; esac
+a: f=app.log; case $f in *.log) echo log ;; *) echo other ;; esac
 out: ^log$
 ref: sh
 teach: sh
