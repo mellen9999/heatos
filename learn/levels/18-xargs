@@ -63,8 +63,8 @@ a: ls | xargs -p echo
 ref: xargs
 teach: xargs -p
 ---
-q: take the argument list from %txt% rather than standard input
-a: xargs -a %txt% echo
+q: take the argument list from @txt@ rather than standard input
+a: xargs -a @txt@ echo
 out: rotate
 ref: xargs
 teach: xargs -a
@@ -75,50 +75,50 @@ out: .
 ref: xargs
 teach: xargs -s
 ---
-q: strip the directory part off the path %dir%/%txt%
-a: basename %dir%/%txt%
-out: ^%txt%$
+q: strip the directory part off the path @dir@/@txt@
+a: basename @dir@/@txt@
+out: ^@txt@$
 ref: basename
 teach: basename
 ---
 q: strip the .txt suffix as well as the directory
-a: basename %txt% .txt
+a: basename @txt@ .txt
 out: .
 ref: basename
 teach: basename
 ---
 q: strip a suffix using the explicit flag rather than a second argument
-a: basename -s .txt %txt%
+a: basename -s .txt @txt@
 out: .
 ref: basename
 teach: basename -s
 ---
 q: take the basename of several paths at once
-a: basename -a %txt% %log%
+a: basename -a @txt@ @log@
 out: .
 ref: basename
 teach: basename -a
 ---
-q: print the directory part of %dir%/%txt%
-a: dirname %dir%/%txt%
-out: ^%dir%$
+q: print the directory part of @dir@/@txt@
+a: dirname @dir@/@txt@
+out: ^@dir@$
 ref: dirname
 teach: dirname
 ---
-q: resolve %txt% to its full absolute path
-a: realpath %txt%
+q: resolve @txt@ to its full absolute path
+a: realpath @txt@
 out: ^/
 ref: realpath
 teach: realpath
 ---
 q: follow a symlink to whatever it finally points at
-a: readlink -f %txt%
+a: readlink -f @txt@
 out: ^/
 ref: readlink
 teach: readlink -f
 ---
 q: read a symlink without a trailing newline
-a: readlink -n %txt%
+a: readlink -n @txt@
 ref: readlink
 teach: readlink -n
 ---

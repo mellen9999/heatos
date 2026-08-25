@@ -1,0 +1,101 @@
+name: proving this machine
+boss: Void
+flavor: Nothing you deleted is as gone as you think.
+brief: Everything so far was about using a machine. This is about interrogating
+brief: one -- and the machine you know least about is the one you are standing
+brief: on right now.
+brief:
+brief: vos makes a specific claim: every block of the root filesystem is
+brief: checked against a hash tree whose root hash arrives on the kernel
+brief: command line, inside an image signed with keys you enrolled yourself.
+brief: You are about to check that claim by hand, with commands you already
+brief: know. No special tool. Nothing you could not do on someone else's box.
+---
+q: what command line was this kernel booted with
+a: cat /proc/cmdline
+ref: cat
+teach: cat
+---
+q: pull just the verity root hash out of that command line
+a: sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline
+ref: sed
+teach: sed -n
+hint: it is the 64 hex characters that follow the word sha256
+---
+q: what filesystem is mounted at / and with what flags
+a: awk '$2=="/" {print $3, $4}' /proc/mounts
+out: .
+ref: awk
+teach: awk
+---
+q: confirm the root is mounted read-only
+a: awk '$2=="/" {print $4}' /proc/mounts | grep -o '^ro'
+ref: grep
+teach: grep -o
+---
+q: what device is the root actually on
+a: awk '$2=="/" {print $1}' /proc/mounts
+out: .
+ref: awk
+teach: awk
+---
+q: hash the bytes of the filesystem you are standing on
+a: sha256sum /dev/dm-0
+ref: sha256sum
+teach: sha256sum
+hint: dm-0 is the device dm-verity hands you once it is checking every block
+---
+q: print just that digest, with the device name cut off
+a: sha256sum /dev/dm-0 | cut -d' ' -f1
+ref: cut
+teach: cut -d
+teach: cut -f
+---
+q: confirm the kernel was told to panic rather than continue on a bad block
+a: grep -o panic_on_corruption /proc/cmdline
+ref: grep
+teach: grep -o
+hint: fail closed. a verified system that carries on after a mismatch is not one
+---
+q: what does the kernel say about verity in its boot log
+a: dmesg | grep -i verity
+ref: dmesg
+teach: dmesg
+---
+q: is the kernel locked down, and how far
+a: cat /sys/kernel/security/lockdown
+ref: cat
+teach: cat
+---
+q: prove there is no module loader to insert code into this kernel
+a: [ -e /proc/modules ] && echo present || echo absent
+ref: [
+teach: [ -e
+---
+q: prove /dev/mem is not there to read or write physical memory through
+a: [ -e /dev/mem ] && echo present || echo absent
+ref: [
+teach: [ -e
+---
+q: prove the root filesystem refuses to be remounted writable
+a: mount -o remount,rw / 2>/dev/null && echo WRITABLE || echo refused
+ref: mount
+teach: mount -o
+---
+q: prove nothing dropped in your home directory can be executed
+a: cp /bin/busybox $HOME/x && chmod +x $HOME/x && $HOME/x true && echo ran || echo refused
+ref: chmod
+teach: chmod
+hint: $HOME is on a tmpfs mounted noexec
+---
+q: count how many trust anchors are compiled into the tls binary
+a: strings /bin/tlstunnel | grep -c 'Internet Security Research Group'
+out: ^[0-9]+$
+ref: strings
+teach: strings
+---
+q: list every command this system documents, and count them
+a: learn list | wc -l
+out: ^[0-9]+$
+ref: learn
+teach: learn

@@ -93,6 +93,15 @@ if grep -q vos.test /proc/cmdline; then
 		exec 9>&-
 	else echo "FAILED (no ptmx)"; fi
 	printf 'legacy-ptys: '; if [ -c /dev/ptyp0 ]; then echo "present (BAD)"; else echo "absent (good)"; fi
+	# the strongest end-to-end statement this system can make about itself:
+	# the bytes actually mounted, hashed, so they can be compared against the
+	# digest recorded when the image was built. note the comparison value must
+	# come from OUTSIDE -- a checksum stored inside the thing it describes
+	# proves nothing, which is exactly why the root hash lives on the signed
+	# kernel command line and not in the filesystem.
+	printf 'rootfs-digest: '; sha256sum /dev/dm-0 2>/dev/null | cut -d' ' -f1 || echo none
+	printf 'verity-roothash: '; sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline | head -1
+	printf 'verity-onerror: '; grep -o 'panic_on_corruption' /proc/cmdline | head -1 || echo none
 	printf 'abduco-runs: '; abduco 2>&1 | head -1 | grep -q 'Active sessions' && echo yes || echo no
 	# the property that matters is not "abduco starts" but "the program outlives
 	# the thing that started it". start a counter detached, wait, and read the

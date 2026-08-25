@@ -1,0 +1,200 @@
+name: moving data
+boss: DevNull
+flavor: Your stderr falls into the void.
+brief: wget fetches over http. nc opens a raw tcp connection and hands it to
+brief: you as stdin and stdout, which is how you speak any text protocol by
+brief: hand. The older ftp and tftp clients are here because the machines you
+brief: will meet in a bad week are often older than you are.
+brief:
+brief: This build of nc can connect out but cannot listen -- server mode is
+brief: compiled out on purpose. vos opens no doors it was not asked to.
+---
+q: download a url to a file named after it
+a: wget http://@host@/file.txt
+ref: wget
+teach: wget
+---
+q: download a url and save it under a name you choose
+a: wget -O out.txt http://@host@/file.txt
+ref: wget
+teach: wget -O
+---
+q: download quietly, printing nothing
+a: wget -q http://@host@/file.txt
+ref: wget
+teach: wget -q
+---
+q: resume an interrupted download rather than starting again
+a: wget -c http://@host@/file.txt
+ref: wget
+teach: wget -c
+---
+q: check whether a url exists without downloading the body
+a: wget --spider http://@host@/file.txt
+ref: wget
+teach: wget --spider
+---
+q: download showing the server's response headers
+a: wget -S http://@host@/file.txt
+ref: wget
+teach: wget -S
+---
+q: send an extra header with the request
+a: wget --header 'X-Token: abc' http://@host@/file.txt
+ref: wget
+teach: wget --header
+---
+q: post some data rather than fetching
+a: wget --post-data 'a=1' http://@host@/submit
+ref: wget
+teach: wget --post-data
+---
+q: post the contents of a file
+a: wget --post-file @txt@ http://@host@/submit
+ref: wget
+teach: wget --post-file
+---
+q: download into a chosen directory
+a: wget -P @dir@ http://@host@/file.txt
+ref: wget
+teach: wget -P
+---
+q: download claiming to be a particular user agent
+a: wget -U vos http://@host@/file.txt
+ref: wget
+teach: wget -U
+---
+q: give up if the server has not answered in 10 seconds
+a: wget -T 10 http://@host@/file.txt
+ref: wget
+teach: wget -T
+---
+q: write the download log to a file instead of the screen
+a: wget -o wget.log http://@host@/file.txt
+ref: wget
+teach: wget -o
+---
+q: download from https without checking the certificate -- and know why that is bad
+a: wget --no-check-certificate https://@host@/file.txt
+ref: wget
+teach: wget --no-check-certificate
+hint: this turns off the only thing proving you are talking to who you think
+---
+q: open a raw tcp connection to @host@ on port @port@
+a: nc @host@ @port@
+ref: nc
+teach: nc
+---
+q: speak http by hand -- send a HEAD request through nc
+a: printf 'HEAD / HTTP/1.0\r\n\r\n' | nc @host@ 80
+ref: nc
+teach: nc
+---
+q: connect to a telnet service
+a: telnet @host@ @port@
+ref: telnet
+teach: telnet
+---
+q: telnet passing a chosen login name
+a: telnet -l @user@ @host@
+ref: telnet
+teach: telnet -l
+---
+q: telnet setting the escape character
+a: telnet -a @host@
+ref: telnet
+teach: telnet -a
+---
+q: fetch a file over tftp
+a: tftp -g -r file.txt @host@
+ref: tftp
+teach: tftp -g
+teach: tftp -r
+---
+q: upload a file over tftp
+a: tftp -p -l @txt@ @host@
+ref: tftp
+teach: tftp -p
+teach: tftp -l
+---
+q: fetch over tftp using a chosen block size
+a: tftp -b 1024 -g -r file.txt @host@
+ref: tftp
+teach: tftp -b
+---
+q: fetch a file from an ftp server
+a: ftpget @host@ local.txt remote.txt
+ref: ftpget
+teach: ftpget
+---
+q: fetch from ftp with a username and password
+a: ftpget -u @user@ -p secret @host@ local.txt remote.txt
+ref: ftpget
+teach: ftpget -u
+teach: ftpget -p
+---
+q: fetch from ftp on a non-standard port
+a: ftpget -P @port@ @host@ local.txt remote.txt
+ref: ftpget
+teach: ftpget -P
+---
+q: continue an interrupted ftp download
+a: ftpget -c @host@ local.txt remote.txt
+ref: ftpget
+teach: ftpget -c
+---
+q: upload a file to an ftp server
+a: ftpput @host@ remote.txt @txt@
+ref: ftpput
+teach: ftpput
+---
+q: upload to ftp with credentials
+a: ftpput -u @user@ -p secret @host@ remote.txt @txt@
+ref: ftpput
+teach: ftpput -u
+teach: ftpput -p
+---
+q: upload to ftp on a non-standard port
+a: ftpput -P @port@ @host@ remote.txt @txt@
+ref: ftpput
+teach: ftpput -P
+---
+q: ask for a dhcp lease on @iface@
+a: udhcpc -i @iface@
+ref: udhcpc
+teach: udhcpc -i
+---
+q: get a lease and exit rather than staying resident
+a: udhcpc -i @iface@ -q
+ref: udhcpc
+teach: udhcpc -q
+---
+q: try three times before giving up
+a: udhcpc -i @iface@ -t 3
+ref: udhcpc
+teach: udhcpc -t
+---
+q: wait one second between attempts
+a: udhcpc -i @iface@ -T 1
+ref: udhcpc
+teach: udhcpc -T
+---
+q: run in the foreground rather than backgrounding itself
+a: udhcpc -i @iface@ -f
+ref: udhcpc
+teach: udhcpc -f
+---
+q: exit rather than keep retrying if no lease arrives
+a: udhcpc -i @iface@ -n
+ref: udhcpc
+teach: udhcpc -n
+---
+q: run a chosen script when the lease is obtained
+a: udhcpc -i @iface@ -s /usr/share/udhcpc/default.script
+ref: udhcpc
+teach: udhcpc -s
+---
+q: release the current lease on exit
+a: udhcpc -i @iface@ -R
+ref: udhcpc
+teach: udhcpc -R

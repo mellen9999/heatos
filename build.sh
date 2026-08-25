@@ -17,6 +17,10 @@ EXTRA_BINS="ii tlstunnel learn abduco"
 # path let one tree's unlock silently satisfy another tree's.
 RAMKEYS="/dev/shm/vos-keys-$(id -u)-$(printf %s "$PWD" | sha256sum | cut -c1-12)"
 JOBS="$(nproc)"
+# 8 MiB. self-imposed -- the ESP is 64 MiB and the stick is whatever size you
+# flashed. it is a budget, not a limit: every addition has to argue for itself
+# against a number that does not move quietly. G1 measures vos.img; G19
+# measures the whole bootable system (UKI + image) and is the binding one.
 IMAGE_MAX=8388608
 SALT=56524c000000000000000000000000000000000000000000000000000000000a
 SBGUID=11111111-2222-3333-4444-555555555555
@@ -838,7 +842,7 @@ flagchk() {
 size() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=24   # origin 17 + G20/G21 + G23/G24 + G25/G26 (learn checks itself) + G28 (kernel/config binding)
+  local EXPECTED_GATES=25   # origin 17 + G20/G21 + G23/G24 + G25/G26 (learn checks itself) + G28 (kernel/config binding)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -1048,11 +1052,14 @@ size() {
   done
   [ "$bi_bad" -eq 0 ] || c_ok=0
   # every shipped command has a ref ...
+  # "." is a real builtin and can never be a filename -- that name always means
+  # the directory itself -- so its page is stored as "dot" and learn translates.
+  refname() { [ "$1" = "." ] && echo dot || echo "$1"; }
   miss_ref=$( { printf '%s\n' "$have_ap"; printf '%s\n' "$builtins"; printf '%s\n' $EXTRA_BINS; } | sort -u | while read -r c; do
-      [ -n "$c" ] && [ ! -f "learn/ref/$c" ] && echo "$c"; done | grep -c . || true)
+      [ -n "$c" ] && [ ! -f "learn/ref/$(refname "$c")" ] && echo "$c"; done | grep -c . || true)
   [ "${miss_ref:-0}" -eq 0 ] || { c_ok=0; printf '    %s shipped command(s) undocumented\n' "$miss_ref" >&2; }
   # ... and every ref is a shipped command
-  miss_cmd=$(ls -1 learn/ref 2>/dev/null | while read -r r; do
+  miss_cmd=$(ls -1 learn/ref 2>/dev/null | sed 's/^dot$/./' | while read -r r; do
       # -F: command names are literals. '[' is a real applet and an invalid regex.
       printf '%s\n' "$have_ap" | grep -qxF "$r" && continue
       printf '%s\n' "$builtins" | grep -qxF "$r" && continue
@@ -1095,10 +1102,24 @@ size() {
   cv_t=$(printf '%s\n' "$cv_out" | awk '$1 == "taught"   {print $2}')
   cv_s=$(printf '%s\n' "$cv_out" | awk '$1 == "skipped"  {print $2}')
   cv_u=$(printf '%s\n' "$cv_out" | awk '$1 == "untaught" {print $2}')
-  rm -rf "$lsh"
   [ "$cv_ok" -eq 1 ] || printf '    %s flags are neither taught nor listed in learn/skip\n' "$cv_u" >&2
   g "G26 curriculum covers the surface (${cv_t:-0} taught, ${cv_s:-0} retired, ${cv_u:-?} open)" \
     "$([ "$cv_ok" -eq 1 ] && echo ok || echo FAIL)"
+
+  # G27 -- optimal order, enforced. a level may only use commands that it or an
+  # earlier level introduces. learn's own header claims it teaches "in order";
+  # this is what stops that being a claim nobody checks. it caught six real
+  # violations the first time it ran -- awk and cut used three levels before
+  # they were taught, and printf used in four.
+  local or_out or_ok=1
+  or_out=$(LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
+           XDG_STATE_HOME="$lsh/state" HOME="$lsh/home" NO_COLOR=1 \
+           ./busybox ash learn/learn order 2>&1) || or_ok=0
+  printf '%s\n' "$or_out" | grep -v '^learn: ' >&2 || true
+  g "G27 $(printf '%s' "$or_out" | sed -n 's/^learn: //p' | tail -1)" \
+    "$([ "$or_ok" -eq 1 ] && echo ok || echo FAIL)"
+
+  rm -rf "$lsh"
 
   # G28 -- the bzImage on disk was built from the kernel.config on disk.
   #
@@ -1129,12 +1150,15 @@ size() {
   fi
 
   echo
-  [ "$bad" -eq 0 ] && printf '[1;32m  all gates green -- %d bytes, %d to spare[0m
-
-' "$sz" "$((IMAGE_MAX - sz))" \
-                   || { printf '[1;31m  GATES FAILED[0m
-
-'; return 1; }
+  # report the G19 headroom, not G1's. this printed IMAGE_MAX - vos.img, so a
+  # green build claimed ~7.7 MB free while the binding gate had ~4.8 MB. the
+  # kernel is 82% of the budget; the userland is the small part.
+  local whole_sz=$sz
+  [ -f vos-signed.efi ] && whole_sz=$(( $(stat -c%s vos-signed.efi) + sz ))
+  [ "$bad" -eq 0 ] && printf '\033[1;32m  all gates green -- %d bytes on disk, %d of %d used, %d to spare\033[0m\n\n' \
+                        "$sz" "$whole_sz" "$IMAGE_MAX" "$((IMAGE_MAX - whole_sz))" \
+                   || { printf '\033[1;31m  GATES FAILED\033[0m\n\n'; return 1; }
+  return 0
 }
 
 # boot the WHOLE partitioned stick under qemu -- the exact bytes that get dd'd

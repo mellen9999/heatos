@@ -1,0 +1,133 @@
+name: bytes
+boss: Void
+flavor: Nothing you deleted is as gone as you think.
+brief: Text tools stop at the first byte that is not text. hexdump and od show
+brief: you what is really there. dd moves raw blocks with no interpretation at
+brief: all, which is why it can copy a whole disk -- and why a typo in its
+brief: arguments is the most expensive typo on this system.
+brief:
+brief: dd names its arguments with = rather than flags: if= in, of= out, bs=
+brief: block size, count= how many blocks.
+---
+q: show @bin@ as hex bytes with the printable characters beside them
+a: hexdump -C @bin@
+out: \|
+ref: hexdump
+teach: hexdump -C
+hint: C is the canonical format, and the only one worth memorising
+---
+q: show @bin@ as one-byte octal values
+a: hexdump -b @bin@
+out: [0-7]
+ref: hexdump
+teach: hexdump -b
+---
+q: show @bin@ as characters, escaping the unprintable ones
+a: hexdump -c @bin@
+out: .
+ref: hexdump
+teach: hexdump -c
+---
+q: show @bin@ as two-byte decimal values
+a: hexdump -d @bin@
+out: [0-9]
+ref: hexdump
+teach: hexdump -d
+---
+q: show @bin@ as two-byte hex values
+a: hexdump -x @bin@
+out: [0-9a-f]
+ref: hexdump
+teach: hexdump -x
+---
+q: show @bin@ as two-byte octal values
+a: hexdump -o @bin@
+out: [0-7]
+ref: hexdump
+teach: hexdump -o
+---
+q: dump only the first 32 bytes of @bin@
+a: hexdump -C -n 32 @bin@
+out: \|
+ref: hexdump
+teach: hexdump -n
+---
+q: dump @bin@ starting 8 bytes in, skipping the header
+a: hexdump -C -s 8 @bin@
+out: \|
+ref: hexdump
+teach: hexdump -s
+---
+q: dump @bin@ without collapsing repeated lines into a single asterisk
+a: hexdump -C -v @bin@
+out: \|
+ref: hexdump
+teach: hexdump -v
+---
+q: dump @bin@ using your own output format string
+a: hexdump -e '16/1 "%02x " "\n"' @bin@
+out: [0-9a-f]
+ref: hexdump
+teach: hexdump -e
+---
+q: dump @bin@ with the format string read from a file
+a: hexdump -f fmt.txt @bin@
+ref: hexdump
+teach: hexdump -f
+---
+q: dump @txt@ in octal with od, the older tool that does the same job
+a: od @txt@
+out: [0-7]
+ref: od
+teach: od
+---
+q: copy @txt@ to copy.txt using dd
+a: dd if=@txt@ of=copy.txt
+state: exists:copy.txt
+ref: dd
+teach: dd
+---
+q: copy the first 512 bytes of @log@ into head.bin
+a: dd if=@log@ of=head.bin bs=512 count=1
+state: exists:head.bin
+ref: dd
+teach: dd
+---
+q: read 16 bytes from @log@ starting at byte 32
+a: dd if=@log@ bs=1 skip=32 count=16
+out: .
+ref: dd
+teach: dd
+---
+q: make a 1 kilobyte file of zero bytes
+a: dd if=/dev/zero of=zero.bin bs=1k count=1
+state: exists:zero.bin
+ref: dd
+teach: dd
+---
+q: make 32 bytes of random data
+a: dd if=/dev/urandom of=rand.bin bs=32 count=1
+state: exists:rand.bin
+ref: dd
+teach: dd
+---
+q: copy @txt@ with dd, showing no progress or summary at all
+a: dd if=@txt@ of=copy.txt status=none
+state: exists:copy.txt
+ref: dd
+teach: dd
+---
+q: split @log@ into pieces of 2 lines each
+a: split -l 2 @log@
+ref: split
+teach: split -l
+---
+q: split @log@ into pieces of 100 bytes each
+a: split -b 100 @log@
+ref: split
+teach: split -b
+---
+q: split @log@ using 3-character suffixes instead of 2
+a: split -a 3 -l 2 @log@
+ref: split
+teach: split -a

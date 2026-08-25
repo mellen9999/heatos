@@ -1,0 +1,86 @@
+name: the editor
+boss: Mux
+flavor: Detach all you like. I keep the session.
+brief: vi is on every unix that has ever existed and it is on this one. You do
+brief: not have to like it; you have to be able to leave it, and to fix a
+brief: config file on a machine that has nothing else.
+brief:
+brief: Two modes. You start in normal mode, where keys are commands. i enters
+brief: insert mode, where keys are text. Escape returns. Everything else is
+brief: detail you can pick up later.
+brief:
+brief: The one you must know: press Escape, then type :q! and Enter. That
+brief: leaves without saving, from any state you have got yourself into.
+---
+q: open @txt@ in the editor
+a: vi @txt@
+ref: vi
+teach: vi
+---
+q: open @txt@ read-only, so you cannot damage it by accident
+a: vi -R @txt@
+ref: vi
+teach: vi -R
+---
+q: leave vi without saving, from normal mode
+a: :q!
+ref: vi
+teach: vi
+hint: escape first, then colon
+---
+q: save and leave vi
+a: :wq
+a: :x
+ref: vi
+teach: vi
+---
+q: save without leaving
+a: :w
+ref: vi
+teach: vi
+---
+q: jump to line 20 inside vi
+a: :20
+ref: vi
+teach: vi
+---
+q: search forward for @term@ inside vi
+a: /@term@
+ref: vi
+teach: vi
+---
+q: replace every occurrence of @old@ with @new@ in the whole file, in vi
+a: :%s/@old@/@new@/g
+ref: vi
+teach: vi
+hint: the same s/// you already know from sed
+---
+q: delete the current line in vi
+a: dd
+ref: vi
+teach: vi
+---
+q: undo the last change in vi
+a: u
+ref: vi
+teach: vi
+---
+q: page through @log@ with the pager rather than the editor
+a: less @log@
+ref: less
+teach: less
+---
+q: inside less, search for @term@
+a: /@term@
+ref: less
+teach: less
+---
+q: inside less, jump to the end of the file
+a: G
+ref: less
+teach: less
+---
+q: follow a growing file from inside less, the way tail -f does
+a: F
+ref: less
+teach: less

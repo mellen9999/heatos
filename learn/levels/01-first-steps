@@ -29,9 +29,9 @@ ref: ls
 teach: ls -a
 hint: the flag ls describes as "Include names starting with ."
 ---
-q: list %dir% in long format, so you can see sizes and permissions
-a: ls -l %dir%
-a: ls -l %dir%/
+q: list @dir@ in long format, so you can see sizes and permissions
+a: ls -l @dir@
+a: ls -l @dir@/
 out: ^total
 ref: ls
 teach: ls -l
@@ -60,15 +60,15 @@ ref: ls
 teach: ls -1
 hint: the digit one, not the letter l
 ---
-q: {print|echo} the word %word%
-a: echo %word%
-out: ^%word%$
+q: {print|echo} the word @word@
+a: echo @word@
+out: ^@word@$
 ref: echo
 teach: echo
 ---
-q: print %word% with no trailing newline
-a: echo -n %word%
-out: %word%
+q: print @word@ with no trailing newline
+a: echo -n @word@
+out: @word@
 ref: echo
 teach: echo -n
 hint: n for newline -- the flag suppresses it
@@ -82,10 +82,10 @@ ref: echo
 teach: echo
 hint: a dollar sign in front of the name
 ---
-q: change into %dir%
-a: cd %dir%
-a: cd %dir%/
-a: cd ./%dir%
+q: change into @dir@
+a: cd @dir@
+a: cd @dir@/
+a: cd ./@dir@
 ref: cd
 teach: cd
 ---
@@ -101,3 +101,69 @@ a: cd
 ref: cd
 teach: cd
 hint: cd with no argument already means home
+---
+q: list the current directory showing hidden names but not . and ..
+a: ls -A
+out: .
+ref: ls
+teach: ls -A
+---
+q: list @dir@ itself rather than what is inside it
+a: ls -d @dir@
+out: ^@dir@$
+ref: ls
+teach: ls -d
+---
+q: list the current directory marking directories with a slash and executables with a star
+a: ls -F
+out: /
+ref: ls
+teach: ls -F
+---
+q: list the current directory showing each file's inode number
+a: ls -i
+out: ^[0-9]
+ref: ls
+teach: ls -i
+---
+q: list in long format showing numeric user and group ids rather than names
+a: ls -ln
+out: ^total
+ref: ls
+teach: ls -n
+---
+q: list marking only directories with a trailing slash
+a: ls -p
+out: /
+ref: ls
+teach: ls -p
+---
+q: list the current directory in reverse order
+a: ls -r
+out: .
+ref: ls
+teach: ls -r
+---
+q: list everything under @dir@ recursively
+a: ls -R @dir@
+out: .
+ref: ls
+teach: ls -R
+---
+q: list the current directory largest file first
+a: ls -S
+out: .
+ref: ls
+teach: ls -S
+---
+q: list showing the block size each file occupies
+a: ls -s
+out: [0-9]
+ref: ls
+teach: ls -s
+---
+q: list the current directory across the screen in columns
+a: ls -x
+out: .
+ref: ls
+teach: ls -x

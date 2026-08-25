@@ -1,0 +1,243 @@
+name: disks and filesystems
+boss: Phantom
+flavor: Every privilege is a door I already opened.
+brief: A disk is a block device. A filesystem is a structure written onto it.
+brief: mount attaches that structure somewhere in the tree; until you mount
+brief: it, a disk is just bytes.
+brief:
+brief: On this machine the root is a read-only squashfs verified block by block,
+brief: and the host's own drives are deliberately invisible -- there are no
+brief: NVMe or SATA drivers compiled in. What you can see is the stick you
+brief: booted from and anything on USB.
+---
+q: how much space is free on the mounted filesystems
+a: df
+out: [0-9]
+ref: df
+teach: df
+---
+q: show free space in a human readable form
+a: df -h
+out: [0-9]
+ref: df
+teach: df -h
+---
+q: show free space in megabytes
+a: df -m
+out: [0-9]
+ref: df
+teach: df -m
+---
+q: show inode usage rather than block usage
+a: df -i
+out: [0-9]
+ref: df
+teach: df -i
+---
+q: show free space including pseudo-filesystems normally hidden
+a: df -a
+out: [0-9]
+ref: df
+teach: df -a
+---
+q: show free space with the filesystem type in a column
+a: df -T
+out: [0-9]
+ref: df
+teach: df -T
+---
+q: show free space only for filesystems of type squashfs
+a: df -t squashfs
+ref: df
+teach: df -t
+---
+q: show free space in units of 1024 bytes, chosen explicitly
+a: df -B 1024
+out: [0-9]
+ref: df
+teach: df -B
+---
+q: how much space does @dir@ use in total
+a: du -s @dir@
+out: [0-9]
+ref: du
+teach: du -s
+---
+q: how much space does @dir@ use, in a human readable form
+a: du -sh @dir@
+out: [0-9]
+ref: du
+teach: du -h
+---
+q: show the size of every file under @dir@, not just the directories
+a: du -a @dir@
+out: [0-9]
+ref: du
+teach: du -a
+---
+q: show sizes in bytes rather than blocks
+a: du -b @dir@
+out: [0-9]
+ref: du
+teach: du -b
+---
+q: show @dir@ only one level deep
+a: du -d 1 @dir@
+out: [0-9]
+ref: du
+teach: du -d
+---
+q: show a grand total at the end
+a: du -c @dir@
+out: total
+ref: du
+teach: du -c
+---
+q: show sizes in megabytes
+a: du -m @dir@
+out: [0-9]
+ref: du
+teach: du -m
+---
+q: show sizes in kilobytes explicitly
+a: du -k @dir@
+out: [0-9]
+ref: du
+teach: du -k
+---
+q: measure @dir@ without crossing onto another filesystem
+a: du -x @dir@
+out: [0-9]
+ref: du
+teach: du -x
+---
+q: find the ten largest things under here
+a: du -a . | sort -rn | head -10
+out: [0-9]
+ref: du
+teach: du -a
+---
+q: list the block devices this machine can see, with their filesystem labels
+a: blkid
+ref: blkid
+teach: blkid
+---
+q: find which device holds the filesystem labelled VOS-ROOT
+a: findfs LABEL=VOS-ROOT
+ref: findfs
+teach: findfs
+---
+q: mount /dev/sdb1 read-only at /mnt
+a: mount -r /dev/sdb1 /mnt
+ref: mount
+teach: mount -r
+hint: on a machine you do not trust, read-only is the default you want
+---
+q: mount /dev/sdb1 at /mnt naming the filesystem type explicitly
+a: mount -t ext4 /dev/sdb1 /mnt
+ref: mount
+teach: mount -t
+---
+q: mount /dev/sdb1 at /mnt with nosuid, nodev and noexec
+a: mount -o nosuid,nodev,noexec /dev/sdb1 /mnt
+ref: mount
+teach: mount -o
+---
+q: show what is currently mounted
+a: mount
+out: /
+ref: mount
+teach: mount
+---
+q: unmount /mnt
+a: umount /mnt
+ref: umount
+teach: umount
+---
+q: unmount /mnt even though something is still using it, detaching it lazily
+a: umount -l /mnt
+ref: umount
+teach: umount -l
+---
+q: force an unmount of /mnt
+a: umount -f /mnt
+ref: umount
+teach: umount -f
+---
+q: unmount everything that can be unmounted
+a: umount -a
+ref: umount
+teach: umount -a
+---
+q: attach the file disk.img to a loop device so it can be mounted
+a: losetup -f disk.img
+ref: losetup
+teach: losetup -f
+---
+q: attach disk.img read-only to a loop device
+a: losetup -r -f disk.img
+ref: losetup
+teach: losetup -r
+---
+q: attach disk.img starting at an offset of 1 megabyte
+a: losetup -o 1048576 -f disk.img
+ref: losetup
+teach: losetup -o
+---
+q: attach disk.img and scan it for partitions
+a: losetup -P -f disk.img
+ref: losetup
+teach: losetup -P
+---
+q: list the partition table of /dev/sda
+a: fdisk -l /dev/sda
+ref: fdisk
+teach: fdisk -l
+---
+q: report the block size of /dev/sda
+a: blockdev --getbsz /dev/sda
+ref: blockdev
+teach: blockdev --getbsz
+---
+q: report the size of /dev/sda in bytes
+a: blockdev --getsize64 /dev/sda
+ref: blockdev
+teach: blockdev --getsize64
+---
+q: mark /dev/sda read-only at the block layer
+a: blockdev --setro /dev/sda
+ref: blockdev
+teach: blockdev --setro
+---
+q: ask whether /dev/sda is currently read-only
+a: blockdev --getro /dev/sda
+ref: blockdev
+teach: blockdev --getro
+---
+q: flush everything buffered in memory out to disk
+a: sync
+ref: sync
+teach: sync
+---
+q: flush only the data for @txt@, not the whole system
+a: sync -d @txt@
+ref: sync
+teach: sync -d
+---
+q: run a command holding an exclusive lock on lock.file, so two copies cannot overlap
+a: flock -x lock.file echo held
+out: held
+ref: flock
+teach: flock -x
+---
+q: take the lock but give up immediately if someone else holds it
+a: flock -n lock.file echo held
+out: held
+ref: flock
+teach: flock -n
+---
+q: take a shared lock rather than an exclusive one
+a: flock -s lock.file echo held
+out: held
+ref: flock
+teach: flock -s

@@ -9,23 +9,23 @@ brief: sort orders, uniq collapses neighbours, wc counts. uniq only sees the
 brief: line before it, so it can only remove duplicates that are already
 brief: adjacent -- which is why sort comes first, every time.
 ---
-q: count the lines in %log%
-a: wc -l < %log%
-a: wc -l %log%
+q: count the lines in @log@
+a: wc -l < @log@
+a: wc -l @log@
 out: 10
 ref: wc
 teach: wc -l
 ---
-q: count the words in %txt%
-a: wc -w < %txt%
-a: wc -w %txt%
+q: count the words in @txt@
+a: wc -w < @txt@
+a: wc -w @txt@
 out: [0-9]
 ref: wc
 teach: wc -w
 ---
-q: count the bytes in %txt%
-a: wc -c < %txt%
-a: wc -c %txt%
+q: count the bytes in @txt@
+a: wc -c < @txt@
+a: wc -c @txt@
 out: [0-9]
 ref: wc
 teach: wc -c
@@ -36,85 +36,113 @@ out: [0-9]
 ref: wc
 teach: wc -l
 ---
-q: sort the lines of %txt% alphabetically
-a: sort %txt%
+q: sort the lines of @txt@ alphabetically
+a: sort @txt@
 out: ^ask why the fan
 ref: sort
 teach: sort
 ---
-q: sort %txt% in reverse alphabetical order
-a: sort -r %txt%
+q: sort @txt@ in reverse alphabetical order
+a: sort -r @txt@
 out: ^verify the root hash
 ref: sort
 teach: sort -r
 ---
-q: print the lines of %txt% with duplicates removed, using one command
-a: sort -u %txt%
+q: print the lines of @txt@ with duplicates removed, using one command
+a: sort -u @txt@
 out: ask why the fan
 ref: sort
 teach: sort -u
 ---
-q: print the lines of %txt% with duplicates removed, using sort and uniq
-a: sort %txt% | uniq
+q: print the lines of @txt@ with duplicates removed, using sort and uniq
+a: sort @txt@ | uniq
 out: ask why the fan
 ref: uniq
 teach: uniq
 hint: uniq only collapses ADJACENT duplicates, so sort has to go first
 ---
-q: show each distinct line of %txt% with a count of how many times it appears
-a: sort %txt% | uniq -c
+q: show each distinct line of @txt@ with a count of how many times it appears
+a: sort @txt@ | uniq -c
 out: 2 rotate the logs
 ref: uniq
 teach: uniq -c
 ---
-q: show only the lines of %txt% that appear more than once
-a: sort %txt% | uniq -d
+q: show only the lines of @txt@ that appear more than once
+a: sort @txt@ | uniq -d
 out: rotate the logs
 ref: uniq
 teach: uniq -d
 ---
-q: show only the lines of %txt% that appear exactly once
-a: sort %txt% | uniq -u
+q: show only the lines of @txt@ that appear exactly once
+a: sort @txt@ | uniq -u
 out: ask why the fan
 ref: uniq
 teach: uniq -u
 ---
-q: list each %sev% level in %log% by how often it occurs, most frequent first
-a: awk '{print $3}' %log% | sort | uniq -c | sort -rn
-out: [0-9]
-ref: uniq
-teach: uniq -c
-hint: extract the column, sort it, count it, then sort the counts numerically
----
-q: sort the numbers in the count column of %csv% numerically, largest first
-a: cut -d, -f4 %csv% | sort -rn
-out: 42
-ref: sort
-teach: sort -n
-hint: without -n, 7 sorts after 42 because it compares text
----
-q: sort %csv% by its third comma-separated field
-a: sort -t, -k3 %csv%
+q: sort @csv@ by its third comma-separated field
+a: sort -t, -k3 @csv@
 out: down
 ref: sort
 teach: sort -t
 hint: -t sets the separator, -k picks the field
 ---
-q: sort %csv% by the fourth field, numerically, largest first
-a: sort -t, -k4 -rn %csv%
-a: sort -t, -k4rn %csv%
+q: sort @csv@ by the fourth field, numerically, largest first
+a: sort -t, -k4 -rn @csv@
+a: sort -t, -k4rn @csv@
 out: 42
 ref: sort
 teach: sort -k
 ---
-q: sort %txt% ignoring the difference between upper and lower case
-a: sort -f %txt%
+q: sort @txt@ ignoring the difference between upper and lower case
+a: sort -f @txt@
 out: ask why the fan
 ref: sort
 teach: sort -f
 ---
-q: check whether %txt% is already sorted, without printing it
-a: sort -c %txt%
+q: check whether @txt@ is already sorted, without printing it
+a: sort -c @txt@
 ref: sort
 teach: sort -c
 hint: it says nothing when sorted, and names the first bad line when not
+---
+q: sort @csv@ by human-readable sizes like 2K and 1M, smallest first
+a: sort -h @csv@
+out: .
+ref: sort
+teach: sort -h
+---
+q: sort @txt@ ignoring case differences when comparing
+a: sort -i @txt@
+out: .
+ref: sort
+teach: sort -i
+---
+q: sort @txt@ writing the result back over the file itself
+a: sort -o sorted.txt @txt@
+state: exists:sorted.txt
+ref: sort
+teach: sort -o
+---
+q: sort a list of version numbers so 1.10 comes after 1.9
+a: sort -V @txt@
+out: .
+ref: sort
+teach: sort -V
+---
+q: collapse duplicate lines ignoring case
+a: sort -f @txt@ | uniq -i
+out: .
+ref: uniq
+teach: uniq -i
+---
+q: collapse duplicates comparing only the first 6 characters of each line
+a: sort @txt@ | uniq -w 6
+out: .
+ref: uniq
+teach: uniq -w
+---
+q: find the length of the longest line in @log@
+a: wc -L @log@
+out: [0-9]
+ref: wc
+teach: wc -L

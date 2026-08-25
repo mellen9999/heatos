@@ -79,7 +79,7 @@ less -m         # display nicety
 less -M         # display nicety
 less -R         # display nicety
 mount -f        # dry run, for scripts that will not run here
-mount -T        # alternate fstab path; vrl has one root
+mount -T        # alternate fstab path; vos has one root
 hostname -F     # sets from a file; the root is read-only
 nproc --ignore  # arithmetic on a number you already have
 
@@ -104,3 +104,186 @@ reboot -n
 # ── abduco ──
 abduco -l       # login-shell flag; vos has one user and no login(1)
 abduco -f       # force-attach, only meaningful after an unclean detach
+mount -O        # filters an -a mount by option; vos mounts one root, never fstab
+
+# ── nc ──
+# this build compiles nc down to `nc IPADDR PORT` with no options at all --
+# CONFIG_NC_SERVER and the extras are off. nothing to teach and nothing to
+# retire; the ref says so in prose.
+
+# ── test/[ ──
+# test and [ are the same command with a different closing token. the operators
+# are drilled on [ in the test level; listing them twice would double every
+# question to no purpose.
+test -e
+test -f
+test -d
+test -L
+test -n
+test -r
+test -w
+test -x
+test -s
+test -z
+
+# ── the shell's own flags ──
+# sh -e/-u/-x are the same switches as `set -e/-u/-x`, which the exit-status
+# level drills. teaching both spellings teaches nothing twice.
+sh -e
+sh -u
+sh -x
+sh -i           # interactive; you are already in one
+sh -l           # login shell; vos has one user and no login(1)
+sh -s           # read the script from stdin
+ash -c
+ash -e
+ash -i
+ash -l
+ash -s
+ash -u
+ash -x
+
+# ── flags whose feature this build or this machine does not have ──
+mount -a        # mounts everything in fstab; vos has no fstab
+umount -d       # frees a loop device on unmount; paired with losetup, not taught
+umount -r       # remount read-only if the unmount fails
+umount -t       # filter by filesystem type, only useful with -a
+fdisk -b        # sector size override
+fdisk -C        # cylinder count override -- geometry, obsolete on anything modern
+fdisk -H
+fdisk -S
+fdisk -u        # sectors rather than cylinders; already the default
+setsid -c       # set the controlling terminal; cttyhack is what vos uses
+sync -f         # sync the filesystem holding a file; -d covers the idea
+tee -i          # ignore interrupts
+wget -Y         # proxy on/off
+xargs -o        # reopen stdin as /dev/tty, for interactive children
+xargs -x        # exit if the size limit is exceeded; -s sets it
+vi -c           # run an ex command on open
+vi -H           # list vi's own build options
+top -H          # per-thread view; ps -T covers threads
+top -m          # memory-order display; the sort keys cover it
+free -g         # gigabytes; -h picks the unit for you
+cut -F          # awk-style field splitting; awk is the tool for that
+du -H           # follow symlinks named on the command line
+du -L           # follow every symlink
+strings -f      # prefix each line with the filename, only useful over many files
+arp -p          # dump the raw arp table format
+flock -u        # drop a lock held by an earlier command in the same script
+
+# ── second spellings and aliases ──
+rm -R           # alias of -r
+cp -H           # -L is the one worth knowing
+cp -L
+cp -d           # implied by -a
+cp -l           # hardlink instead of copy
+cp -s           # symlink instead of copy
+cp -t           # destination-first form, for xargs
+cp -T           # treat the destination as a file, never a directory
+cp -u           # copy only when newer
+mv -t
+mv -T
+ln -T
+ln -S           # backup suffix
+ln -b           # make a backup of what is replaced
+ln -n           # treat a symlinked directory as a file
+rmdir --ignore-fail-on-non-empty
+touch -a        # atime only; unreliable on a read-only root
+touch -m        # mtime only; plain touch sets both
+touch -h        # act on the symlink itself
+touch -t        # timestamp in a numeric format; -d reads a real date
+mktemp -p       # choose the parent directory
+mktemp -t       # treat the template as relative to TMPDIR
+sort -b         # ignore leading blanks
+sort -d         # dictionary order
+sort -g         # general numeric, for floats and exponents
+sort -M         # month-name order
+sort -s         # stable sort
+sort -z         # NUL-separated records
+uniq -f         # skip leading fields before comparing
+uniq -s         # skip leading characters
+uniq -z         # NUL-separated
+tail -s         # poll interval for -f
+cat -A          # show all control characters
+cat -t          # show tabs
+cat -v          # show nonprinting
+echo -e         # enable escapes; printf is the tool that does this properly
+gzip -t         # test integrity; gunzip -t is the spelling taught
+bzip2 -f
+bzip2 -k
+bzip2 -t
+bunzip2 -f
+bunzip2 -k
+gunzip -f
+gunzip -k
+tar -a          # pick compression by file extension
+tar -h          # follow symlinks when creating
+tar -J          # xz
+tar --lzma
+tar -m          # do not restore mtime
+tar -o          # do not restore owner
+tar -k          # never overwrite an existing file
+tar -X          # exclude patterns from a file
+tar --to-command
+unzip -j        # junk paths
+unzip -K        # keep setuid bits
+unzip -n        # never overwrite
+unzip -q        # quiet
+unzip -x        # exclude
+diff -a         # treat everything as text
+diff -b         # ignore changes in the amount of whitespace
+diff -B         # ignore blank lines
+diff -d         # try harder for a minimal diff
+diff -L         # label for the header
+diff -N         # treat absent files as empty
+diff -S         # start at a named file when recursing
+diff -t         # expand tabs
+diff -T         # prefix with a tab
+blockdev --flushbufs
+blockdev --getra
+blockdev --getss
+blockdev --getsz
+blockdev --rereadpt
+blockdev --setbsz
+blockdev --setra
+blockdev --setrw
+pkill -e
+pkill -l
+pkill -n
+pkill -o
+pkill -P
+pkill -s
+pkill -v
+pkill -x
+pgrep -s
+kill -SIG       # a placeholder in --help for any signal name, not a flag
+find -newer     # -mtime and -mmin cover time in the triage level
+
+# ── udhcpc: a boot-time daemon, not something typed by hand ──
+# init runs it. the flags below tune lease behaviour and vendor options; the
+# level teaches the handful you would ever use at a prompt.
+udhcpc -A
+udhcpc -a[MSEC]
+udhcpc -b
+udhcpc -B
+udhcpc -C
+udhcpc -F
+udhcpc -o
+udhcpc -O
+udhcpc -p
+udhcpc -r
+udhcpc -S
+udhcpc -v
+udhcpc -V
+udhcpc -x
+
+# ── ls display niceties ──
+# ls has the widest flag surface of anything here and the level drills the
+# fifteen that change what you can SEE. these change how it is printed.
+ls --full-time                  # full timestamp; -l plus a sort key is enough
+ls --group-directories-first    # ordering preference
+ls -H                           # follow a symlink named on the command line
+ls -L                           # follow every symlink; -l shows the target anyway
+ls -v                           # natural-number ordering within names
+ls -w                           # force an output width
+ls -X                           # sort by extension

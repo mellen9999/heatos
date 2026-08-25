@@ -1,0 +1,70 @@
+name: tls and irc
+boss: Rebase
+flavor: Your history is mine to rewrite.
+brief: Everything nc carries is plaintext -- readable and editable by anyone on
+brief: the path. tlstunnel is this system's answer: it wraps a plain connection
+brief: in TLS, checking the server's certificate against trust anchors compiled
+brief: into the binary itself, not read from a file some attacker could edit.
+brief:
+brief: ii is irc as a directory tree. Each channel is a folder with an `out`
+brief: file you read and an `in` fifo you write to. No client, no ui -- which
+brief: means tail, grep and echo are the client.
+---
+q: open a tls connection to @host@ on port 443 and hand it to stdin and stdout
+a: tlstunnel - @host@ 443
+ref: tlstunnel
+teach: tlstunnel
+---
+q: fetch a page over https by speaking http into a tls tunnel
+a: printf 'HEAD / HTTP/1.0\r\nHost: @host@\r\nConnection: close\r\n\r\n' | tlstunnel - @host@ 443
+ref: tlstunnel
+teach: tlstunnel
+---
+q: count the trust anchors compiled into the tunnel binary
+a: strings /bin/tlstunnel | grep -c 'Internet Security Research Group'
+out: ^[0-9]+$
+ref: strings
+teach: strings
+hint: they are in the binary, not in a file -- there is nothing on disk to edit
+---
+q: start ii against @host@ on the standard tls-free irc port, as nick vos
+a: ii -s @host@ -p 6667 -n vos -i $HOME/irc
+ref: ii
+teach: ii -s
+teach: ii -p
+teach: ii -n
+---
+q: start ii with a chosen real name
+a: ii -s @host@ -f vos -n vos -i $HOME/irc
+ref: ii
+teach: ii -f
+---
+q: start ii putting its directory tree somewhere you choose
+a: ii -s @host@ -n vos -i /tmp/irc
+ref: ii
+teach: ii -i
+---
+q: join the channel #vos by writing to the server's in fifo
+a: echo '/j #vos' > $HOME/irc/@host@/in
+ref: ii
+teach: ii
+---
+q: read what is happening in a channel, live
+a: tail -f $HOME/irc/@host@/#vos/out
+ref: tail
+teach: tail -f
+---
+q: say hello in the channel
+a: echo hello > $HOME/irc/@host@/#vos/in
+ref: ii
+teach: ii
+---
+q: find every mention of your nick across every channel
+a: grep -r vos $HOME/irc
+ref: grep
+teach: grep -r
+---
+q: list every channel ii has joined
+a: find $HOME/irc -maxdepth 2 -type d -name '#*'
+ref: find
+teach: find -type

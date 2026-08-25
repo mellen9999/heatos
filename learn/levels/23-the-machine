@@ -1,0 +1,262 @@
+name: the machine
+boss: Spectrum
+flavor: It is all in the air, and someone is always listening.
+brief: Every machine will tell you what it is, if you ask. uname names the
+brief: kernel, dmesg carries what the kernel said while booting, and /proc and
+brief: /sys are the kernel's own filesystem -- files that are not on any disk.
+brief:
+brief: /proc is the habit worth forming. Nearly everything a monitoring tool
+brief: reports, it read out of a file in there, and so can you.
+---
+q: what kernel is this
+a: uname -s
+out: Linux
+ref: uname
+teach: uname -s
+---
+q: everything uname knows, in one line
+a: uname -a
+out: Linux
+ref: uname
+teach: uname -a
+---
+q: just the kernel version
+a: uname -r
+out: [0-9]
+ref: uname
+teach: uname -r
+---
+q: the machine's hardware architecture
+a: uname -m
+out: x86_64|[a-z0-9_]+
+ref: uname
+teach: uname -m
+---
+q: the network node name
+a: uname -n
+out: .
+ref: uname
+teach: uname -n
+---
+q: the kernel build version string
+a: uname -v
+out: .
+ref: uname
+teach: uname -v
+---
+q: the operating system name
+a: uname -o
+out: .
+ref: uname
+teach: uname -o
+---
+q: the processor type
+a: uname -p
+out: .
+ref: uname
+teach: uname -p
+---
+q: the hardware platform
+a: uname -i
+out: .
+ref: uname
+teach: uname -i
+---
+q: this machine's hostname
+a: hostname
+out: .
+ref: hostname
+teach: hostname
+---
+q: the short hostname, without any domain part
+a: hostname -s
+out: .
+ref: hostname
+teach: hostname -s
+---
+q: the fully qualified name including the domain
+a: hostname -f
+out: .
+ref: hostname
+teach: hostname -f
+---
+q: just the dns domain part
+a: hostname -d
+ref: hostname
+teach: hostname -d
+---
+q: the ip addresses this host resolves to
+a: hostname -i
+ref: hostname
+teach: hostname -i
+---
+q: what the kernel said while it was booting
+a: dmesg
+ref: dmesg
+teach: dmesg
+---
+q: kernel messages with the raw log level markers left in
+a: dmesg -r
+ref: dmesg
+teach: dmesg -r
+---
+q: clear the kernel ring buffer after printing it
+a: dmesg -c
+ref: dmesg
+teach: dmesg -c
+---
+q: set the console log level so only errors reach the screen
+a: dmesg -n 3
+ref: dmesg
+teach: dmesg -n
+---
+q: read only the last 4096 bytes of the kernel buffer
+a: dmesg -s 4096
+ref: dmesg
+teach: dmesg -s
+---
+q: find every line of the kernel log mentioning verity
+a: dmesg | grep -i verity
+ref: dmesg
+teach: dmesg
+---
+q: what time is it
+a: date
+out: [0-9]
+ref: date
+teach: date
+---
+q: the time in utc rather than local time
+a: date -u
+out: UTC|[0-9]
+ref: date
+teach: date -u
+---
+q: today's date as YYYY-MM-DD and nothing else
+a: date +%Y-%m-%d
+out: ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ref: date
+teach: date
+---
+q: the current time as seconds since 1970
+a: date +%s
+out: ^[0-9]+$
+ref: date
+teach: date
+---
+q: the date in iso 8601 form using the flag rather than a format string
+a: date -I
+out: ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ref: date
+teach: date -I[SPEC]
+---
+q: the date in rfc 2822 form, the one email headers use
+a: date -R
+out: [0-9]
+ref: date
+teach: date -R
+---
+q: the modification time of @txt@ rather than the time now
+a: date -r @txt@
+out: [0-9]
+ref: date
+teach: date -r
+---
+q: interpret a date string rather than reading the clock
+a: date -d 2024-03-01
+out: 2024|Mar
+ref: date
+teach: date -d
+---
+q: parse a date given in an explicit input format
+a: date -D "%Y-%m-%d" -d 2024-03-01 +%s
+ref: date
+teach: date -D
+---
+q: how long has this machine been up, straight from the kernel
+a: cat /proc/uptime
+out: ^[0-9]
+ref: cat
+teach: cat
+hint: /proc holds files that are not on any disk
+---
+q: what processor does this machine have, from /proc
+a: cat /proc/cpuinfo
+out: .
+ref: cat
+teach: cat
+---
+q: how much memory, from /proc
+a: cat /proc/meminfo
+out: Mem
+ref: cat
+teach: cat
+---
+q: what command line was this kernel booted with
+a: cat /proc/cmdline
+out: .
+ref: cat
+teach: cat
+---
+q: what filesystems are mounted, read from /proc rather than asking mount
+a: cat /proc/mounts
+out: /
+ref: cat
+teach: cat
+---
+q: which terminal am i on
+a: tty
+out: .
+ref: tty
+teach: tty
+---
+q: test whether this is a terminal at all, silently
+a: tty -s
+ref: tty
+teach: tty -s
+---
+q: clear the screen
+a: clear
+ref: clear
+teach: clear
+---
+q: put a terminal back to a sane state after a binary scrambled it
+a: reset
+ref: reset
+teach: reset
+---
+q: show every terminal setting
+a: stty -a
+ref: stty
+teach: stty -a
+---
+q: dump terminal settings in the form you can restore later
+a: stty -g
+out: .
+ref: stty
+teach: stty -g
+---
+q: query the settings of a terminal other than your own
+a: stty -F /dev/tty1 -a
+ref: stty
+teach: stty -F
+---
+q: rerun df every 2 seconds and watch it change
+a: watch df
+ref: watch
+teach: watch
+---
+q: rerun df every 5 seconds instead
+a: watch -n 5 df
+ref: watch
+teach: watch -n
+---
+q: watch df with the header line suppressed
+a: watch -t df
+ref: watch
+teach: watch -t
+---
+q: wait two seconds and then continue
+a: sleep 2
+ref: sleep
+teach: sleep

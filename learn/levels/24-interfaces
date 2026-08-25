@@ -1,0 +1,221 @@
+name: interfaces and addresses
+boss: Netcat
+flavor: I listen where you cannot see.
+brief: An interface is a way onto a network. ip is the modern tool for all of
+brief: it -- addresses, links, routes, neighbours -- and ifconfig and route are
+brief: the older ones you will still meet on machines that have not moved on.
+brief:
+brief: ip has a shape: ip OBJECT COMMAND. ip addr, ip link, ip route, ip neigh.
+brief: Every one of them takes show, add and del.
+---
+q: show every interface and its addresses
+a: ip addr
+out: .
+ref: ip
+teach: ip
+---
+q: show addresses one per line, in a form that is easy to cut up
+a: ip -o addr
+out: .
+ref: ip
+teach: ip
+---
+q: show only ipv4 addresses
+a: ip -4 addr
+out: .
+ref: ip
+teach: ip
+---
+q: show the links, without their addresses
+a: ip link
+out: .
+ref: ip
+teach: ip
+---
+q: bring the interface @iface@ up
+a: ip link set @iface@ up
+ref: ip
+teach: ip
+---
+q: bring @iface@ back down
+a: ip link set @iface@ down
+ref: ip
+teach: ip
+---
+q: give @iface@ the address @ip@ with a 24 bit netmask
+a: ip addr add @ip@/24 dev @iface@
+ref: ip
+teach: ip
+---
+q: take that address off @iface@ again
+a: ip addr del @ip@/24 dev @iface@
+ref: ip
+teach: ip
+---
+q: show the routing table
+a: ip route
+out: .
+ref: ip
+teach: ip
+---
+q: show only the default route
+a: ip route show default
+ref: ip
+teach: ip
+---
+q: add a default route via @ip@
+a: ip route add default via @ip@
+ref: ip
+teach: ip
+---
+q: delete the default route
+a: ip route del default
+ref: ip
+teach: ip
+---
+q: show the arp neighbour table using ip
+a: ip neigh
+ref: ip
+teach: ip
+---
+q: print just the interface names, one per line
+a: ip -o link | cut -d: -f2
+out: .
+ref: ip
+teach: ip
+---
+q: show interfaces the old way
+a: ifconfig
+ref: ifconfig
+teach: ifconfig
+---
+q: show @iface@ specifically, the old way
+a: ifconfig @iface@
+ref: ifconfig
+teach: ifconfig
+---
+q: set @iface@ up with an address, the old way
+a: ifconfig @iface@ @ip@ up
+ref: ifconfig
+teach: ifconfig
+---
+q: show the routing table the old way
+a: route
+ref: route
+teach: route
+---
+q: show routes without resolving names to make it fast
+a: route -n
+ref: route
+teach: route -n
+---
+q: show route table entries with extended fields
+a: route -e
+ref: route
+teach: route -e
+---
+q: show routes for a named address family
+a: route -A inet
+ref: route
+teach: route -A
+---
+q: show the arp cache
+a: arp
+ref: arp
+teach: arp
+---
+q: show the arp cache numerically, without resolving names
+a: arp -n
+ref: arp
+teach: arp -n
+---
+q: show all arp entries including incomplete ones
+a: arp -a
+ref: arp
+teach: arp -a
+---
+q: delete the arp entry for @ip@
+a: arp -d @ip@
+ref: arp
+teach: arp -d
+---
+q: add a permanent arp entry
+a: arp -s @ip@ 00:11:22:33:44:55
+ref: arp
+teach: arp -s
+---
+q: show arp entries for one interface only
+a: arp -i @iface@
+ref: arp
+teach: arp -i
+---
+q: show the arp cache verbosely
+a: arp -v
+ref: arp
+teach: arp -v
+---
+q: show arp entries of a given hardware type
+a: arp -H ether
+ref: arp
+teach: arp -H
+---
+q: use a named address family for arp
+a: arp -A inet
+ref: arp
+teach: arp -A
+---
+q: publish an arp entry on behalf of another host
+a: arp -D @iface@ -s @ip@
+ref: arp
+teach: arp -D
+---
+q: is anyone already using the address @ip@ -- ask at the link layer
+a: arping -c 3 @ip@
+ref: arping
+teach: arping -c
+hint: arp works below ip, so this finds hosts that will not answer a ping
+---
+q: send the arp probe out of a specific interface
+a: arping -I @iface@ -c 3 @ip@
+ref: arping
+teach: arping -I
+---
+q: arping quietly, reporting only the exit status
+a: arping -q -c 1 @ip@
+ref: arping
+teach: arping -q
+---
+q: send a duplicate-address-detection probe
+a: arping -D -c 1 @ip@
+ref: arping
+teach: arping -D
+---
+q: send an unsolicited arp announcement of your own address
+a: arping -U -c 1 @ip@
+ref: arping
+teach: arping -U
+---
+q: arping using a chosen source address
+a: arping -s @ip2@ -c 1 @ip@
+ref: arping
+teach: arping -s
+---
+q: stop arping after 5 seconds whatever happens
+a: arping -w 5 @ip@
+ref: arping
+teach: arping -w
+---
+q: keep arping until a reply arrives, then stop
+a: arping -f @ip@
+ref: arping
+teach: arping -f
+---
+q: send broadcast arp probes
+a: arping -b -c 1 @ip@
+ref: arping
+teach: arping -b
+---
+q: arping in a mode that does not require a source address
+a: arping -A -c 1 @ip@
+ref: arping
+teach: arping -A

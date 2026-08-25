@@ -7,7 +7,7 @@
 # generator. without this file those come back off on every clean build and
 # nothing notices. G30 pins the list to reality.
 #
-# BASH_COMPAT is deliberately absent: vrl ships one shell and it is ash. adding
+# BASH_COMPAT is deliberately absent: vos ships one shell and it is ash. adding
 # bash's parser back in is the thing this design exists to avoid.
 
 ASH_RANDOM_SUPPORT   # $RANDOM -- learn's context roll; seedable for `learn daily`

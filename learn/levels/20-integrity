@@ -1,0 +1,173 @@
+name: integrity
+boss: Collision
+flavor: Your hashes are already broken.
+brief: A hash turns any amount of data into a short fixed string. Change one
+brief: bit anywhere and the hash changes completely. That is the whole idea,
+brief: and it is what this entire operating system is built on.
+brief:
+brief: Use sha256sum. md5sum and sha1sum still exist because old systems
+brief: published those, and you will need to check them -- but neither is safe
+brief: against someone deliberately constructing a collision. For "did this
+brief: file arrive intact" they are fine. For "did an attacker swap it", they
+brief: are not.
+---
+q: compute the sha256 of @txt@
+a: sha256sum @txt@
+out: ^[0-9a-f]{64}
+ref: sha256sum
+teach: sha256sum
+---
+q: compute the sha256 of @txt@ reading it from standard input, so no filename is printed
+a: sha256sum < @txt@
+out: ^[0-9a-f]{64}
+ref: sha256sum
+teach: sha256sum
+---
+q: print only the hash of @txt@, with the filename cut away
+a: sha256sum @txt@ | awk '{print $1}'
+out: ^[0-9a-f]{64}$
+ref: sha256sum
+teach: sha256sum
+---
+q: save the hashes of every .log file here into sums.txt
+a: sha256sum *.log > sums.txt
+state: exists:sums.txt
+ref: sha256sum
+teach: sha256sum
+---
+q: check the files listed in sums.txt still match their recorded hashes
+a: sha256sum *.log > sums.txt && sha256sum -c sums.txt
+out: OK
+ref: sha256sum
+teach: sha256sum -c
+---
+q: check sums.txt quietly, printing nothing unless something fails
+a: sha256sum *.log > sums.txt && sha256sum -c -s sums.txt
+ref: sha256sum
+teach: sha256sum -s
+---
+q: compute the sha512 of @txt@
+a: sha512sum @txt@
+out: ^[0-9a-f]{128}
+ref: sha512sum
+teach: sha512sum
+---
+q: verify a sha512 checksum file
+a: sha512sum @txt@ > s5.txt && sha512sum -c s5.txt
+out: OK
+ref: sha512sum
+teach: sha512sum -c
+---
+q: check a sha512 list without printing the successes
+a: sha512sum @txt@ > s5.txt && sha512sum -c -s s5.txt
+ref: sha512sum
+teach: sha512sum -s
+---
+q: compute the sha1 of @txt@, for checking against an old published value
+a: sha1sum @txt@
+out: ^[0-9a-f]{40}
+ref: sha1sum
+teach: sha1sum
+---
+q: verify a sha1 checksum file
+a: sha1sum @txt@ > s1.txt && sha1sum -c s1.txt
+out: OK
+ref: sha1sum
+teach: sha1sum -c
+---
+q: check a sha1 list silently
+a: sha1sum @txt@ > s1.txt && sha1sum -c -s s1.txt
+ref: sha1sum
+teach: sha1sum -s
+---
+q: compute the md5 of @txt@
+a: md5sum @txt@
+out: ^[0-9a-f]{32}
+ref: md5sum
+teach: md5sum
+---
+q: verify an md5 checksum file
+a: md5sum @txt@ > m.txt && md5sum -c m.txt
+out: OK
+ref: md5sum
+teach: md5sum -c
+---
+q: check an md5 list silently
+a: md5sum @txt@ > m.txt && md5sum -c -s m.txt
+ref: md5sum
+teach: md5sum -s
+---
+q: compute the old unix checksum and byte count of @txt@
+a: cksum @txt@
+out: [0-9]
+ref: cksum
+teach: cksum
+---
+q: are @txt@ and @txt2@ byte for byte identical
+a: cmp @txt@ @txt2@
+ref: cmp
+teach: cmp
+---
+q: compare two files reporting only the exit status, printing nothing
+a: cmp -s @txt@ @txt2@
+ref: cmp
+teach: cmp -s
+---
+q: list every differing byte between two files, not just the first
+a: cmp -l @txt@ @txt2@
+ref: cmp
+teach: cmp -l
+---
+q: compare only the first 10 bytes of two files
+a: cmp -n 10 @txt@ @txt2@
+ref: cmp
+teach: cmp -n
+---
+q: show the differences between @txt@ and @txt2@ line by line
+a: diff @txt@ @txt2@
+ref: diff
+teach: diff
+---
+q: show the differences in the unified format patches use
+a: diff -U 3 @txt@ @txt2@
+ref: diff
+teach: diff -U
+---
+q: report only WHETHER two files differ, not how
+a: diff -q @txt@ @txt2@
+ref: diff
+teach: diff -q
+---
+q: compare two files ignoring case
+a: diff -i @txt@ @txt2@
+ref: diff
+teach: diff -i
+---
+q: compare two files ignoring differences in whitespace
+a: diff -w @txt@ @txt2@
+ref: diff
+teach: diff -w
+---
+q: compare two directories recursively
+a: diff -r @dir@ @dir2@
+ref: diff
+teach: diff -r
+---
+q: encode @txt@ as base64
+a: base64 @txt@
+out: [A-Za-z0-9+/]
+ref: base64
+teach: base64
+---
+q: decode a base64 file back to its original bytes
+a: base64 @txt@ > b64.txt && base64 -d b64.txt
+out: rotate
+ref: base64
+teach: base64 -d
+hint: base64 is an encoding, not encryption -- anyone can undo it
+---
+q: encode @txt@ as base64 wrapped at 40 columns
+a: base64 -w 40 @txt@
+out: [A-Za-z0-9+/]
+ref: base64
+teach: base64 -w

@@ -47,6 +47,11 @@ pick2() {
 }
 
 # sub NAME VALUE -- add one substitution to the rolled script.
+#
+# the delimiter is @name@, not %name%. % was the obvious choice and the wrong
+# one: strftime, printf and awk all use % constantly, so `date +%Y-%m-%d` read
+# as an unrendered placeholder and there was no way to tell a real one from a
+# format string. @ appears in almost no shell command.
 # | delimits the rule and & means 'the whole match' on the replacement side, so
 # a value carrying either would emit a rule that silently does the wrong thing.
 # no pool holds one; this refuses loudly rather than trusting that.
@@ -55,7 +60,7 @@ sub() {
 		*'|'*|*'&'*|*'\\'*)
 			echo "learn: pool value is not sed-safe: $2" >&2; return 1 ;;
 	esac
-	printf 's|%%%s%%|%s|g\n' "$1" "$2" >> "$SUBST"
+	printf 's|@%s@|%s|g\n' "$1" "$2" >> "$SUBST"
 }
 
 # roll -- fresh context for one question.

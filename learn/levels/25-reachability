@@ -1,0 +1,214 @@
+name: reachability
+boss: Portbreaker
+flavor: I count the doors before you knock.
+brief: Four questions, in order, when something will not connect: is the link
+brief: up, does it have an address, is there a route, does dns work. Answer
+brief: them in that order and you will almost never guess.
+brief:
+brief: ping proves a host answers. traceroute shows where the packets stop.
+brief: netstat shows what your own machine is doing about it.
+---
+q: send three pings to @ip@ and stop
+a: ping -c 3 @ip@
+ref: ping
+teach: ping -c
+---
+q: ping @ip@ quietly, printing only the summary
+a: ping -c 3 -q @ip@
+ref: ping
+teach: ping -q
+---
+q: ping with one second between packets
+a: ping -i 1 -c 3 @ip@
+ref: ping
+teach: ping -i
+---
+q: ping out of a specific interface
+a: ping -I @iface@ -c 3 @ip@
+ref: ping
+teach: ping -I
+---
+q: ping with a payload of 1000 bytes to test for MTU trouble
+a: ping -s 1000 -c 3 @ip@
+ref: ping
+teach: ping -s
+---
+q: give up on the whole ping run after 5 seconds
+a: ping -w 5 @ip@
+ref: ping
+teach: ping -w
+---
+q: wait at most 2 seconds for each individual reply
+a: ping -W 2 -c 3 @ip@
+ref: ping
+teach: ping -W
+---
+q: ping with a fixed time to live of 5 hops
+a: ping -t 5 -c 3 @ip@
+ref: ping
+teach: ping -t
+---
+q: ping using a chosen pattern in the payload bytes
+a: ping -p ff -c 3 @ip@
+ref: ping
+teach: ping -p
+---
+q: ping in adaptive mode, sending as fast as replies come back
+a: ping -A -c 3 @ip@
+ref: ping
+teach: ping -A
+---
+q: show the path packets take to @ip@
+a: traceroute @ip@
+ref: traceroute
+teach: traceroute
+---
+q: trace the path without resolving names, so it runs fast
+a: traceroute -n @ip@
+ref: traceroute
+teach: traceroute -n
+---
+q: trace no further than 10 hops
+a: traceroute -m 10 @ip@
+ref: traceroute
+teach: traceroute -m
+---
+q: send one probe per hop instead of three
+a: traceroute -q 1 @ip@
+ref: traceroute
+teach: traceroute -q
+---
+q: start the trace at hop 5, skipping the first four
+a: traceroute -f 5 @ip@
+ref: traceroute
+teach: traceroute -f
+---
+q: trace using icmp echo rather than udp
+a: traceroute -I @ip@
+ref: traceroute
+teach: traceroute -I
+---
+q: trace out of a specific interface
+a: traceroute -i @iface@ @ip@
+ref: traceroute
+teach: traceroute -i
+---
+q: trace using a chosen source address
+a: traceroute -s @ip2@ @ip@
+ref: traceroute
+teach: traceroute -s
+---
+q: trace to a specific destination port
+a: traceroute -p @port@ @ip@
+ref: traceroute
+teach: traceroute -p
+---
+q: wait at most 2 seconds for each probe
+a: traceroute -w 2 @ip@
+ref: traceroute
+teach: traceroute -w
+---
+q: trace verbosely, showing every packet received
+a: traceroute -v @ip@
+ref: traceroute
+teach: traceroute -v
+---
+q: trace bypassing the normal routing tables
+a: traceroute -r @ip@
+ref: traceroute
+teach: traceroute -r
+---
+q: pause half a second between probes
+a: traceroute -z 500 @ip@
+ref: traceroute
+teach: traceroute -z
+---
+q: set the time to live of the first probe
+a: traceroute -t 1 @ip@
+ref: traceroute
+teach: traceroute -t
+---
+q: set the probe packet length
+a: traceroute -l 60 @ip@
+ref: traceroute
+teach: traceroute -l
+---
+q: do not fragment the trace packets
+a: traceroute -F @ip@
+ref: traceroute
+teach: traceroute -F
+---
+q: look up the address of a hostname
+a: nslookup @host@
+ref: nslookup
+teach: nslookup
+---
+q: look up a name using a specific dns server
+a: nslookup @host@ @ip@
+ref: nslookup
+teach: nslookup
+---
+q: what sockets is this machine using
+a: netstat
+ref: netstat
+teach: netstat
+---
+q: show only listening sockets
+a: netstat -l
+ref: netstat
+teach: netstat -l
+---
+q: show every socket, listening or not
+a: netstat -a
+ref: netstat
+teach: netstat -a
+---
+q: show sockets numerically, without resolving names or ports
+a: netstat -n
+ref: netstat
+teach: netstat -n
+---
+q: show only tcp sockets
+a: netstat -t
+ref: netstat
+teach: netstat -t
+---
+q: show only udp sockets
+a: netstat -u
+ref: netstat
+teach: netstat -u
+---
+q: show which process owns each socket
+a: netstat -p
+ref: netstat
+teach: netstat -p
+---
+q: show every listening tcp socket numerically, with its process
+a: netstat -tlnp
+ref: netstat
+teach: netstat -t
+---
+q: show the routing table using netstat
+a: netstat -r
+ref: netstat
+teach: netstat -r
+---
+q: show unix domain sockets
+a: netstat -x
+ref: netstat
+teach: netstat -x
+---
+q: show raw sockets
+a: netstat -w
+ref: netstat
+teach: netstat -w
+---
+q: show netstat output with extended information
+a: netstat -e
+ref: netstat
+teach: netstat -e
+---
+q: show netstat with wide columns so long addresses are not truncated
+a: netstat -W
+ref: netstat
+teach: netstat -W

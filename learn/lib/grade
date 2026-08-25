@@ -11,7 +11,7 @@
 # `sort | uniq` both pass because both are correct, and it means a question
 # has no wrong-but-unlisted answers to apologise for.
 #
-# vrl is the reason this is safe to do at all. root is a read-only squashfs and
+# vos is the reason this is safe to do at all. root is a read-only squashfs and
 # the sandbox is a directory in tmpfs, so the worst an answer can reach is a
 # tree learn rebuilds on demand. upstream needs bubblewrap for this; here the
 # isolation is the operating system.
@@ -54,7 +54,7 @@ norm() {
 # whole effect is a mutation is the one never judged on its mutation.
 #
 # the second cut refused every absolute path, which was also wrong: reading
-# /proc/cmdline is most of what makes this vrl's curriculum and not a generic
+# /proc/cmdline is most of what makes this vos's curriculum and not a generic
 # shell quiz. reading out is harmless.
 #
 # what is actually unsafe is WRITING out. the answer runs with cwd inside a
@@ -103,7 +103,7 @@ run_answer() {
 
 # check_state SPEC -- did the answer leave the tree in the right shape?
 # `cp a b` prints nothing, so output cannot judge it; what it DID is the whole
-# point. three forms, which between them cover every mutating command vrl has:
+# point. three forms, which between them cover every mutating command vos has:
 #   exists:PATH        the path is there afterwards
 #   gone:PATH          the path is not
 #   match:PATH:ERE     the path is there and its contents match

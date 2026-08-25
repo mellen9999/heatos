@@ -29,20 +29,20 @@ out: ^0$
 ref: true
 teach: true
 ---
-q: print %word% only if %log% contains %sev%
-a: grep -q %sev% %log% && echo %word%
-out: %word%
+q: print @word@ only if @log@ contains @sev@
+a: grep -q @sev@ @log@ && echo @word@
+out: @word@
 ref: grep
 teach: grep -q
 ---
-q: print "missing" only if %log% does NOT contain the word nonexistent
-a: grep -q nonexistent %log% || echo missing
+q: print "missing" only if @log@ does NOT contain the word nonexistent
+a: grep -q nonexistent @log@ || echo missing
 out: ^missing$
 ref: grep
 teach: grep -q
 ---
-q: print found if %sev% is in %log%, and missing if it is not, in one line
-a: grep -q %sev% %log% && echo found || echo missing
+q: print found if @sev@ is in @log@, and missing if it is not, in one line
+a: grep -q @sev@ @log@ && echo found || echo missing
 out: ^found$
 ref: grep
 teach: grep -q
@@ -70,8 +70,8 @@ ref: exit
 teach: exit
 hint: any number 0-255; zero means success and everything else is yours to define
 ---
-q: invert an exit status -- succeed when grep finds nothing in %log%
-a: ! grep -q nonexistent %log%
+q: invert an exit status -- succeed when grep finds nothing in @log@
+a: ! grep -q nonexistent @log@
 ref: grep
 teach: grep -q
 hint: a leading ! flips the status
@@ -100,4 +100,4 @@ teach: set
 q: show the shell's current option settings
 a: set -o
 ref: set
-teach: set
+teach: set -o

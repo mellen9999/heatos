@@ -8,7 +8,9 @@ in a shell script actually runs.
 	-e FILE		FILE exists
 	-f FILE		FILE exists and is a regular file
 	-d FILE		FILE exists and is a directory
-	-r/-w/-x FILE	FILE is readable / writable / executable
+	-r FILE		FILE is readable
+	-w FILE		FILE is writable
+	-x FILE		FILE is executable
 	-s FILE		FILE exists and is not empty
 	-L FILE		FILE is a symbolic link
 	-z STR		STR is empty

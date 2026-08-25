@@ -91,13 +91,13 @@ a: find . -perm 755
 ref: find
 teach: find -perm
 ---
-q: find files under here owned by user %user%
-a: find . -user %user%
+q: find files under here owned by user @user@
+a: find . -user @user@
 ref: find
 teach: find -user
 ---
-q: find files under here belonging to group %user%
-a: find . -group %user%
+q: find files under here belonging to group @user@
+a: find . -group @user@
 ref: find
 teach: find -group
 ---

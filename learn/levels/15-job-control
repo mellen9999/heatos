@@ -43,19 +43,19 @@ a: jobs
 ref: sh
 teach: sh
 ---
-q: run %script% so it keeps running after the terminal goes away
-a: nohup ./%script% &
+q: run @script@ so it keeps running after the terminal goes away
+a: nohup ./@script@ &
 ref: nohup
 teach: nohup
 hint: nohup makes the process ignore the hangup signal
 ---
-q: run %script% in a brand new session, fully detached from this terminal
-a: setsid ./%script%
+q: run @script@ in a brand new session, fully detached from this terminal
+a: setsid ./@script@
 ref: setsid
 teach: setsid
 ---
-q: give %script% at most 5 seconds to finish, then kill it
-a: timeout 5 ./%script%
+q: give @script@ at most 5 seconds to finish, then kill it
+a: timeout 5 ./@script@
 out: running
 ref: timeout
 teach: timeout
@@ -104,3 +104,25 @@ q: attach to work using a different detach key, ctrl-q
 a: abduco -e ^q -a work
 ref: abduco
 teach: abduco -e
+---
+q: list the jobs in this shell with their process ids
+a: sleep 1 & jobs -l
+ref: jobs
+teach: jobs -l
+---
+q: send a hangup signal to process 12345 by number
+a: kill -1 12345
+ref: kill
+teach: kill -1
+---
+q: show every resource limit this shell is under
+a: ulimit -a
+out: .
+ref: ulimit
+teach: ulimit -a
+---
+q: show the maximum file size this shell may create
+a: ulimit -f
+out: .
+ref: ulimit
+teach: ulimit -f

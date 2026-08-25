@@ -8,122 +8,140 @@ brief:
 brief: The habit worth building: reach for head before cat. A file you did not
 brief: write can be a gigabyte, and cat will happily send all of it.
 ---
-q: {print|show|dump} the contents of %txt%
-a: cat %txt%
+q: {print|show|dump} the contents of @txt@
+a: cat @txt@
 out: rotate the logs
 ref: cat
 teach: cat
 ---
-q: show %txt% with every line numbered
-a: cat -n %txt%
+q: show @txt@ with every line numbered
+a: cat -n @txt@
 out: ^ *1
 ref: cat
 teach: cat -n
 ---
-q: show %txt% numbering only the lines that are not blank
-a: cat -b %txt%
+q: show @txt@ numbering only the lines that are not blank
+a: cat -b @txt@
 out: ^ *1
 ref: cat
 teach: cat -b
 ---
-q: show %cfg% with a $ marking the end of every line
-a: cat -e %cfg%
+q: show @cfg@ with a $ marking the end of every line
+a: cat -e @cfg@
 out: \$$
 ref: cat
 teach: cat -e
 hint: cat calls this "End each line with $"
 ---
-q: show the first ten lines of %log%
-a: head %log%
+q: show the first ten lines of @log@
+a: head @log@
 out: service started
 ref: head
 teach: head
 hint: ten is what head does with no arguments
 ---
-q: show the first %n% lines of %log%
-a: head -n %n% %log%
-a: head -%n% %log%
+q: show the first @n@ lines of @log@
+a: head -n @n@ @log@
+a: head -@n@ @log@
 out: service started
 ref: head
 teach: head -n
 ---
-q: show the first 20 bytes of %log%
-a: head -c 20 %log%
+q: show the first 20 bytes of @log@
+a: head -c 20 @log@
 out: 2024-03-01
 ref: head
 teach: head -c
 hint: c for characters
 ---
-q: show the last ten lines of %log%
-a: tail %log%
+q: show the last ten lines of @log@
+a: tail @log@
 out: out of memory
 ref: tail
 teach: tail
 ---
-q: show the last %n3% lines of %log%
-a: tail -n %n3% %log%
-a: tail -%n3% %log%
+q: show the last @n3@ lines of @log@
+a: tail -n @n3@ @log@
+a: tail -@n3@ @log@
 out: .
 ref: tail
 teach: tail -n
 ---
-q: show %log% from line 5 onward -- not the last 5, the fifth to the end
-a: tail -n +5 %log%
+q: show @log@ from line 5 onward -- not the last 5, the fifth to the end
+a: tail -n +5 @log@
 out: connection refused
 ref: tail
 teach: tail -n
 hint: a plus sign in front of the number changes it from "last N" to "from N"
 ---
-q: watch %log% and keep printing new lines as they are appended
-a: tail -f %log%
+q: watch @log@ and keep printing new lines as they are appended
+a: tail -f @log@
 ref: tail
 teach: tail -f
 hint: f for follow. this one never exits -- Ctrl+c is how you leave.
 ---
-q: print %txt% with its lines in reverse order, last line first
-a: tac %txt%
+q: print @txt@ with its lines in reverse order, last line first
+a: tac @txt@
 out: verify the root hash
 ref: tac
 teach: tac
 hint: it is cat backwards, which is also what it does
 ---
-q: pull the readable text out of %bin%, which is not a text file
-a: strings %bin%
+q: pull the readable text out of @bin@, which is not a text file
+a: strings @bin@
 out: unlocked-by-strings
 ref: strings
 teach: strings
 ---
-q: show only strings in %bin% that are at least 5 characters long
-a: strings -n 5 %bin%
+q: show only strings in @bin@ that are at least 5 characters long
+a: strings -n 5 @bin@
 out: unlocked-by-strings
 ref: strings
 teach: strings -n
 ---
-q: show the strings in %bin% with the byte offset each one was found at
-a: strings -t d %bin%
-a: strings -t x %bin%
+q: show the strings in @bin@ with the byte offset each one was found at
+a: strings -t d @bin@
+a: strings -t x @bin@
 out: unlocked-by-strings
 ref: strings
 teach: strings -t
 hint: t takes a radix -- d decimal, x hex, o octal
 ---
-q: open %log% in the pager
-a: less %log%
+q: open @log@ in the pager
+a: less @log@
 ref: less
 teach: less
 hint: q leaves, /pattern searches, g and G jump to the ends
 ---
-q: open %log% in the pager with line numbers shown
-a: less -N %log%
+q: open @log@ in the pager with line numbers shown
+a: less -N @log@
 ref: less
 teach: less -N
 ---
-q: open %log% in the pager without wrapping long lines
-a: less -S %log%
+q: open @log@ in the pager without wrapping long lines
+a: less -S @log@
 ref: less
 teach: less -S
 ---
-q: open %log% in the pager, searching case-insensitively
-a: less -I %log%
+q: open @log@ in the pager, searching case-insensitively
+a: less -I @log@
 ref: less
 teach: less -I
+---
+q: show the last 20 bytes of @log@ rather than the last lines
+a: tail -c 20 @log@
+out: .
+ref: tail
+teach: tail -c
+---
+q: follow @log@ by name, so it keeps working if the file is rotated and replaced
+a: tail -F @log@
+ref: tail
+teach: tail -F
+hint: capital F reopens the name; lowercase f holds the old file open forever
+---
+q: show the byte offset of every string found in @bin@
+a: strings -o @bin@
+out: [0-9]
+ref: strings
+teach: strings -o

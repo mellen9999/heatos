@@ -11,14 +11,14 @@ brief: for walks a list of words. while repeats until a command fails. The
 brief: read loop -- while read -r line -- is how you process a file line by
 brief: line without loading it all into memory.
 ---
-q: print exists if %txt% is there, using if
-a: if [ -f %txt% ]; then echo exists; fi
+q: print exists if @txt@ is there, using if
+a: if [ -f @txt@ ]; then echo exists; fi
 out: ^exists$
 ref: sh
 teach: sh
 ---
-q: print yes if %log% mentions %sev%, otherwise no, using if and else
-a: if grep -q %sev% %log%; then echo yes; else echo no; fi
+q: print yes if @log@ mentions @sev@, otherwise no, using if and else
+a: if grep -q @sev@ @log@; then echo yes; else echo no; fi
 out: ^yes$
 ref: grep
 teach: grep -q
@@ -71,15 +71,15 @@ out: ^01$
 ref: seq
 teach: seq -w
 ---
-q: read %txt% line by line, printing each line as you go
-a: while read -r line; do echo "$line"; done < %txt%
+q: read @txt@ line by line, printing each line as you go
+a: while read -r line; do echo "$line"; done < @txt@
 out: rotate the logs
 ref: read
 teach: read -r
 hint: the redirect goes on the done, feeding the whole loop
 ---
-q: read %csv% line by line splitting each into fields on commas
-a: while IFS=, read -r a b c d; do echo "$a"; done < %csv%
+q: read @csv@ line by line splitting each into fields on commas
+a: while IFS=, read -r a b c d; do echo "$a"; done < @csv@
 out: ^gateway$
 ref: read
 teach: read -r
@@ -90,14 +90,14 @@ out: ^2$
 ref: sh
 teach: sh
 ---
-q: branch on the value of %var% using case, printing hit for %word%
-a: %var%=%word%; case $%var% in %word%) echo hit ;; *) echo miss ;; esac
+q: branch on the value of @var@ using case, printing hit for @word@
+a: @var@=@word@; case $@var@ in @word@) echo hit ;; *) echo miss ;; esac
 out: ^hit$
 ref: sh
 teach: sh
 ---
 q: use case to print log when a filename ends in .log
-a: f=%log%; case $f in *.log) echo log ;; *) echo other ;; esac
+a: f=@log@; case $f in *.log) echo log ;; *) echo other ;; esac
 out: ^log$
 ref: sh
 teach: sh

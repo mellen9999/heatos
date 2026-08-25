@@ -8,113 +8,121 @@ brief:
 brief: cut's default delimiter is TAB, not space. That surprises everyone once.
 brief: For anything space-separated, awk is the better tool, and it is next.
 ---
-q: print the first comma-separated field of every line in %csv%
-a: cut -d, -f1 %csv%
+q: print the first comma-separated field of every line in @csv@
+a: cut -d, -f1 @csv@
 out: ^gateway$
 ref: cut
 teach: cut -d
 teach: cut -f
 ---
-q: print the third comma-separated field of %csv%
-a: cut -d, -f3 %csv%
+q: print the third comma-separated field of @csv@
+a: cut -d, -f3 @csv@
 out: ^up$
 ref: cut
 teach: cut -f
 ---
-q: print fields 1 and 3 of %csv%
-a: cut -d, -f1,3 %csv%
+q: print fields 1 and 3 of @csv@
+a: cut -d, -f1,3 @csv@
 out: gateway,up
 ref: cut
 teach: cut -f
 ---
-q: print fields 2 through 4 of %csv%
-a: cut -d, -f2-4 %csv%
+q: print fields 2 through 4 of @csv@
+a: cut -d, -f2-4 @csv@
 out: 1,up,42
 ref: cut
 teach: cut -f
 ---
-q: print everything from field 3 to the end of each line in %csv%
-a: cut -d, -f3- %csv%
+q: print everything from field 3 to the end of each line in @csv@
+a: cut -d, -f3- @csv@
 out: up,42
 ref: cut
 teach: cut -f
 ---
-q: print the first field of %csv% treating any run of whitespace as the delimiter
-a: cut -D -f1 %csv%
+q: print the first field of @csv@ treating any run of whitespace as the delimiter
+a: cut -D -f1 @csv@
 ref: cut
 teach: cut -D
 ---
-q: print the first 10 characters of each line of %log%
-a: cut -c1-10 %log%
+q: print the first 10 characters of each line of @log@
+a: cut -c1-10 @log@
 out: ^2024-03-01$
 ref: cut
 teach: cut -c
 ---
-q: print characters 12 onward of each line of %log%
-a: cut -c12- %log%
+q: print characters 12 onward of each line of @log@
+a: cut -c12- @log@
 out: [0-9]
 ref: cut
 teach: cut -c
 ---
-q: print the first 8 bytes of each line of %log%
-a: cut -b1-8 %log%
+q: print the first 8 bytes of each line of @log@
+a: cut -b1-8 @log@
 out: ^2024-03
 ref: cut
 teach: cut -b
 ---
-q: print field 1 of %csv%, skipping lines that have no comma in them at all
-a: cut -d, -f1 -s %csv%
+q: print field 1 of @csv@, skipping lines that have no comma in them at all
+a: cut -d, -f1 -s @csv@
 out: ^gateway$
 ref: cut
 teach: cut -s
 hint: without -s, a line with no delimiter is printed whole
 ---
-q: print field 1 of %csv% separating the output with a colon instead of a comma
-a: cut -d, -f1,3 -O: %csv%
+q: print field 1 of @csv@ separating the output with a colon instead of a comma
+a: cut -d, -f1,3 -O: @csv@
 ref: cut
 teach: cut -O
 ---
-q: uppercase everything in %txt%
-a: tr a-z A-Z < %txt%
+q: uppercase everything in @txt@
+a: tr a-z A-Z < @txt@
 out: ROTATE THE LOGS
 ref: tr
 teach: tr
 hint: tr has no filename argument -- redirect the file into it
 ---
-q: lowercase everything in %txt%
-a: tr A-Z a-z < %txt%
+q: lowercase everything in @txt@
+a: tr A-Z a-z < @txt@
 out: rotate
 ref: tr
 teach: tr
 ---
-q: delete every digit from %log%
-a: tr -d 0-9 < %log%
+q: delete every digit from @log@
+a: tr -d 0-9 < @log@
 out: INFO
 ref: tr
 teach: tr -d
 ---
-q: strip the newlines out of %txt% so it becomes one long line
-a: tr -d '\n' < %txt%
+q: strip the newlines out of @txt@ so it becomes one long line
+a: tr -d '\n' < @txt@
 out: rotate
 ref: tr
 teach: tr -d
 ---
-q: collapse every run of repeated spaces in %log% down to a single space
-a: tr -s ' ' < %log%
+q: collapse every run of repeated spaces in @log@ down to a single space
+a: tr -s ' ' < @log@
 out: INFO service
 ref: tr
 teach: tr -s
 hint: s for squeeze
 ---
-q: turn every space in %txt% into a newline, one word per line
-a: tr ' ' '\n' < %txt%
+q: turn every space in @txt@ into a newline, one word per line
+a: tr ' ' '\n' < @txt@
 out: ^rotate$
 ref: tr
 teach: tr
 ---
-q: delete everything from %txt% except letters and newlines
-a: tr -dc 'a-zA-Z\n' < %txt%
+q: delete everything from @txt@ except letters and newlines
+a: tr -dc 'a-zA-Z\n' < @txt@
 out: rotate
 ref: tr
 teach: tr -c
 hint: -c complements the set, so -dc deletes everything NOT listed
+
+---
+q: sort the numbers in the count column of @csv@ numerically, largest first
+a: cut -d, -f4 @csv@ | sort -rn
+out: 42
+ref: sort
+teach: sort -n
+hint: without -n, 7 sorts after 42 because it compares text

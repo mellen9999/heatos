@@ -1,0 +1,89 @@
+name: root
+boss: ROOT
+flavor: I answer to nothing. Show me you belong here.
+brief: You are standing at a machine you did not build, that you booted from a
+brief: stick in your pocket. Everything you need to decide whether to trust it
+brief: is readable from where you are sitting.
+brief:
+brief: This is one argument, in order. Each answer is a link, and the chain is
+brief: only worth what its weakest link is worth -- so read what each one
+brief: actually proves, and what it does not.
+---
+setup: Start with the claim. The root filesystem is not trusted because it
+setup: looks right; it is trusted because every block read out of it is
+setup: checked against a hash tree.
+q: show that the root is a read-only squashfs on a device-mapper device
+a: awk '$2=="/" {print $1, $3, $4}' /proc/mounts
+out: .
+ref: awk
+teach: awk
+---
+setup: A hash tree has a single root hash. Everything below it is checked
+setup: against that one number, so the whole filesystem reduces to it.
+q: extract the root hash the kernel was given
+a: sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline
+ref: sed
+teach: sed -n
+---
+setup: That number arrived on the kernel command line. The command line is
+setup: baked into the unified kernel image on the ESP, and that image is
+setup: signed with keys you enrolled into the firmware yourself. So the hash
+setup: is anchored OUTSIDE the filesystem it describes.
+q: show the whole command line so you can see the hash sitting in it
+a: cat /proc/cmdline
+ref: cat
+teach: cat
+---
+setup: A checksum stored inside the thing it describes proves nothing -- an
+setup: attacker who can edit the data can edit the checksum beside it. This is
+setup: the single most important idea on this page.
+q: confirm the kernel halts instead of continuing when a block fails its check
+a: grep -o panic_on_corruption /proc/cmdline
+ref: grep
+teach: grep -o
+---
+setup: Now the other end. Hash the bytes actually mounted and see the number
+setup: for yourself.
+q: print the digest of the filesystem you are running on, and nothing else
+a: sha256sum /dev/dm-0 | cut -d' ' -f1
+ref: sha256sum
+teach: sha256sum
+---
+setup: Compare that against the digest recorded when the image was built --
+setup: which you must have carried here from somewhere else. Reading it off
+setup: this disk would prove nothing at all.
+q: show the digest of the running filesystem beside the root hash it is checked against
+a: printf 'mounted %s\nroothash %s\n' "$(sha256sum /dev/dm-0 | cut -d' ' -f1)" "$(sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline)"
+ref: printf
+teach: printf
+hint: two command substitutions inside one printf
+---
+setup: A verified root is worth nothing if code can be added to the kernel
+setup: underneath it. Close that door and check it stayed closed.
+q: in one line, report the module loader, /dev/mem and the lockdown state together
+a: printf 'modules %s\ndevmem %s\nlockdown %s\n' "$([ -e /proc/modules ] && echo present || echo absent)" "$([ -e /dev/mem ] && echo present || echo absent)" "$(cat /sys/kernel/security/lockdown)"
+ref: printf
+teach: printf
+---
+setup: And nothing writable may be executable, or the read-only root is a
+setup: formality.
+q: show every writable filesystem and whether it is mounted noexec
+a: awk '$4 ~ /rw/ {print $2, $4}' /proc/mounts
+out: .
+ref: awk
+teach: awk
+---
+setup: One line now. The whole argument, in the order you made it.
+q: print the root device, its filesystem, its flags and its on-corruption policy together
+a: awk '$2=="/" {printf "%s %s %s ", $1, $3, $4}' /proc/mounts && grep -o panic_on_corruption /proc/cmdline
+ref: awk
+teach: awk
+---
+setup: Last. Everything you have learned, aimed at the machine underneath you.
+setup: If this prints and the numbers are the ones you carried in, the system
+setup: running this command is the system you built.
+q: print the mounted digest, the anchored root hash, and whether they are being enforced
+a: printf '%s\n%s\n%s\n' "$(sha256sum /dev/dm-0 | cut -d' ' -f1)" "$(sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline)" "$(grep -o panic_on_corruption /proc/cmdline)"
+ref: printf
+teach: printf
+hint: three substitutions, one printf. you have used every piece of this before

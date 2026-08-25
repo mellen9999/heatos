@@ -10,118 +10,118 @@ brief:
 brief: Quote your variables. [ -n $x ] with x empty becomes [ -n ], which is
 brief: true, which is the opposite of what you asked. [ -n "$x" ] is correct.
 ---
-q: test whether %txt% exists
-a: [ -e %txt% ]
+q: test whether @txt@ exists
+a: [ -e @txt@ ]
 ref: [
 teach: [ -e
 ---
-q: test whether %txt% is a regular file
-a: [ -f %txt% ]
+q: test whether @txt@ is a regular file
+a: [ -f @txt@ ]
 ref: [
 teach: [ -f
 ---
-q: test whether %dir% is a directory
-a: [ -d %dir% ]
+q: test whether @dir@ is a directory
+a: [ -d @dir@ ]
 ref: [
 teach: [ -d
 ---
-q: test whether %txt% exists and is not empty
-a: [ -s %txt% ]
+q: test whether @txt@ exists and is not empty
+a: [ -s @txt@ ]
 ref: [
 teach: [ -s
 ---
-q: test whether %txt% is readable
-a: [ -r %txt% ]
+q: test whether @txt@ is readable
+a: [ -r @txt@ ]
 ref: [
 teach: [ -r
 ---
-q: test whether %script% is writable
-a: [ -w %script% ]
+q: test whether @script@ is writable
+a: [ -w @script@ ]
 ref: [
 teach: [ -w
 ---
-q: test whether %script% is executable
-a: [ -x %script% ]
+q: test whether @script@ is executable
+a: [ -x @script@ ]
 ref: [
 teach: [ -x
 ---
-q: test whether %txt% is a symbolic link
-a: [ -L %txt% ]
+q: test whether @txt@ is a symbolic link
+a: [ -L @txt@ ]
 ref: [
 teach: [ -L
 ---
-q: test whether the variable %var% is empty
-a: [ -z "$%var%" ]
+q: test whether the variable @var@ is empty
+a: [ -z "$@var@" ]
 ref: [
 teach: [ -z
 ---
-q: test whether the variable %var% is NOT empty
-a: [ -n "$%var%" ]
+q: test whether the variable @var@ is NOT empty
+a: [ -n "$@var@" ]
 ref: [
 teach: [ -n
 ---
-q: print yes if %txt% exists
-a: [ -f %txt% ] && echo yes
+q: print yes if @txt@ exists
+a: [ -f @txt@ ] && echo yes
 out: ^yes$
 ref: [
 teach: [ -f
 ---
-q: print missing if %word%-nope.txt does not exist
-a: [ -f %word%-nope.txt ] || echo missing
+q: print missing if @word@-nope.txt does not exist
+a: [ -f @word@-nope.txt ] || echo missing
 out: ^missing$
 ref: [
 teach: [ -f
 ---
-q: use test rather than brackets to check that %dir% is a directory, printing ok
-a: test -d %dir% && echo ok
+q: use test rather than brackets to check that @dir@ is a directory, printing ok
+a: test -d @dir@ && echo ok
 out: ^ok$
 ref: test
 teach: test -d
 ---
 q: compare two strings for equality, printing same when they match
-a: [ %word% = %word% ] && echo same
+a: [ @word@ = @word@ ] && echo same
 out: ^same$
 ref: [
 teach: [
 ---
 q: check two strings differ, printing differ when they do
-a: [ %word% != other ] && echo differ
+a: [ @word@ != other ] && echo differ
 out: ^differ$
 ref: [
 teach: [
 ---
-q: check that the line count of %log% equals 10, printing ten
-a: [ "$(wc -l < %log%)" -eq 10 ] && echo ten
+q: check that the line count of @log@ equals 10, printing ten
+a: [ "$(wc -l < @log@)" -eq 10 ] && echo ten
 out: ^ten$
 ref: [
 teach: [ -eq
 ---
-q: check the line count of %log% is greater than 5, printing more
-a: [ "$(wc -l < %log%)" -gt 5 ] && echo more
+q: check the line count of @log@ is greater than 5, printing more
+a: [ "$(wc -l < @log@)" -gt 5 ] && echo more
 out: ^more$
 ref: [
 teach: [ -gt
 ---
-q: check the line count of %log% is less than 100, printing fewer
-a: [ "$(wc -l < %log%)" -lt 100 ] && echo fewer
+q: check the line count of @log@ is less than 100, printing fewer
+a: [ "$(wc -l < @log@)" -lt 100 ] && echo fewer
 out: ^fewer$
 ref: [
 teach: [ -lt
 ---
-q: negate a test -- print gone when %word%-nope.txt does NOT exist
-a: [ ! -f %word%-nope.txt ] && echo gone
+q: negate a test -- print gone when @word@-nope.txt does NOT exist
+a: [ ! -f @word@-nope.txt ] && echo gone
 out: ^gone$
 ref: [
 teach: [
 ---
-q: require both that %txt% exists and %dir% is a directory, printing both
-a: [ -f %txt% -a -d %dir% ] && echo both
+q: require both that @txt@ exists and @dir@ is a directory, printing both
+a: [ -f @txt@ -a -d @dir@ ] && echo both
 out: ^both$
 ref: [
 teach: [ -a
 ---
-q: accept either %txt% existing or %word%-nope.txt existing, printing either
-a: [ -f %txt% -o -f %word%-nope.txt ] && echo either
+q: accept either @txt@ existing or @word@-nope.txt existing, printing either
+a: [ -f @txt@ -o -f @word@-nope.txt ] && echo either
 out: ^either$
 ref: [
 teach: [ -o

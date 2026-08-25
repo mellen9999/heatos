@@ -46,38 +46,38 @@ a: top -d 5
 ref: top
 teach: top -d
 ---
-q: find the process ids of anything called %proc%
-a: pgrep %proc%
+q: find the process ids of anything called @proc@
+a: pgrep @proc@
 ref: pgrep
 teach: pgrep
 ---
-q: find %proc% matching against the whole command line, not just the name
-a: pgrep -f %proc%
+q: find @proc@ matching against the whole command line, not just the name
+a: pgrep -f @proc@
 ref: pgrep
 teach: pgrep -f
 ---
-q: list %proc% processes showing the name beside each pid
-a: pgrep -l %proc%
+q: list @proc@ processes showing the name beside each pid
+a: pgrep -l @proc@
 ref: pgrep
 teach: pgrep -l
 ---
-q: find only the newest process called %proc%
-a: pgrep -n %proc%
+q: find only the newest process called @proc@
+a: pgrep -n @proc@
 ref: pgrep
 teach: pgrep -n
 ---
-q: find only the oldest process called %proc%
-a: pgrep -o %proc%
+q: find only the oldest process called @proc@
+a: pgrep -o @proc@
 ref: pgrep
 teach: pgrep -o
 ---
-q: find processes whose name is exactly %proc% and not merely contains it
-a: pgrep -x %proc%
+q: find processes whose name is exactly @proc@ and not merely contains it
+a: pgrep -x @proc@
 ref: pgrep
 teach: pgrep -x
 ---
-q: find every process that is NOT called %proc%
-a: pgrep -v %proc%
+q: find every process that is NOT called @proc@
+a: pgrep -v @proc@
 ref: pgrep
 teach: pgrep -v
 ---
@@ -109,13 +109,13 @@ out: KILL
 ref: kill
 teach: kill -l
 ---
-q: kill every process called %proc% by name
-a: pkill %proc%
+q: kill every process called @proc@ by name
+a: pkill @proc@
 ref: pkill
 teach: pkill
 ---
-q: force-kill every process whose full command line mentions %proc%
-a: pkill -9 -f %proc%
+q: force-kill every process whose full command line mentions @proc@
+a: pkill -9 -f @proc@
 ref: pkill
 teach: pkill -f
 ---
@@ -154,3 +154,8 @@ a: nproc --all
 out: ^[0-9]+$
 ref: nproc
 teach: nproc --all
+---
+q: list @proc@ processes showing the full command line of each
+a: pgrep -a @proc@
+ref: pgrep
+teach: pgrep -a

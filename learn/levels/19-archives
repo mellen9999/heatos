@@ -1,0 +1,195 @@
+name: archives
+boss: Clobber
+flavor: One > and yesterday's file is gone.
+brief: tar bundles many files into one. It does not compress by itself -- -z
+brief: pipes the bundle through gzip, -j through bzip2. That is why you see
+brief: czf and xzf so often: create/extract, compress, file.
+brief:
+brief: Always look before you extract. tar tf lists the contents without
+brief: writing anything, and an archive that expands into the current
+brief: directory instead of a subdirectory will scatter files everywhere.
+---
+q: list what is inside @archive@ without extracting anything
+a: tar -tf @archive@
+out: .
+ref: tar
+teach: tar t
+teach: tar -f
+---
+q: list the contents of @archive@ verbosely, with sizes and permissions
+a: tar -tvf @archive@
+out: .
+ref: tar
+teach: tar -v
+---
+q: create bundle.tar containing @dir@
+a: tar -cf bundle.tar @dir@
+state: exists:bundle.tar
+ref: tar
+teach: tar c
+---
+q: create a gzip-compressed bundle.tar.gz containing @dir@
+a: tar -czf bundle.tar.gz @dir@
+state: exists:bundle.tar.gz
+ref: tar
+teach: tar -z
+---
+q: create a bzip2-compressed bundle.tar.bz2 containing @dir@
+a: tar -cjf bundle.tar.bz2 @dir@
+state: exists:bundle.tar.bz2
+ref: tar
+teach: tar -j
+---
+q: extract archive/export.tar into the current directory
+a: tar -xf archive/export.tar
+ref: tar
+teach: tar x
+---
+q: extract @archive@ into the @dir@ directory rather than here
+a: tar -xzf @archive@ -C @dir@
+ref: tar
+teach: tar -C
+---
+q: pull one file out of @archive@ and print it to stdout rather than to disk
+a: tar -xzOf @archive@ src/main.c
+ref: tar
+teach: tar -O
+---
+q: create bundle.tar from @dir@ but leave out anything ending in .log
+a: tar -cf bundle.tar --exclude '*.log' @dir@
+state: exists:bundle.tar
+ref: tar
+teach: tar --exclude
+---
+q: extract @archive@ dropping the first leading directory from every path
+a: tar -xzf @archive@ --strip-components 1
+ref: tar
+teach: tar --strip-components
+---
+q: extract @archive@ overwriting anything already in the way
+a: tar -xzf @archive@ --overwrite
+ref: tar
+teach: tar --overwrite
+---
+q: create bundle.tar from the list of names held in @txt@
+a: tar -cf bundle.tar -T @txt@
+ref: tar
+teach: tar -T
+---
+q: bundle @dir@ without descending into its subdirectories
+a: tar -cf bundle.tar --no-recursion @dir@
+state: exists:bundle.tar
+ref: tar
+teach: tar --no-recursion
+---
+q: extract @archive@ without restoring the permissions it recorded
+a: tar -xzf @archive@ --no-same-permissions
+ref: tar
+teach: tar --no-same-permissions
+---
+q: extract @archive@ recording numeric owner ids rather than names
+a: tar -xzf @archive@ --numeric-owner
+ref: tar
+teach: tar --numeric-owner
+---
+q: compress @txt@ with gzip, replacing it with @txt@.gz
+a: gzip @txt@
+state: exists:@txt@.gz
+ref: gzip
+teach: gzip
+---
+q: compress @txt@ but keep the original as well
+a: gzip -k @txt@
+state: exists:@txt@.gz
+ref: gzip
+teach: gzip -k
+---
+q: compress @txt@ to stdout without touching the file
+a: gzip -c @txt@ > out.gz
+state: exists:out.gz
+ref: gzip
+teach: gzip -c
+---
+q: compress @txt@ even if a .gz already exists
+a: gzip -f @txt@
+ref: gzip
+teach: gzip -f
+---
+q: read a gzipped file without unpacking it to disk
+a: gzip -c @txt@ > z.gz && zcat z.gz
+out: rotate
+ref: zcat
+teach: zcat
+---
+q: uncompress z.gz back to z
+a: gzip -c @txt@ > z.gz && gunzip z.gz
+ref: gunzip
+teach: gunzip
+---
+q: check that a gzip file is not corrupt, without unpacking it
+a: gzip -c @txt@ > z.gz && gunzip -t z.gz
+ref: gunzip
+teach: gunzip -t
+---
+q: uncompress z.gz to stdout, keeping the file
+a: gzip -c @txt@ > z.gz && gunzip -c z.gz
+out: rotate
+ref: gunzip
+teach: gunzip -c
+---
+q: compress @txt@ with bzip2 rather than gzip
+a: bzip2 @txt@
+state: exists:@txt@.bz2
+ref: bzip2
+teach: bzip2
+---
+q: compress @txt@ with bzip2 at the highest compression setting
+a: bzip2 -9 @txt@
+ref: bzip2
+teach: bzip2 -1..9
+---
+q: bzip2 @txt@ to stdout, keeping the original
+a: bzip2 -c @txt@ > out.bz2
+state: exists:out.bz2
+ref: bzip2
+teach: bzip2 -c
+---
+q: uncompress a .bz2 file
+a: bzip2 -c @txt@ > z.bz2 && bunzip2 z.bz2
+ref: bunzip2
+teach: bunzip2
+---
+q: test a .bz2 file for corruption without unpacking it
+a: bzip2 -c @txt@ > z.bz2 && bunzip2 -t z.bz2
+ref: bunzip2
+teach: bunzip2 -t
+---
+q: unpack a zip file into the current directory
+a: unzip archive.zip
+ref: unzip
+teach: unzip
+---
+q: list what is inside a zip without extracting it
+a: unzip -l archive.zip
+ref: unzip
+teach: unzip -l
+---
+q: unpack a zip into a directory you choose
+a: unzip archive.zip -d @dir@
+ref: unzip
+teach: unzip -d
+---
+q: unpack a zip overwriting anything already there, without asking
+a: unzip -o archive.zip
+ref: unzip
+teach: unzip -o
+---
+q: print one file out of a zip to stdout instead of writing it
+a: unzip -p archive.zip notes.txt
+ref: unzip
+teach: unzip -p
+---
+q: test a zip for corruption without unpacking it
+a: unzip -t archive.zip
+ref: unzip
+teach: unzip -t
