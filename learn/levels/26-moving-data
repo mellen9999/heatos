@@ -7,7 +7,7 @@ brief: hand. The older ftp and tftp clients are here because the machines you
 brief: will meet in a bad week are often older than you are.
 brief:
 brief: This build of nc can connect out but cannot listen -- server mode is
-brief: compiled out on purpose. vos opens no doors it was not asked to.
+brief: compiled out on purpose. xos opens no doors it was not asked to.
 ---
 q: download a url to a file named after it
 a: wget http://@host@/file.txt
@@ -60,7 +60,7 @@ ref: wget
 teach: wget -P
 ---
 q: download claiming to be a particular user agent
-a: wget -U vos http://@host@/file.txt
+a: wget -U xos http://@host@/file.txt
 ref: wget
 teach: wget -U
 ---

@@ -8,7 +8,7 @@ it. Without export a variable exists only inside the shell itself.
 	export PATH="$PATH:/opt/bin"
 	export		list everything currently exported
 
-vos's init exports HOME, TERM and the XDG_* paths this way before it
+xos's init exports HOME, TERM and the XDG_* paths this way before it
 hands you a shell.
 
 See also: set, unset, read

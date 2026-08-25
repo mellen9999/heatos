@@ -1,7 +1,7 @@
 dropbear
 Usage: dropbear [-r hostkey] [-p [ADDR:]PORT] [-s] [-w] [-F] [-E]
 
-The ssh SERVER. On vos it is the one listening service, it accepts only
+The ssh SERVER. On xos it is the one listening service, it accepts only
 public-key logins (no passwords), and init binds it to the wireguard
 interface alone -- so it is reachable through your tunnel and invisible
 on the untrusted network the stick is plugged into.
@@ -17,7 +17,7 @@ on the untrusted network the stick is plugged into.
 	dropbear -r /state/ssh_host_key -p 10.9.0.1:22 -s -F -E
 
 A host key committed to a reproducible public image would be a published
-private key, so vos generates its host key on the encrypted state
+private key, so xos generates its host key on the encrypted state
 partition the first time you set remote access up.
 
 See also: dropbearkey, dbclient, wg

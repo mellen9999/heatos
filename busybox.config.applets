@@ -27,6 +27,6 @@ seq tac split readlink realpath which whoami tty mkfifo nproc
 # read. free -- all already inside the one static busybox.
 lspci lsusb lsof pstree pidof fuser pmap pwdx
 ipcalc ping6 traceroute6 microcom hexedit killall logger
-# making filesystems: vos could image and read disks but not format one, which
-# is half a tool. mke2fs also lets vos provision its own p3 state partition.
+# making filesystems: xos could image and read disks but not format one, which
+# is half a tool. mke2fs also lets xos provision its own p3 state partition.
 mke2fs mkdosfs

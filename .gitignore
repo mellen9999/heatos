@@ -15,8 +15,8 @@ syslinux.cfg
 sysroot/
 esp/
 ovmf-vars.fd
-vos.efi
-vos-signed.efi
+xos.efi
+xos-signed.efi
 verity.info
 verity.roothash
 /cmdline.txt

@@ -53,11 +53,11 @@ mkdir -p /tmp/run/cryptsetup
 # firmware left -- correct by luck under a good BIOS, epoch 0 under a dead CMOS
 # battery, and attacker-controlled on a hostile network with no signed source.
 # TLS cert validation reads this clock (BearSSL falls back to it), so a clock
-# set backwards makes revoked and expired certs validate again. vos.epoch is
+# set backwards makes revoked and expired certs validate again. xos.epoch is
 # the build date, pinned inside the signed UKI where it cannot be forged. never
 # go below it: max(clock, floor). this does not make the clock RIGHT, it makes
 # it impossible to push into the past, which is the property TLS needs.
-epoch=$(sed -n 's/.*vos\.epoch=\([0-9][0-9]*\).*/\1/p' /proc/cmdline)
+epoch=$(sed -n 's/.*xos\.epoch=\([0-9][0-9]*\).*/\1/p' /proc/cmdline)
 if [ -n "$epoch" ]; then
 	now=$(date -u +%s 2>/dev/null || echo 0)
 	if [ "$now" -lt "$epoch" ]; then date -u -s "@$epoch" >/dev/null 2>&1; fi
@@ -75,7 +75,7 @@ export ENV=/etc/shrc
 mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
 
 ip link set lo up 2>/dev/null
-if ! grep -q vos.nonet /proc/cmdline; then
+if ! grep -q xos.nonet /proc/cmdline; then
 	for dev in $(ls /sys/class/net 2>/dev/null); do
 		[ "$dev" = lo ] && continue
 		ip link set "$dev" up 2>/dev/null
@@ -83,9 +83,9 @@ if ! grep -q vos.nonet /proc/cmdline; then
 	done
 fi
 
-if grep -q vos.test /proc/cmdline; then
+if grep -q xos.test /proc/cmdline; then
 	echo
-	echo "VOS-TEST-BEGIN"
+	echo "XOS-TEST-BEGIN"
 	# no kernel message may split a probe line: the harness greps for exact
 	# strings, and an interleaved printk was corrupting a different probe every
 	# run. dmesg still works (this only quiets async console printing).
@@ -139,8 +139,8 @@ if grep -q vos.test /proc/cmdline; then
 	# do not appear until something asks for xts(aes) or hmac(sha512), so their
 	# absence here means nothing -- G14 asserts them from the built config
 	# instead. what is worth probing is the concrete ciphers they build on.
-	printf 'clock-floor: '; sed -n 's/.*vos\.epoch=\([0-9]*\).*/\1/p' /proc/cmdline | head -1 | grep . || echo "not pinned (BAD)"
-	printf 'clock-not-before-floor: '; nowchk=$(date -u +%s); floorchk=$(sed -n 's/.*vos\.epoch=\([0-9]*\).*/\1/p' /proc/cmdline | head -1); [ "${nowchk:-0}" -ge "${floorchk:-0}" ] && echo yes || echo "no (BAD)"
+	printf 'clock-floor: '; sed -n 's/.*xos\.epoch=\([0-9]*\).*/\1/p' /proc/cmdline | head -1 | grep . || echo "not pinned (BAD)"
+	printf 'clock-not-before-floor: '; nowchk=$(date -u +%s); floorchk=$(sed -n 's/.*xos\.epoch=\([0-9]*\).*/\1/p' /proc/cmdline | head -1); [ "${nowchk:-0}" -ge "${floorchk:-0}" ] && echo yes || echo "no (BAD)"
 	printf 'entropy-trusted: '; grep -o 'random.trust_cpu=1' /proc/cmdline | head -1 || echo "not pinned (BAD)"
 	printf 'crypto-aes: '; grep -qw aes /proc/crypto && echo yes || echo "no (BAD)"
 	printf 'crypto-sha512: '; grep -qw sha512 /proc/crypto && echo yes || echo "no (BAD)"
@@ -193,21 +193,21 @@ if grep -q vos.test /proc/cmdline; then
 	printf 'net-has-address: '; [ "$(ip -o -4 addr show scope global 2>/dev/null | wc -l)" -gt 0 ] && echo yes || echo no
 	printf 'net-default-route: '; ip route show default 2>/dev/null | grep -oq 'dev' && echo yes || echo no
 	printf 'net-dns-servers: '; grep -c nameserver /tmp/resolv.conf 2>/dev/null || echo 0
-	irc=$(sed -n 's/.*vos\.irc=\([^ ]*\).*/\1/p' /proc/cmdline)
+	irc=$(sed -n 's/.*xos\.irc=\([^ ]*\).*/\1/p' /proc/cmdline)
 	if [ -n "$irc" ]; then
 		ihost=${irc%:*}; iport=${irc##*:}
 		mkdir -p "$HOME/irc"
-		ii -s "$ihost" -p "$iport" -n vos -f vos -i "$HOME/irc" > /tmp/ii.log 2>&1 &
+		ii -s "$ihost" -p "$iport" -n xos -f xos -i "$HOME/irc" > /tmp/ii.log 2>&1 &
 		sleep 3
 		printf 'ii-stderr: '; head -2 /tmp/ii.log 2>/dev/null | tr '\n' ' '; echo
 		printf 'ii-home: '; echo "$HOME"; ls -d "$HOME/irc" 2>/dev/null || echo '  (no irc dir)'
 		d=$(find "$HOME/irc" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | head -1)
 		printf 'ii-created-tree: '; [ -n "$d" ] && echo yes || echo no
-		printf 'ii-server-greeting: '; grep -c 'Welcome to the vos test network' "$d/out" 2>/dev/null || echo 0
+		printf 'ii-server-greeting: '; grep -c 'Welcome to the xos test network' "$d/out" 2>/dev/null || echo 0
 		printf 'ii-in-fifo: '; [ -p "$d/in" ] && echo yes || echo no
-		echo '/j #vos' > "$d/in" 2>/dev/null
+		echo '/j #xos' > "$d/in" 2>/dev/null
 		sleep 1
-		printf 'ii-joined-channel: '; find "$HOME/irc" -maxdepth 2 -type d -name '#vos' 2>/dev/null | wc -l
+		printf 'ii-joined-channel: '; find "$HOME/irc" -maxdepth 2 -type d -name '#xos' 2>/dev/null | wc -l
 	fi
 
 	printf 'HEAD / HTTP/1.0\r\nHost: letsencrypt.org\r\nConnection: close\r\n\r\n' | tlstunnel - letsencrypt.org 443 > /tmp/tls.out 2> /tmp/tls.err
@@ -222,7 +222,7 @@ if grep -q vos.test /proc/cmdline; then
 	# boot 2 finds it already LUKS, opens it, and reads the marker back: proof
 	# the bytes survived a real power cycle. the open+mount path is identical to
 	# the interactive one; only the passphrase source differs.
-	if grep -q vos.teststate /proc/cmdline && [ -b /dev/vdb ]; then
+	if grep -q xos.teststate /proc/cmdline && [ -b /dev/vdb ]; then
 		if cryptsetup isLuks /dev/vdb 2>/dev/null; then
 			printf 'teststate-phase: reopen\n'
 			printf 'teststate-open: '
@@ -254,7 +254,7 @@ if grep -q vos.test /proc/cmdline; then
 	# two-machine handshake needs a second endpoint and is verified on real
 	# hardware; here we prove every component works -- the interface comes up and
 	# wg configures it, and dropbear accepts a real pubkey login end to end.
-	if grep -q vos.testwg /proc/cmdline; then
+	if grep -q xos.testwg /proc/cmdline; then
 		printf 'wg-iface-up: '
 		if ip link add wg0 type wireguard 2>/dev/null; then
 			wg genkey > /tmp/wgkey 2>/dev/null
@@ -290,7 +290,7 @@ if grep -q vos.test /proc/cmdline; then
 	fi
 
 	[ -n "${_prevprintk:-}" ] && echo "$_prevprintk" > /proc/sys/kernel/printk 2>/dev/null
-	echo "VOS-TEST-END"
+	echo "XOS-TEST-END"
 	sync
 fi
 
@@ -300,8 +300,8 @@ umask 077
 # ── p3: encrypted + authenticated persistent state ──────────────────────────
 #
 # opt-in, and safe to decline. a missing partition, an empty passphrase, a
-# timeout, a wrong passphrase, or vos.nostate all fall through to the ephemeral
-# tmpfs home -- exactly the appliance vos was before p3 existed. nothing here
+# timeout, a wrong passphrase, or xos.nostate all fall through to the ephemeral
+# tmpfs home -- exactly the appliance xos was before p3 existed. nothing here
 # can lose data it did not just unlock.
 #
 # the partition is found by LABEL, not device path, so it works whatever the
@@ -314,7 +314,7 @@ umask 077
 # the persistent home.
 STATE_DIR=/tmp/home
 state_open() {
-	grep -q vos.nostate /proc/cmdline && return 1
+	grep -q xos.nostate /proc/cmdline && return 1
 	command -v cryptsetup >/dev/null 2>&1 || return 1
 	# find the state partition by its LUKS header, not by a label -- an
 	# unopened LUKS container exposes no filesystem label, and this works
@@ -337,7 +337,7 @@ state_open() {
 	printf '\n' > /dev/console
 	[ -n "$pass" ] || return 1
 
-	if ! printf '%s' "$pass" | cryptsetup open --key-file - "$dev" vosstate >/dev/null 2>&1; then
+	if ! printf '%s' "$pass" | cryptsetup open --key-file - "$dev" xosstate >/dev/null 2>&1; then
 		printf '  wrong passphrase -- continuing without persistence\n' > /dev/console
 		return 1
 	fi
@@ -346,8 +346,8 @@ state_open() {
 	# the persistent one. explicit -t ext4 because busybox mount does not probe
 	# the type (the ext4 driver mounts ext2/3/4 alike), and the mountpoint is
 	# under /tmp because the root is read-only.
-	if ! mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/vosstate "$STATE_DIR" 2>/dev/null; then
-		cryptsetup close vosstate 2>/dev/null
+	if ! mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/xosstate "$STATE_DIR" 2>/dev/null; then
+		cryptsetup close xosstate 2>/dev/null
 		return 1
 	fi
 	return 0
@@ -366,8 +366,8 @@ if state_open; then
 	# so an attacker holding the stick cannot see it, let alone turn it on. no
 	# cmdline flag, nothing to toggle on the untrusted host.
 	#
-	# vos dials OUT: wg brings up the tunnel to a peer you control, and dropbear
-	# binds ONLY to the wireguard address, so vos never opens a port on the
+	# xos dials OUT: wg brings up the tunnel to a peer you control, and dropbear
+	# binds ONLY to the wireguard address, so xos never opens a port on the
 	# network it is plugged into. the host key lives on p3 (a key in the
 	# reproducible image would be a published private key); titan's public key is
 	# in authorized_keys, baked into the read-only root where verity covers it.
@@ -402,7 +402,7 @@ fi
 banner() {
 	cat <<'BANNER'
 
-  vos -- static-pie musl, read-only root
+  xos -- static-pie musl, read-only root
   every byte on this disk is covered by a hash tree
 
 BANNER
@@ -448,7 +448,7 @@ console_loop() {
 # how many virtual terminals to open. 6 is the convention every linux ships,
 # and 12 is the ceiling: past Alt+F12 there is no key to reach them and this
 # build has no chvt.
-ttys=$(sed -n 's/.*vos\.ttys=\([0-9][0-9]*\).*/\1/p' /proc/cmdline)
+ttys=$(sed -n 's/.*xos\.ttys=\([0-9][0-9]*\).*/\1/p' /proc/cmdline)
 [ -n "$ttys" ] || ttys=6
 [ "$ttys" -ge 1 ] 2>/dev/null || ttys=6
 [ "$ttys" -le 12 ] 2>/dev/null || ttys=12
@@ -472,12 +472,12 @@ fi
 # no longer takes PID 1 down with it.
 console_loop /dev/console &
 
-if grep -q vos.test /proc/cmdline; then
+if grep -q xos.test /proc/cmdline; then
 	# the console loops set a health beacon when they start with a real device.
 	# with the old empty-$_dev bug it was never written.
 	printf 'console-device-ok: '; [ -s /tmp/console.up ] && echo yes || echo "no (BAD)"
 	echo "ttys-spawned: $spawned"
-	echo "VOS-TEST-DONE"
+	echo "XOS-TEST-DONE"
 	sync
 	# PID 1 no longer exits, so a test boot would otherwise run until the
 	# harness timeout on every single section. end it deliberately instead --

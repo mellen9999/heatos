@@ -5,7 +5,7 @@ Shell builtin. Replace the shell process with COMMAND -- same PID, no
 fork, no return. With no command, apply its redirections to the current
 shell instead.
 
-vos's init ends with `exec /bin/sh`, so the shell becomes PID 1 rather
+xos's init ends with `exec /bin/sh`, so the shell becomes PID 1 rather
 than a child of it.
 
 	exec 3<&0	open fd 3 as a copy of stdin

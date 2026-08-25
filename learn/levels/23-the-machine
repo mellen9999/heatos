@@ -283,12 +283,12 @@ ref: lsusb
 teach: lsusb
 ---
 q: write a line into the system log
-a: logger hello from vos
+a: logger hello from xos
 ref: logger
 teach: logger
 ---
 q: log a line tagged with a name of your choosing
-a: logger -t vos investigating
+a: logger -t xos investigating
 ref: logger
 teach: logger -t
 ---

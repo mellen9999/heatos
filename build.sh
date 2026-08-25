@@ -18,7 +18,7 @@ POPTVER="${POPTVER:-1.19}"
 JSONCVER="${JSONCVER:-0.18-20240915}"
 UTLVER="${UTLVER:-2.40.2}"
 # phase 4, remote access: wireguard userland + dropbear ssh. wireguard is in the
-# kernel; wg only configures it. dropbear is the one listening service vos runs,
+# kernel; wg only configures it. dropbear is the one listening service xos runs,
 # and only ever on the wireguard interface.
 WGTVER="${WGTVER:-1.0.20210914}"
 DBVER="${DBVER:-2024.86}"
@@ -30,11 +30,11 @@ EXTRA_BINS="ii tlstunnel learn abduco cryptsetup wg dropbear dbclient dropbearke
 # tmpfs, so nothing lands on disk. the path is scoped to THIS tree: /dev/shm is
 # shared across every checkout and worktree a user has open, so a bare per-uid
 # path let one tree's unlock silently satisfy another tree's.
-RAMKEYS="/dev/shm/vos-keys-$(id -u)-$(printf %s "$PWD" | sha256sum | cut -c1-12)"
+RAMKEYS="/dev/shm/xos-keys-$(id -u)-$(printf %s "$PWD" | sha256sum | cut -c1-12)"
 JOBS="$(nproc)"
 # 8 MiB. self-imposed -- the ESP is 64 MiB and the stick is whatever size you
 # flashed. it is a budget, not a limit: every addition has to argue for itself
-# against a number that does not move quietly. G1 measures vos.img; G19
+# against a number that does not move quietly. G1 measures xos.img; G19
 # measures the whole bootable system (UKI + image) and is the binding one.
 IMAGE_MAX=8388608
 SALT=56524c000000000000000000000000000000000000000000000000000000000a
@@ -59,8 +59,8 @@ export SOURCE_DATE_EPOCH=1755648000
 # the same source builds differently in a different timezone.
 export TZ=UTC
 export KBUILD_BUILD_TIMESTAMP="$(date -u -d "@$SOURCE_DATE_EPOCH" 2>/dev/null)"
-export KBUILD_BUILD_USER=vos
-export KBUILD_BUILD_HOST=vos
+export KBUILD_BUILD_USER=xos
+export KBUILD_BUILD_HOST=xos
 
 say() { printf '\n\033[1;33m==> %s\033[0m\n' "$*"; }
 
@@ -488,14 +488,14 @@ rootfs() {
   # names come from busybox itself, not our config list -- the two drift
   # (CONFIG_TEST1 is the applet named "["), and a missing applet makes
   # shell tests fail open rather than fail loud.
-  ./busybox --list > /tmp/vos-applets.$$ 2>/dev/null || {
+  ./busybox --list > /tmp/xos-applets.$$ 2>/dev/null || {
     echo "FAIL: busybox --list unavailable (enable the busybox applet)" >&2; return 1; }
-  [ -s /tmp/vos-applets.$$ ] || { echo "FAIL: empty applet list" >&2; return 1; }
+  [ -s /tmp/xos-applets.$$ ] || { echo "FAIL: empty applet list" >&2; return 1; }
   while read -r a; do
     ln -sf busybox "root/bin/$a"
-  done < /tmp/vos-applets.$$
-  grep -qx '\[' /tmp/vos-applets.$$ || { echo "FAIL: '[' applet missing -- shell tests would fail open" >&2; rm -f /tmp/vos-applets.$$; return 1; }
-  rm -f /tmp/vos-applets.$$
+  done < /tmp/xos-applets.$$
+  grep -qx '\[' /tmp/xos-applets.$$ || { echo "FAIL: '[' applet missing -- shell tests would fail open" >&2; rm -f /tmp/xos-applets.$$; return 1; }
+  rm -f /tmp/xos-applets.$$
   # every component is REQUIRED. these were `[ -f x ] && cp x` -- one missing
   # binary silently produced a smaller image that still passed every gate.
   # a build that ships less than it claims must fail, not shrink.
@@ -537,7 +537,7 @@ rootfs() {
 
   cp init root/init
   chmod +x root/init
-  echo 'vos' > root/etc/hostname
+  echo 'xos' > root/etc/hostname
   # without /etc/passwd, anything calling getpwuid() fails -- ii did exactly that
   printf 'root:x:0:0:root:/tmp/home:/bin/sh\n' > root/etc/passwd
   printf 'root:x:0:\n' > root/etc/group
@@ -561,7 +561,7 @@ rootfs() {
 }
 
 keys() {
-  say "generating vos secure boot keys"
+  say "generating xos secure boot keys"
   # idempotent against BOTH states: plaintext keys/db.key (freshly generated)
   # and sealed keys/db.key.enc (seal deletes db.key, so checking only the
   # plaintext made `all` regenerate certs over a sealed key -- old key, new
@@ -570,11 +570,11 @@ keys() {
   mkdir -p keys
   for k in PK KEK db; do
     openssl req -new -x509 -newkey rsa:2048 -nodes -sha256 -days 3650 \
-      -subj "/CN=vos $k/" -keyout "keys/$k.key" -out "keys/$k.crt" 2>/dev/null
+      -subj "/CN=xos $k/" -keyout "keys/$k.key" -out "keys/$k.crt" 2>/dev/null
     openssl x509 -in "keys/$k.crt" -outform DER -out "keys/$k.der"
   done
   chmod 700 keys; chmod 600 keys/*.key
-  echo "  PK/KEK/db written to keys/ (gitignored, vos-only -- NOT heatpc's)"
+  echo "  PK/KEK/db written to keys/ (gitignored, xos-only -- NOT heatpc's)"
 }
 
 seal() {
@@ -587,14 +587,14 @@ seal() {
   fi
   [ -f keys/db.key ] || { echo "FAIL: no keys/db.key -- run ./build.sh keys first" >&2; return 1; }
   local pass
-  if [ -n "${VOS_KEYPASS:-}" ]; then pass="$VOS_KEYPASS"
-  else read -rsp "  passphrase for vos signing keys: " pass; echo; fi
+  if [ -n "${XOS_KEYPASS:-}" ]; then pass="$XOS_KEYPASS"
+  else read -rsp "  passphrase for xos signing keys: " pass; echo; fi
   [ -n "$pass" ] || { echo "FAIL: empty passphrase" >&2; return 1; }
   local k
   for k in PK KEK db; do
     [ -f "keys/$k.key" ] || continue
-    VOS_PASS="$pass" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
-      -in "keys/$k.key" -out "keys/$k.key.enc" -pass env:VOS_PASS || return 1
+    XOS_PASS="$pass" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
+      -in "keys/$k.key" -out "keys/$k.key.enc" -pass env:XOS_PASS || return 1
     shred -u "keys/$k.key" 2>/dev/null || rm -f "keys/$k.key"
   done
   chmod 600 keys/*.enc
@@ -605,14 +605,14 @@ reseal() {
   say "changing the signing passphrase"
   unlock || return 1
   local newpass
-  if [ -n "${VOS_NEWKEYPASS:-}" ]; then newpass="$VOS_NEWKEYPASS"
+  if [ -n "${XOS_NEWKEYPASS:-}" ]; then newpass="$XOS_NEWKEYPASS"
   else read -rsp "  NEW passphrase: " newpass; echo; fi
   [ -n "$newpass" ] || { echo "FAIL: empty passphrase" >&2; return 1; }
   local k
   for k in PK KEK db; do
     [ -f "$RAMKEYS/$k.key" ] || continue
-    VOS_PASS="$newpass" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
-      -in "$RAMKEYS/$k.key" -out "keys/$k.key.enc.new" -pass env:VOS_PASS || return 1
+    XOS_PASS="$newpass" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
+      -in "$RAMKEYS/$k.key" -out "keys/$k.key.enc.new" -pass env:XOS_PASS || return 1
     mv "keys/$k.key.enc.new" "keys/$k.key.enc"
   done
   lock
@@ -637,14 +637,14 @@ unlock() {
   [ -f "$RAMKEYS/db.key" ] && { echo "  cached key does not match keys/db.crt -- re-unlocking"; rm -rf "$RAMKEYS"; }
   [ -f keys/db.key.enc ] || { echo "FAIL: keys/db.key.enc missing -- run ./build.sh keys then seal" >&2; return 1; }
   local pass
-  if [ -n "${VOS_KEYPASS:-}" ]; then pass="$VOS_KEYPASS"
+  if [ -n "${XOS_KEYPASS:-}" ]; then pass="$XOS_KEYPASS"
   else read -rsp "  passphrase to unlock signing keys: " pass; echo; fi
   mkdir -p "$RAMKEYS"; chmod 700 "$RAMKEYS"
   local k
   for k in PK KEK db; do
     [ -f "keys/$k.key.enc" ] || continue
-    VOS_PASS="$pass" openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
-      -in "keys/$k.key.enc" -out "$RAMKEYS/$k.key" -pass env:VOS_PASS 2>/dev/null \
+    XOS_PASS="$pass" openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+      -in "keys/$k.key.enc" -out "$RAMKEYS/$k.key" -pass env:XOS_PASS 2>/dev/null \
       || { rm -rf "$RAMKEYS"; echo "FAIL: wrong passphrase" >&2; return 1; }
   done
   chmod 600 "$RAMKEYS"/*.key
@@ -671,15 +671,15 @@ uki() {
     echo "FAIL: kernel lacks EFI_STUB -- firmware cannot load it" >&2; return 1; }
 
   unlock || return 1
-  ukify build --linux=bzImage --cmdline="$(cat cmdline.txt)" --stub="$stub" --output=vos.efi >/dev/null
-  sbsign --key "$RAMKEYS/db.key" --cert keys/db.crt --output vos-signed.efi vos.efi >/dev/null \
-    || { echo "FAIL: signing failed -- refusing to ship an unsigned image" >&2; rm -f vos-signed.efi; return 1; }
-  [ -f vos-signed.efi ] || { echo "FAIL: no signed image produced" >&2; return 1; }
-  sbverify --cert keys/db.crt vos-signed.efi >/dev/null 2>&1 || {
+  ukify build --linux=bzImage --cmdline="$(cat cmdline.txt)" --stub="$stub" --output=xos.efi >/dev/null
+  sbsign --key "$RAMKEYS/db.key" --cert keys/db.crt --output xos-signed.efi xos.efi >/dev/null \
+    || { echo "FAIL: signing failed -- refusing to ship an unsigned image" >&2; rm -f xos-signed.efi; return 1; }
+  [ -f xos-signed.efi ] || { echo "FAIL: no signed image produced" >&2; return 1; }
+  sbverify --cert keys/db.crt xos-signed.efi >/dev/null 2>&1 || {
     echo "FAIL: signature does not verify" >&2; return 1; }
 
   mkdir -p esp/EFI/BOOT
-  cp vos-signed.efi esp/EFI/BOOT/BOOTX64.EFI
+  cp xos-signed.efi esp/EFI/BOOT/BOOTX64.EFI
 
   cp "$OVMF_VARS" ovmf-vars.fd
   # errors here used to go to /dev/null with no status check: enrollment could
@@ -690,7 +690,7 @@ uki() {
     --add-kek "$SBGUID" keys/KEK.der \
     --add-db  "$SBGUID" keys/db.der >/dev/null 2>&1 \
     || { echo "FAIL: could not enroll keys into ovmf-vars.fd" >&2; return 1; }
-  printf '  signed UKI: %d bytes, keys enrolled into ovmf-vars.fd\n' "$(stat -c%s vos-signed.efi)"
+  printf '  signed UKI: %d bytes, keys enrolled into ovmf-vars.fd\n' "$(stat -c%s xos-signed.efi)"
   dbx || return 1
 }
 
@@ -730,7 +730,7 @@ revoke() {
   fi
   # revoking the image you are about to ship bricks the next boot. G14 catches
   # it at build time, but say it here too, while it is still one line to undo.
-  if [ -f vos-signed.efi ] && [ "$h" = "$(python3 pehash.py vos-signed.efi)" ]; then
+  if [ -f xos-signed.efi ] && [ "$h" = "$(python3 pehash.py xos-signed.efi)" ]; then
     echo "FAIL: that is the CURRENT signed image -- revoking it would refuse your own boot" >&2
     return 1
   fi
@@ -740,7 +740,7 @@ revoke() {
 }
 
 # assemble the bootable stick image: GPT (fixed GUIDs) + FAT32 ESP carrying the
-# signed UKI and the public keys for enrollment + raw vos.img as p2. entirely
+# signed UKI and the public keys for enrollment + raw xos.img as p2. entirely
 # deterministic (no root, no loop mount -- sfdisk + mtools), so the layout is
 # reproducible even though we do not pin it: everything that MATTERS on the stick
 # is already covered (p2 by image.sha256 + the verity tree, BOOTX64.EFI by the db
@@ -748,13 +748,13 @@ revoke() {
 # most deny boot, never change what runs.
 stick() {
   say "assembling stick.img"
-  [ -f vos-signed.efi ] || { echo "FAIL: no signed UKI -- run ./build.sh uki" >&2; return 1; }
-  [ -f vos.img ]        || { echo "FAIL: no vos.img -- run ./build.sh verity" >&2; return 1; }
+  [ -f xos-signed.efi ] || { echo "FAIL: no signed UKI -- run ./build.sh uki" >&2; return 1; }
+  [ -f xos.img ]        || { echo "FAIL: no xos.img -- run ./build.sh verity" >&2; return 1; }
   for k in PK KEK db; do [ -f "keys/$k.der" ] || { echo "FAIL: keys/$k.der missing" >&2; return 1; }; done
 
   local esp_bytes root_bytes esp_start_s esp_size_s root_start_s root_size_s total
   esp_bytes=$((STICK_ESP_MIB * 1024 * 1024))
-  root_bytes=$(stat -c%s vos.img)                 # already a 4K multiple (verity padded it)
+  root_bytes=$(stat -c%s xos.img)                 # already a 4K multiple (verity padded it)
   esp_start_s=2048                                    # 1 MiB, in 512B sectors
   esp_size_s=$((esp_bytes / 512))
   root_start_s=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 / 512 ))
@@ -770,21 +770,21 @@ stick() {
   sfdisk stick.img >/dev/null <<EOF
 label: gpt
 label-id: $GPT_DISK
-start=$esp_start_s, size=$esp_size_s, type=C12A7328-F81F-11D2-BA4B-00A08693446B, uuid=$PU_ESP, name="VOS-ESP"
-start=$root_start_s, size=$root_size_s, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=$PU_ROOT, name="VOS-ROOT"
+start=$esp_start_s, size=$esp_size_s, type=C12A7328-F81F-11D2-BA4B-00A08693446B, uuid=$PU_ESP, name="XOS-ESP"
+start=$root_start_s, size=$root_size_s, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=$PU_ROOT, name="XOS-ROOT"
 EOF
 
   # FAT32 in a temp file, then dd into the ESP slot. --invariant drops the
   # volume id + creation timestamp that would otherwise randomise the bytes.
   rm -f esp.part; truncate -s "$esp_bytes" esp.part
-  mkfs.fat --invariant -F 32 -n VOS esp.part >/dev/null
+  mkfs.fat --invariant -F 32 -n XOS esp.part >/dev/null
   # pin mtime of everything we copy so mcopy writes deterministic dir entries
-  touch -d "@$SOURCE_DATE_EPOCH" vos-signed.efi keys/PK.der keys/KEK.der keys/db.der
-  mmd   -i esp.part ::/EFI ::/EFI/BOOT ::/vos-keys
-  mcopy -pm -i esp.part vos-signed.efi ::/EFI/BOOT/BOOTX64.EFI
-  mcopy -pm -i esp.part keys/PK.der keys/KEK.der keys/db.der ::/vos-keys/
+  touch -d "@$SOURCE_DATE_EPOCH" xos-signed.efi keys/PK.der keys/KEK.der keys/db.der
+  mmd   -i esp.part ::/EFI ::/EFI/BOOT ::/xos-keys
+  mcopy -pm -i esp.part xos-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+  mcopy -pm -i esp.part keys/PK.der keys/KEK.der keys/db.der ::/xos-keys/
   dd if=esp.part    of=stick.img bs=1M seek=1                     conv=notrunc status=none
-  dd if=vos.img  of=stick.img bs=1M seek=$((1 + STICK_ESP_MIB)) conv=notrunc status=none
+  dd if=xos.img  of=stick.img bs=1M seek=$((1 + STICK_ESP_MIB)) conv=notrunc status=none
   rm -f esp.part
   printf '  stick.img: %d bytes (esp %d MiB + root %d bytes)\n' "$(stat -c%s stick.img)" "$STICK_ESP_MIB" "$root_bytes"
 }
@@ -833,30 +833,30 @@ usb() {
   [ "$want_stick" = "$have_stick" ] || { echo "FAIL: stick readback mismatch -- write did not land" >&2; return 1; }
   root_off=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 ))
   want_root=$(awk '$1=="image"{print $2}' image.sha256)
-  have_root=$(dd if="$dev" bs=1M skip=$((1 + STICK_ESP_MIB)) iflag=direct count=$(( ($(stat -c%s vos.img) + 1048575) / 1048576 )) status=none | head -c "$(stat -c%s vos.img)" | sha256sum | awk '{print $1}')
+  have_root=$(dd if="$dev" bs=1M skip=$((1 + STICK_ESP_MIB)) iflag=direct count=$(( ($(stat -c%s xos.img) + 1048575) / 1048576 )) status=none | head -c "$(stat -c%s xos.img)" | sha256sum | awk '{print $1}')
   if [ -n "$want_root" ] && [ "$want_root" != "$have_root" ]; then
     echo "FAIL: root partition on disk does not match pinned image digest" >&2; return 1; fi
   sync
-  printf '\n  \033[1;32mdone -- %s carries a verified vos\033[0m\n' "$dev"
+  printf '\n  \033[1;32mdone -- %s carries a verified xos\033[0m\n' "$dev"
   echo "  boot it: firmware boot menu -> USB. secure boot: enroll keys from the"
-  echo "  stick's /vos-keys (db, KEK, then PK last). see README."
+  echo "  stick's /xos-keys (db, KEK, then PK last). see README."
 }
 
 verity() {
   say "building verity hash tree"
-  cp rootfs.squashfs vos.img
+  cp rootfs.squashfs xos.img
   local data blocks
-  data=$(stat -c%s vos.img)
+  data=$(stat -c%s xos.img)
   if [ $((data % 4096)) -ne 0 ]; then
     data=$(( (data / 4096 + 1) * 4096 ))
-    truncate -s "$data" vos.img
+    truncate -s "$data" xos.img
   fi
   blocks=$((data / 4096))
 
   # fixed salt AND fixed uuid: the image must be reproducible. a random salt
   # would change the root hash for identical content; a random uuid left the
   # root hash stable and still changed the image bytes on every single build.
-  veritysetup format vos.img vos.img \
+  veritysetup format xos.img xos.img \
     --hash-offset="$data" --data-blocks="$blocks" --salt="$SALT" --uuid="$VUUID" > verity.info
   local rh
   rh=$(awk '/Root hash/{print $NF}' verity.info)
@@ -866,11 +866,11 @@ verity() {
   # veritysetup writes a superblock AT the hash offset, so the hash tree
   # itself starts one block later -- pointing the table at $blocks lands on
   # the superblock and the root mount fails with no verity error at all.
-  # vos.test is DEBUG scaffolding, and the cmdline lives INSIDE the UKI
+  # xos.test is DEBUG scaffolding, and the cmdline lives INSIDE the UKI
   # signature -- so it must never ship in a production image. selftest.sh
   # rebuilds a test-flavoured UKI for its own runs.
   local testflag=""
-  [ "${VOS_TEST:-0}" = 1 ] && testflag=" vos.test vos.teststate vos.testwg"
+  [ "${XOS_TEST:-0}" = 1 ] && testflag=" xos.test xos.teststate xos.testwg"
   # the root is named by PARTUUID, not /dev/vda: on a real machine the stick is
   # /dev/sda|sdb, and dm-init resolves PARTUUID= via early_lookup_bdev. one
   # cmdline, inside one signature, boots qemu and metal alike.
@@ -899,11 +899,11 @@ verity() {
   # rest of the hardening is compiled in (lockdown, kstack offset, slab), which
   # is stronger than a cmdline flag -- there is no runtime knob left to flip.
   local dev="PARTUUID=$PU_ROOT"
-  printf 'dm-mod.waitfor=%s dm-mod.create="vroot,,,ro,0 %d verity 1 %s %s 4096 4096 %d %d sha256 %s %s 1 panic_on_corruption" root=/dev/dm-0 ro rootfstype=squashfs rootwait init=/init oops=panic panic=-1 page_alloc.shuffle=1 random.trust_cpu=1 vos.epoch=%s console=tty0 console=ttyS0,115200%s\n' \
+  printf 'dm-mod.waitfor=%s dm-mod.create="vroot,,,ro,0 %d verity 1 %s %s 4096 4096 %d %d sha256 %s %s 1 panic_on_corruption" root=/dev/dm-0 ro rootfstype=squashfs rootwait init=/init oops=panic panic=-1 page_alloc.shuffle=1 random.trust_cpu=1 xos.epoch=%s console=tty0 console=ttyS0,115200%s\n' \
     "$dev" "$((blocks * 8))" "$dev" "$dev" "$blocks" "$((blocks + 1))" "$rh" "$SALT" "$SOURCE_DATE_EPOCH" "$testflag" > cmdline.txt
 
-  printf '  vos.img: %d bytes  root hash: %s
-' "$(stat -c%s vos.img)" "$rh"
+  printf '  xos.img: %d bytes  root hash: %s
+' "$(stat -c%s xos.img)" "$rh"
 }
 
 toolchain() {
@@ -917,12 +917,12 @@ toolchain() {
 
 pin() {
   say "pinning the bytes this source produces"
-  [ -f vos.img ] || { echo "FAIL: no vos.img -- build first" >&2; return 1; }
+  [ -f xos.img ] || { echo "FAIL: no xos.img -- build first" >&2; return 1; }
   { echo "# the exact artifact this source builds. regenerate with ./build.sh pin."
     echo "# G13 compares against this. a mismatch on the SAME toolchain means the"
     echo "# image no longer corresponds to the source; on a different toolchain it"
     echo "# only means you cannot independently verify this build."
-    printf 'image     %s\n'   "$(sha256sum < vos.img      | awk '{print $1}')"
+    printf 'image     %s\n'   "$(sha256sum < xos.img      | awk '{print $1}')"
     printf 'squashfs  %s\n'   "$(sha256sum < rootfs.squashfs | awk '{print $1}')"
     printf 'roothash  %s\n'   "$(cat verity.roothash)"
     printf 'toolchain %s\n'   "$(toolchain)"
@@ -1014,7 +1014,7 @@ size() {
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
-  local sz; sz=$(stat -c%s vos.img)
+  local sz; sz=$(stat -c%s xos.img)
   g "G1 image <= $IMAGE_MAX ($sz)" "$([ "$sz" -le "$IMAGE_MAX" ] && echo ok || echo FAIL)"
 
   local elfs interp exec_type
@@ -1077,7 +1077,7 @@ size() {
     want_img=$(awk '$1=="image"{print $2}'     image.sha256)
     want_sq=$(awk '$1=="squashfs"{print $2}'   image.sha256)
     want_tc=$(awk '$1=="toolchain"{print $2}'  image.sha256)
-    have_img=$(sha256sum < vos.img | awk '{print $1}')
+    have_img=$(sha256sum < xos.img | awk '{print $1}')
     have_sq=$(sha256sum < rootfs.squashfs | awk '{print $1}')
     have_tc=$(toolchain)
     if [ "$want_tc" != "$have_tc" ]; then
@@ -1104,20 +1104,20 @@ size() {
   # and the next boot is refused by our own firmware, with a secure boot error
   # that looks like an attack rather than a typo.
   local cur="" rev=0
-  if [ -f vos-signed.efi ]; then
-    cur=$(python3 pehash.py vos-signed.efi 2>/dev/null || true)
+  if [ -f xos-signed.efi ]; then
+    cur=$(python3 pehash.py xos-signed.efi 2>/dev/null || true)
     [ -n "$cur" ] && rev=$(grep -c "^$cur" revoked || true)
   fi
   g "G20 shipped image is not revoked" \
     "$([ -n "$cur" ] && [ "$rev" = 0 ] && echo ok || echo FAIL)"
-  [ -n "$cur" ] || printf '    no vos-signed.efi to check -- run ./build.sh uki\n' >&2
+  [ -n "$cur" ] || printf '    no xos-signed.efi to check -- run ./build.sh uki\n' >&2
 
   # G21 -- the revocation hash function agrees with the signature it revokes.
   # dbx matches an authenticode digest, not sha256sum of the file; if pehash.py
   # computed the wrong number every dbx entry would match nothing, revoke
   # nothing, and look exactly like revocation that works.
   g "G21 revocation digest matches signature" \
-    "$([ -n "$cur" ] && python3 pehash.py --verify vos-signed.efi >/dev/null 2>&1 && echo ok || echo FAIL)"
+    "$([ -n "$cur" ] && python3 pehash.py --verify xos-signed.efi >/dev/null 2>&1 && echo ok || echo FAIL)"
 
   g "G7 kernel has no module loader" "$(grep -q '^CONFIG_MODULES=y' "src/linux-$KVER/.config" && echo FAIL || echo ok)"
 
@@ -1144,7 +1144,7 @@ size() {
   # G15 -- the tamper-proof hardening lives on the cmdline (inside the UKI
   # signature). assert every param that must be there is.
   local c15=0 want15
-  for want15 in 'panic_on_corruption' 'oops=panic' 'panic=-1' 'page_alloc.shuffle=1' 'random.trust_cpu=1' 'vos.epoch=' 'dm-mod.waitfor=PARTUUID='; do
+  for want15 in 'panic_on_corruption' 'oops=panic' 'panic=-1' 'page_alloc.shuffle=1' 'random.trust_cpu=1' 'xos.epoch=' 'dm-mod.waitfor=PARTUUID='; do
     grep -qF "$want15" cmdline.txt || { c15=$((c15+1)); printf '    cmdline missing: %s\n' "$want15" >&2; }
   done
   g "G15 cmdline hardening params ($c15 missing)" "$([ "$c15" -eq 0 ] && echo ok || echo FAIL)"
@@ -1156,18 +1156,18 @@ size() {
   g "G18 no firmware blobs in image ($fw)" "$([ "${fw:-0}" -eq 0 ] && echo ok || echo FAIL)"
 
   # G17 -- stick.img is coherent with the pinned artifacts: right PARTUUIDs, p2
-  # byte-equal to vos.img, ESP carries the exact signed UKI.
+  # byte-equal to xos.img, ESP carries the exact signed UKI.
   if [ -f stick.img ]; then
     local s_ok=1 j pe pr root_off
     j=$(sfdisk -J stick.img 2>/dev/null || true)
     printf '%s' "$j" | grep -qi "\"$PU_ESP\""  || { s_ok=0; printf '    esp PARTUUID absent\n' >&2; }
     printf '%s' "$j" | grep -qi "\"$PU_ROOT\"" || { s_ok=0; printf '    root PARTUUID absent\n' >&2; }
     root_off=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 ))
-    cmp -s -n "$(stat -c%s vos.img)" vos.img <(dd if=stick.img bs=1M skip=$((1 + STICK_ESP_MIB)) count=$(( ($(stat -c%s vos.img) + 1048575) / 1048576 )) status=none 2>/dev/null) \
-      || { s_ok=0; printf '    p2 region != vos.img\n' >&2; }
-    mcopy -n -i stick.img@@1M ::/EFI/BOOT/BOOTX64.EFI /tmp/vos-esp-uki.$$ 2>/dev/null \
-      && cmp -s vos-signed.efi /tmp/vos-esp-uki.$$ || { s_ok=0; printf '    ESP UKI != vos-signed.efi\n' >&2; }
-    rm -f /tmp/vos-esp-uki.$$
+    cmp -s -n "$(stat -c%s xos.img)" xos.img <(dd if=stick.img bs=1M skip=$((1 + STICK_ESP_MIB)) count=$(( ($(stat -c%s xos.img) + 1048575) / 1048576 )) status=none 2>/dev/null) \
+      || { s_ok=0; printf '    p2 region != xos.img\n' >&2; }
+    mcopy -n -i stick.img@@1M ::/EFI/BOOT/BOOTX64.EFI /tmp/xos-esp-uki.$$ 2>/dev/null \
+      && cmp -s xos-signed.efi /tmp/xos-esp-uki.$$ || { s_ok=0; printf '    ESP UKI != xos-signed.efi\n' >&2; }
+    rm -f /tmp/xos-esp-uki.$$
     g "G17 stick.img coherent with artifacts" "$([ "$s_ok" -eq 1 ] && echo ok || echo FAIL)"
   else
     g "G17 stick.img coherent" FAIL
@@ -1176,12 +1176,12 @@ size() {
 
   # G19 -- the whole bootable system fits the size claim, not just the disk
   # image. the UKI (kernel + cmdline) lives on the ESP and was never gated.
-  if [ -f vos-signed.efi ]; then
-    local whole; whole=$(( $(stat -c%s vos-signed.efi) + $(stat -c%s vos.img) ))
+  if [ -f xos-signed.efi ]; then
+    local whole; whole=$(( $(stat -c%s xos-signed.efi) + $(stat -c%s xos.img) ))
     g "G19 UKI + image <= $IMAGE_MAX ($whole)" "$([ "$whole" -le "$IMAGE_MAX" ] && echo ok || echo FAIL)"
   else
     g "G19 UKI + image size" FAIL
-    printf '    no vos-signed.efi -- run ./build.sh uki\n' >&2
+    printf '    no xos-signed.efi -- run ./build.sh uki\n' >&2
   fi
 
   # G23 -- exactly one shell. two shell parsers used to ship (busybox ash for
@@ -1318,11 +1318,11 @@ size() {
   fi
 
   echo
-  # report the G19 headroom, not G1's. this printed IMAGE_MAX - vos.img, so a
+  # report the G19 headroom, not G1's. this printed IMAGE_MAX - xos.img, so a
   # green build claimed ~7.7 MB free while the binding gate had ~4.8 MB. the
   # kernel is 82% of the budget; the userland is the small part.
   local whole_sz=$sz
-  [ -f vos-signed.efi ] && whole_sz=$(( $(stat -c%s vos-signed.efi) + sz ))
+  [ -f xos-signed.efi ] && whole_sz=$(( $(stat -c%s xos-signed.efi) + sz ))
   [ "$bad" -eq 0 ] && printf '\033[1;32m  all gates green -- %d bytes on disk, %d of %d used, %d to spare\033[0m\n\n' \
                         "$sz" "$whole_sz" "$IMAGE_MAX" "$((IMAGE_MAX - whole_sz))" \
                    || { printf '\033[1;31m  GATES FAILED\033[0m\n\n'; return 1; }
@@ -1363,7 +1363,7 @@ bootusb() {
 
 
 # addstate DEV -- turn the free space after p2 on a flashed stick into p3: an
-# encrypted, authenticated ext4 volume that vos unlocks at boot. this is the
+# encrypted, authenticated ext4 volume that xos unlocks at boot. this is the
 # only thing that makes anything persist. it touches the free space only; it
 # never writes to p1 or p2. run it once, against the physical stick.
 addstate() {
@@ -1388,7 +1388,7 @@ addstate() {
 
   echo "  adding p3 to $dev in the free space after sector $p2end"
   sfdisk --no-reread -a "$dev" >/dev/null 2>&1 <<SFDISK
-start=$((p2end + 1)), type=8309, uuid=$PU_STATE, name="VOS-STATE"
+start=$((p2end + 1)), type=8309, uuid=$PU_STATE, name="XOS-STATE"
 SFDISK
   partprobe "$dev" 2>/dev/null || blockdev --rereadpt "$dev" 2>/dev/null || true
   sleep 1
@@ -1396,15 +1396,15 @@ SFDISK
   [ -b "$p3" ] || { echo "FAIL: p3 did not appear as ${dev}3 or ${dev}p3" >&2; return 1; }
 
   echo "  formatting p3 as LUKS2 with hmac-sha256 integrity -- you will be asked for a passphrase"
-  cryptsetup luksFormat --type luks2 --integrity hmac-sha256 --label VOS-STATE "$p3" || return 1
-  cryptsetup open "$p3" vosstate_setup || return 1
-  make_ext4 /dev/mapper/vosstate_setup || { cryptsetup close vosstate_setup; return 1; }
-  cryptsetup close vosstate_setup
-  echo "  done. p3 is encrypted + authenticated. vos will offer to unlock it at boot."
+  cryptsetup luksFormat --type luks2 --integrity hmac-sha256 --label XOS-STATE "$p3" || return 1
+  cryptsetup open "$p3" xosstate_setup || return 1
+  make_ext4 /dev/mapper/xosstate_setup || { cryptsetup close xosstate_setup; return 1; }
+  cryptsetup close xosstate_setup
+  echo "  done. p3 is encrypted + authenticated. xos will offer to unlock it at boot."
 }
 
 # thin wrapper so the mkfs call sits behind a name (keeps blunt greps happy).
-make_ext4() { "mkfs.ext4" -q -L vos-state "$1"; }
+make_ext4() { "mkfs.ext4" -q -L xos-state "$1"; }
 
 
 # detect_removable -- echo the removable whole-disks currently attached, one per
@@ -1422,7 +1422,7 @@ detect_removable() {
 }
 
 # install [DEV] -- the whole install, in one command: pick the stick, flash a
-# verified vos onto it, and offer to add encrypted persistent state. safe by
+# verified xos onto it, and offer to add encrypted persistent state. safe by
 # construction -- it only ever writes a removable disk, verifies every byte it
 # wrote against the pinned digest, and makes you type the disk model before it
 # touches anything. with no DEV it auto-detects, and only proceeds when exactly

@@ -5,7 +5,7 @@ brief: Everything so far was about using a machine. This is about interrogating
 brief: one -- and the machine you know least about is the one you are standing
 brief: on right now.
 brief:
-brief: vos makes a specific claim: every block of the root filesystem is
+brief: xos makes a specific claim: every block of the root filesystem is
 brief: checked against a hash tree whose root hash arrives on the kernel
 brief: command line, inside an image signed with keys you enrolled yourself.
 brief: You are about to check that claim by hand, with commands you already

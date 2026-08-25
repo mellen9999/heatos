@@ -1,10 +1,10 @@
 #!/bin/sh
-# learn -- vos's curriculum. teaches the whole shipped command surface, in
+# learn -- xos's curriculum. teaches the whole shipped command surface, in
 # order, and grades you by running what you type.
 #
 # two properties this has that a quiz on a general-purpose distro cannot:
 #
-#   the surface is CLOSED. vos's programs are fixed at build time, so "teach
+#   the surface is CLOSED. xos's programs are fixed at build time, so "teach
 #   everything" is a finite claim the build checks (G32) rather than an
 #   aspiration. a busybox bump that adds a flag breaks the build until someone
 #   decides whether to teach it.
@@ -352,7 +352,7 @@ order() {
 
 # ---- coverage -------------------------------------------------------------
 #
-# vos's programs are fixed at build time, so "we teach everything" is a finite
+# xos's programs are fixed at build time, so "we teach everything" is a finite
 # claim and this is the ledger that settles it.
 #
 # every flag documented in the ref corpus is in exactly one of two sets:
@@ -422,7 +422,7 @@ coverage() {
 #
 # for every question, in every level:
 #   every listed answer is accepted by the grader
-#   the ref: it points at is a command vos actually ships
+#   the ref: it points at is a command xos actually ships
 #   every flag it claims to teach appears in one of its answers AND is
 #     documented in the ref -- so a coverage claim cannot be a lie
 #   every flag any answer USES is documented too, whether it is claimed or not
@@ -671,7 +671,7 @@ usage() {
 	learn ref <cmd>       the reference entry for a command
 	learn <cmd>           same, shorthand
 	learn -k <word>       search the corpus
-	learn list            every command vos ships
+	learn list            every command xos ships
 	learn stats           what you have mastered
 	learn reset           forget all progress
 

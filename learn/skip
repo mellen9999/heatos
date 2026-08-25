@@ -79,7 +79,7 @@ less -m         # display nicety
 less -M         # display nicety
 less -R         # display nicety
 mount -f        # dry run, for scripts that will not run here
-mount -T        # alternate fstab path; vos has one root
+mount -T        # alternate fstab path; xos has one root
 hostname -F     # sets from a file; the root is read-only
 nproc --ignore  # arithmetic on a number you already have
 
@@ -102,9 +102,9 @@ reboot -d
 reboot -n
 
 # ── abduco ──
-abduco -l       # login-shell flag; vos has one user and no login(1)
+abduco -l       # login-shell flag; xos has one user and no login(1)
 abduco -f       # force-attach, only meaningful after an unclean detach
-mount -O        # filters an -a mount by option; vos mounts one root, never fstab
+mount -O        # filters an -a mount by option; xos mounts one root, never fstab
 
 # ── nc ──
 # this build compiles nc down to `nc IPADDR PORT` with no options at all --
@@ -133,7 +133,7 @@ sh -e
 sh -u
 sh -x
 sh -i           # interactive; you are already in one
-sh -l           # login shell; vos has one user and no login(1)
+sh -l           # login shell; xos has one user and no login(1)
 sh -s           # read the script from stdin
 ash -c
 ash -e
@@ -144,7 +144,7 @@ ash -u
 ash -x
 
 # ── flags whose feature this build or this machine does not have ──
-mount -a        # mounts everything in fstab; vos has no fstab
+mount -a        # mounts everything in fstab; xos has no fstab
 umount -d       # frees a loop device on unmount; paired with losetup, not taught
 umount -r       # remount read-only if the unmount fails
 umount -t       # filter by filesystem type, only useful with -a
@@ -153,7 +153,7 @@ fdisk -C        # cylinder count override -- geometry, obsolete on anything mode
 fdisk -H
 fdisk -S
 fdisk -u        # sectors rather than cylinders; already the default
-setsid -c       # set the controlling terminal; cttyhack is what vos uses
+setsid -c       # set the controlling terminal; cttyhack is what xos uses
 sync -f         # sync the filesystem holding a file; -d covers the idea
 tee -i          # ignore interrupts
 wget -Y         # proxy on/off
@@ -331,10 +331,10 @@ mke2fs -I       # inode size
 mke2fs -n       # dry run
 mkdosfs -v      # verbose
 
-# ── dropbear / dbclient: flags the vos flow does not use ──
+# ── dropbear / dbclient: flags the xos flow does not use ──
 # the level teaches the tunnel end to end -- keys, server on wg, client in.
 # these are the extras.
-dropbear -s      # disable password logins -- already compiled out on vos
+dropbear -s      # disable password logins -- already compiled out on xos
 dropbear -w      # disable root password logins -- ditto, no passwords at all
 dropbear -g      # disable root password logins -- ditto
 dbclient -l      # username as a flag; user@host is the form taught

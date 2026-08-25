@@ -7,7 +7,7 @@ Every text tool you already know therefore works across a network.
 	nc example.org 80
 	printf 'GET / HTTP/1.0\r\n\r\n' | nc example.org 80
 
-NOT compiled in on vos: listen mode. Upstream busybox can take -l and
+NOT compiled in on xos: listen mode. Upstream busybox can take -l and
 -p to accept an incoming connection, but CONFIG_NC_SERVER is off in this
 build, so nc here can only make outbound connections. A stick you carry
 onto machines you do not own has no business opening a listening socket

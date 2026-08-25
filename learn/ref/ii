@@ -11,7 +11,7 @@ write to and an `out` file you read.
 	-f FULLNAME	real name field
 	-i DIR		root of the tree (default ~/irc)
 
-	ii -s irc.example.org -n vos -i ~/irc &
+	ii -s irc.example.org -n xos -i ~/irc &
 	echo '/j #chan' > ~/irc/irc.example.org/in
 	tail -f ~/irc/irc.example.org/#chan/out
 

@@ -1,11 +1,11 @@
 cryptsetup
 Usage: cryptsetup <action> [options] <device> [name]
 
-Set up encrypted block devices. On vos this is what p3 -- the state
+Set up encrypted block devices. On xos this is what p3 -- the state
 partition -- is built with, and it is the only way anything survives a
 reboot.
 
-This page documents the actions and options vos itself uses. cryptsetup
+This page documents the actions and options xos itself uses. cryptsetup
 upstream has many more; these are the ones that matter here, and the ones
 the curriculum drills.
 
@@ -31,7 +31,7 @@ decrypting tampered ciphertext yields attacker-controlled garbage, which
 the filesystem driver then parses as root. --integrity adds an
 authentication tag per sector, so tampering is refused rather than
 parsed. That is the same fail-closed property dm-verity gives the
-read-only root, and it is why vos uses both.
+read-only root, and it is why xos uses both.
 
 	cryptsetup luksFormat --integrity hmac-sha256 /dev/sda3
 	cryptsetup open /dev/sda3 state

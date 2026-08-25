@@ -1,7 +1,7 @@
 dbclient
 Usage: dbclient [-i KEYFILE] [-p PORT] [-l USER] [USER@]HOST [COMMAND]
 
-The ssh CLIENT. Connect out from vos to another machine.
+The ssh CLIENT. Connect out from xos to another machine.
 
 	-i FILE		identity (private key) to authenticate with
 	-p PORT		remote port

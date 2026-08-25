@@ -1,8 +1,8 @@
-# vos
+# xos
 
-verify os -- an operating system that lives on a usb stick and can prove it hasn't been
+xos -- an operating system that lives on a usb stick and can prove it hasn't been
 altered. plug it in, boot it, and your machine's own disks are never touched --
-vos ships no driver that can see them. pull the stick and nothing remains;
+xos ships no driver that can see them. pull the stick and nothing remains;
 nothing was ever written.
 
 every block of the root filesystem is covered by a hash tree. the tree's root
@@ -20,7 +20,7 @@ disk, refuses a mounted one, makes you type the disk's model back before it
 writes, and reads every byte back with direct I/O to confirm the write landed.
 
 boot it from your firmware's boot menu. with secure boot off, the firmware just
-runs it. with secure boot on, enroll your vos keys first (see below) and the
+runs it. with secure boot on, enroll your xos keys first (see below) and the
 firmware verifies the signature on every boot.
 
 the root is named on the cmdline by PARTUUID, never by `/dev/sda`, and the
@@ -82,14 +82,14 @@ off by default, and it can only be switched on from the encrypted state
 partition -- so an attacker holding the stick cannot even see that it exists,
 let alone enable it.
 
-the model is dial-OUT. vos connects to a machine you control (call it titan)
-over wireguard, and the ssh server binds to the wireguard address alone. vos
+the model is dial-OUT. xos connects to a machine you control (call it titan)
+over wireguard, and the ssh server binds to the wireguard address alone. xos
 never opens a port on the network it is plugged into: `nmap` from that LAN finds
-nothing. you reach vos by sshing back down the tunnel.
+nothing. you reach xos by sshing back down the tunnel.
 
 three things make a dropped connection survivable, each solving a different
 failure: wireguard roams, so a changed IP or a dead link resumes rather than
-resets; dropbear-on-wireguard keeps vos invisible; and abduco keeps the session
+resets; dropbear-on-wireguard keeps xos invisible; and abduco keeps the session
 alive, so you ssh back in and `abduco -a work` straight into what was running.
 
 to enable it, put two files on p3 (which is encrypted, so this is the opt-in):
@@ -103,7 +103,7 @@ to enable it, put two files on p3 (which is encrypted, so this is the opt-in):
 on the next unlock, init brings up `wg0`, generates the ssh host key on p3 if it
 is not there yet (a host key in the reproducible image would be a *published*
 private key), and starts dropbear bound to the tunnel. pubkey only -- password
-auth is compiled out, and vos is single-user root, so there is no password to
+auth is compiled out, and xos is single-user root, so there is no password to
 guess and no second account to find.
 
 `dropbearkey`, `dbclient` and `wg` ship for making keys and driving the tunnel
@@ -113,7 +113,7 @@ by hand; `learn` teaches the whole flow end to end.
 
 `./build.sh all` generates a platform key (PK), key-exchange key (KEK) and
 signing key (db) under `keys/`, and the public halves land on the stick under
-`/vos-keys/`. to turn secure boot on:
+`/xos-keys/`. to turn secure boot on:
 
 1. in your firmware setup, clear the existing keys / enter setup mode.
 2. enroll from the stick: `db.der`, then `KEK.der`, then `PK.der` last --
@@ -178,7 +178,7 @@ the build fails, loudly, on any of:
 - a `learn` question whose answer is not in the reference it cites
 - a lesson using a command no earlier lesson introduced
 - a documented command that no lesson introduces
-- a `learn` answer invoking a command vos does not ship
+- a `learn` answer invoking a command xos does not ship
 - a challenge track that stops getting harder
 - a `bzImage` built from a different `.config` than the one just validated
 
@@ -215,7 +215,7 @@ protection, and linked with a non-executable stack.
 
 a signature says who signed an image. it never says when.
 
-so every image vos has ever signed stays bootable forever. an old release --
+so every image xos has ever signed stays bootable forever. an old release --
 older kernel, older bugs, whatever CVE you rebuilt to escape -- can be dropped
 back onto the ESP, and the firmware runs it. the signature is valid, because it
 is valid. verity passes, because that old image has its own consistent root
@@ -291,7 +291,7 @@ five rules govern it, and all five are gates rather than intentions:
   throwaway sandbox, so it has caught questions teaching flags this build does
   not have -- `nc -l`, `xargs -d`, `flock` when file locking was compiled out.
 - every documented flag is either taught by a question or retired in
-  `learn/skip` with a written reason (G26): "we teach everything vos can do" is a
+  `learn/skip` with a written reason (G26): "we teach everything xos can do" is a
   number the build reports, zero open, not a promise. checkable only because the
   command surface is fixed at build time -- a busybox bump that adds a flag lands
   in neither set and stops the build until someone rules on it.

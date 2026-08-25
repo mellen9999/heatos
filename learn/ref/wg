@@ -1,7 +1,7 @@
 wg
 Usage: wg [show|showconf|set|setconf|genkey|pubkey|genpsk] ...
 
-Configure a wireguard interface -- the encrypted tunnel vos dials out
+Configure a wireguard interface -- the encrypted tunnel xos dials out
 through, so it never has to listen on a network it does not trust.
 
 	show [IFACE]		current state: peers, endpoints, handshakes

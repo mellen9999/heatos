@@ -27,40 +27,40 @@ ref: strings
 teach: strings
 hint: they are in the binary, not in a file -- there is nothing on disk to edit
 ---
-q: start ii against @host@ on the standard tls-free irc port, as nick vos
-a: ii -s @host@ -p 6667 -n vos -i $HOME/irc
+q: start ii against @host@ on the standard tls-free irc port, as nick xos
+a: ii -s @host@ -p 6667 -n xos -i $HOME/irc
 ref: ii
 teach: ii -s
 teach: ii -p
 teach: ii -n
 ---
 q: start ii with a chosen real name
-a: ii -s @host@ -f vos -n vos -i $HOME/irc
+a: ii -s @host@ -f xos -n xos -i $HOME/irc
 ref: ii
 teach: ii -f
 ---
 q: start ii putting its directory tree somewhere you choose
-a: ii -s @host@ -n vos -i /tmp/irc
+a: ii -s @host@ -n xos -i /tmp/irc
 ref: ii
 teach: ii -i
 ---
-q: join the channel #vos by writing to the server's in fifo
-a: echo '/j #vos' > $HOME/irc/@host@/in
+q: join the channel #xos by writing to the server's in fifo
+a: echo '/j #xos' > $HOME/irc/@host@/in
 ref: ii
 teach: ii
 ---
 q: read what is happening in a channel, live
-a: tail -f $HOME/irc/@host@/#vos/out
+a: tail -f $HOME/irc/@host@/#xos/out
 ref: tail
 teach: tail -f
 ---
 q: say hello in the channel
-a: echo hello > $HOME/irc/@host@/#vos/in
+a: echo hello > $HOME/irc/@host@/#xos/in
 ref: ii
 teach: ii
 ---
 q: %find% every mention of your nick across every channel
-a: grep -r vos $HOME/irc
+a: grep -r xos $HOME/irc
 ref: grep
 teach: grep -r
 ---
@@ -69,8 +69,8 @@ a: find $HOME/irc -maxdepth 2 -type d -name '#*'
 ref: find
 teach: find -type
 ---
-setup: Remote access on vos works by dialing OUT to a machine you control over
-setup: wireguard, so vos never listens on the network it is plugged into. These
+setup: Remote access on xos works by dialing OUT to a machine you control over
+setup: wireguard, so xos never listens on the network it is plugged into. These
 setup: are the pieces. None can run in this practice sandbox, so they are graded
 setup: on what you type.
 q: generate a new wireguard private key and save it to private.key

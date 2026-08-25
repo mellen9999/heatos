@@ -8,7 +8,7 @@ brief:
 brief: Numeric modes are the fast way once they click: r=4, w=2, x=1, added up
 brief: per set. 755 is rwxr-xr-x, 644 is rw-r--r--, 600 is rw------- .
 brief:
-brief: On vos everything runs as root and the root filesystem is read-only, so
+brief: On xos everything runs as root and the root filesystem is read-only, so
 brief: these matter for what you write to tmpfs and to disks you mount -- not
 brief: for defending this machine from you.
 ---

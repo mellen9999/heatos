@@ -1,7 +1,7 @@
 learn
 Usage: learn [ref CMD | -k WORD | list | progress | reset]
 
-This program. Teaches the vos command surface from nothing to fluent,
+This program. Teaches the xos command surface from nothing to fluent,
 in order, and never asks a question it has not already given you the
 material to answer.
 

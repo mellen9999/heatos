@@ -9,7 +9,7 @@ Display free and used memory. The flags choose the unit only.
 	-g	gigabytes
 	-h	human readable -- pick the unit per value
 
-On vos every writable byte is tmpfs, which is RAM. Files you create
+On xos every writable byte is tmpfs, which is RAM. Files you create
 under /tmp or your home therefore show up as used memory, and are gone
 at reboot.
 

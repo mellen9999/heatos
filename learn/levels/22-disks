@@ -122,8 +122,8 @@ a: blkid
 ref: blkid
 teach: blkid
 ---
-q: %find% which device holds the filesystem labelled VOS-ROOT
-a: findfs LABEL=VOS-ROOT
+q: %find% which device holds the filesystem labelled XOS-ROOT
+a: findfs LABEL=XOS-ROOT
 ref: findfs
 teach: findfs
 ---
@@ -332,7 +332,7 @@ q: mount a windows ntfs disk read-only
 a: mount -t ntfs3 -o ro,nosuid,nodev,noexec /dev/sda2 /mnt
 ref: mount
 teach: mount -t
-hint: read only -- vos will not write ntfs, by design
+hint: read only -- xos will not write ntfs, by design
 ---
 q: loop-mount an iso image read-only without burning it
 a: mount -t iso9660 -o ro,loop image.iso /mnt
