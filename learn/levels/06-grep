@@ -10,39 +10,39 @@ brief: Patterns are regular expressions unless you say otherwise. -F turns
 brief: that off and matches the text literally, which is what you want the
 brief: moment your pattern contains a dot or a bracket you meant as itself.
 ---
-q: %show% every line of @log@ containing @sev@
+q: {%show% every line of @log@ containing @sev@|which lines of @log@ mention @sev@?|pull the @sev@ lines out of @log@}
 a: grep @sev@ @log@
 out: @sev@
 ref: grep
 teach: grep
 ---
-q: %show% every line of @log@ containing @sev@, ignoring case
+q: {%show% the @sev@ lines in @log@, ignoring case|find @sev@ in @log@ whether it is upper or lower case|match @sev@ in @log@ case-insensitively}
 a: grep -i @sev@ @log@
 out: @sev@
 ref: grep
 teach: grep -i
 ---
-q: %show% every line of @log@ that does NOT contain @sev@
+q: {%show% every line of @log@ that does NOT contain @sev@|which lines of @log@ are missing @sev@?|drop the @sev@ lines from @log@ and show the rest}
 a: grep -v @sev@ @log@
 out: .
 ref: grep
 teach: grep -v
 hint: v for invert
 ---
-q: %count% how many lines of @log@ contain @sev@
+q: {%count% how many lines of @log@ contain @sev@|how many @log@ lines mention @sev@?|report the number of @sev@ lines in @log@}
 a: grep -c @sev@ @log@
 out: ^[0-9]+$
 ref: grep
 teach: grep -c
 hint: this counts LINES, not occurrences -- two matches on one line count once
 ---
-q: %show% matching lines of @log@ with their line numbers
+q: {%show% the @sev@ lines of @log@ with their line numbers|number the @sev@ matches in @log@|which line numbers in @log@ have @sev@?}
 a: grep -n @sev@ @log@
 out: ^[0-9]+:
 ref: grep
 teach: grep -n
 ---
-q: search every file under the current directory for @term@, recursively
+q: {search every file under here for @term@, recursively|%find% @term@ anywhere in the tree below you|grep the whole directory tree for @term@}
 a: grep -r @term@ .
 out: .
 ref: grep

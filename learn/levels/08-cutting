@@ -74,14 +74,14 @@ a: cut -d, -f1,3 -O: @csv@
 ref: cut
 teach: cut -O
 ---
-q: uppercase everything in @txt@
+q: {uppercase everything in @txt@|%turn% @txt@ to upper case|make @txt@ all capitals}
 a: tr a-z A-Z < @txt@
 out: ROTATE THE LOGS
 ref: tr
 teach: tr
 hint: tr has no filename argument -- redirect the file into it
 ---
-q: lowercase everything in @txt@
+q: {lowercase everything in @txt@|%turn% @txt@ to lower case|make @txt@ all small letters}
 a: tr A-Z a-z < @txt@
 out: rotate
 ref: tr
@@ -106,7 +106,7 @@ ref: tr
 teach: tr -s
 hint: s for squeeze
 ---
-q: turn every space in @txt@ into a newline, one word per line
+q: %turn% every space in @txt@ into a newline, one word per line
 a: tr ' ' '\n' < @txt@
 out: ^rotate$
 ref: tr

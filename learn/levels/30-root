@@ -20,7 +20,7 @@ teach: awk
 ---
 setup: A hash tree has a single root hash. Everything below it is checked
 setup: against that one number, so the whole filesystem reduces to it.
-q: extract the root hash the kernel was given
+q: %get% the root hash the kernel was given
 a: sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline
 ref: sed
 teach: sed -n

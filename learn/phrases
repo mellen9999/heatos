@@ -1,30 +1,36 @@
 # phrase macros for question prompts: %name% expands to a random member at
-# render time, so the same skill is asked many different ways and you have to
-# think about what is wanted, not pattern-match the wording. every member of a
-# group must be grammatically interchangeable wherever the macro is used.
+# render time. the point is not decoration -- it is that the SAME skill is
+# asked many different ways, so you read for intent instead of pattern-matching
+# the sentence. every member of a group must be grammatically interchangeable
+# wherever the macro is used.
 #
 # format:  %name% = one | two | three
-#
-# keep them boringly interchangeable. cleverness that only fits one sentence
-# belongs inline as {a|b|c} in that one question, not here.
+# keep members boringly interchangeable; cleverness that fits one sentence only
+# belongs inline as {a|b|c} in that one question.
 
-# --- output a thing to the screen ---
-show = print | show | display | output | write out
+# --- put something on the screen ---
+show = print | show | display | output | write out | print out
 
 # --- enumerate directory-ish contents ---
-list = list | show | print out
+list = list | show | print out | show me
 
 # --- locate something ---
-find = find | locate | hunt down | track down
+find = find | locate | hunt down | track down | search for | dig out
 
 # --- produce a count ---
-count = count | tally | report the number of
+count = count | tally | total up | add up
+
+# --- pull a piece out of something ---
+get = extract | pull out | grab | get | isolate | pick out | carve out
 
 # --- create ---
-make = make | create
+make = make | create | set up | build | spin up
 
-# --- polite framings that can prefix an instruction ---
-give = give me | show me | get me | i want
+# --- change something into something ---
+turn = turn | convert | change
 
-# --- softeners / openers (optional flavor) ---
-now = | right now | here | for me
+# --- polite openers (can prefix an instruction) ---
+give = give me | show me | get me | i want | i need | hand me
+
+# --- soft closers / flavor (optional, includes empty) ---
+now = | right now | here | for me | quickly

@@ -9,40 +9,40 @@ brief: sort orders, uniq collapses neighbours, wc counts. uniq only sees the
 brief: line before it, so it can only remove duplicates that are already
 brief: adjacent -- which is why sort comes first, every time.
 ---
-q: %count% the lines in @log@
+q: {%count% the lines in @log@|how many lines does @log@ have?|how long is @log@ in lines?}
 a: wc -l < @log@
 a: wc -l @log@
 out: 10
 ref: wc
 teach: wc -l
 ---
-q: %count% the words in @txt@
+q: {%count% the words in @txt@|how many words are in @txt@?|word count of @txt@}
 a: wc -w < @txt@
 a: wc -w @txt@
 out: [0-9]
 ref: wc
 teach: wc -w
 ---
-q: %count% the bytes in @txt@
+q: {%count% the bytes in @txt@|how many bytes is @txt@?|the size of @txt@ in bytes}
 a: wc -c < @txt@
 a: wc -c @txt@
 out: [0-9]
 ref: wc
 teach: wc -c
 ---
-q: %count% how many entries are in the current directory
+q: {%count% how many entries are in the current directory|how many things are in this directory?|number of files and folders here}
 a: ls | wc -l
 out: [0-9]
 ref: wc
 teach: wc -l
 ---
-q: sort the lines of @txt@ alphabetically
+q: {sort the lines of @txt@ alphabetically|put @txt@ in alphabetical order|order @txt@ a to z}
 a: sort @txt@
 out: ^ask why the fan
 ref: sort
 teach: sort
 ---
-q: sort @txt@ in reverse alphabetical order
+q: {sort @txt@ in reverse alphabetical order|order @txt@ z to a|sort @txt@ backwards}
 a: sort -r @txt@
 out: ^verify the root hash
 ref: sort
@@ -61,7 +61,7 @@ ref: uniq
 teach: uniq
 hint: uniq only collapses ADJACENT duplicates, so sort has to go first
 ---
-q: %show% each distinct line of @txt@ with a count of how many times it appears
+q: {%show% each distinct line of @txt@ with how many times it appears|for @txt@, how often does each line occur?|tally the repeats in @txt@}
 a: sort @txt@ | uniq -c
 out: 2 rotate the logs
 ref: uniq

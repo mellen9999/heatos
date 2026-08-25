@@ -40,12 +40,12 @@ state: exists:bundle.tar.bz2
 ref: tar
 teach: tar -j
 ---
-q: extract archive/export.tar into the current directory
+q: %get% archive/export.tar into the current directory
 a: tar -xf archive/export.tar
 ref: tar
 teach: tar x
 ---
-q: extract @archive@ into the @dir@ directory rather than here
+q: %get% @archive@ into the @dir@ directory rather than here
 a: tar -xzf @archive@ -C @dir@
 ref: tar
 teach: tar -C
@@ -61,12 +61,12 @@ state: exists:bundle.tar
 ref: tar
 teach: tar --exclude
 ---
-q: extract @archive@ dropping the first leading directory from every path
+q: %get% @archive@ dropping the first leading directory from every path
 a: tar -xzf @archive@ --strip-components 1
 ref: tar
 teach: tar --strip-components
 ---
-q: extract @archive@ overwriting anything already in the way
+q: %get% @archive@ overwriting anything already in the way
 a: tar -xzf @archive@ --overwrite
 ref: tar
 teach: tar --overwrite
@@ -82,12 +82,12 @@ state: exists:bundle.tar
 ref: tar
 teach: tar --no-recursion
 ---
-q: extract @archive@ without restoring the permissions it recorded
+q: %get% @archive@ without restoring the permissions it recorded
 a: tar -xzf @archive@ --no-same-permissions
 ref: tar
 teach: tar --no-same-permissions
 ---
-q: extract @archive@ recording numeric owner ids rather than names
+q: %get% @archive@ recording numeric owner ids rather than names
 a: tar -xzf @archive@ --numeric-owner
 ref: tar
 teach: tar --numeric-owner

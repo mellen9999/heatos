@@ -92,7 +92,7 @@ ref: set
 teach: set -x
 hint: this is the shell debugger, and it is usually enough
 ---
-q: turn command tracing back off
+q: %turn% command tracing back off
 a: set +x
 ref: set
 teach: set
