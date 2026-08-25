@@ -40,12 +40,12 @@ coverage at the bottom.
 ## build
 
     ./build.sh all      # sources verified against pinned digests, then built
-    ./attack.sh         # tries to break it, expects every attempt to fail
+    ./selftest.sh       # adversarial self-test: asserts every tamper attempt is refused
     ./build.sh boot     # boots the real chain in qemu (dev only)
     ./build.sh usb /dev/sdX   # write a real bootable stick
 
-qemu is the development and test rig -- the attack harness needs to byte-flip
-boot media, which you can't do to a machine you're running on. the stick is the
+qemu is the development and test rig -- the self-test needs to byte-flip boot
+media, which you can't do to a machine you're running on. the stick is the
 product. `./build.sh bootusb` runs the exact stick image through emulated USB,
 so the real boot path (enumeration, the wait-for-device poll) is testable
 without hardware.

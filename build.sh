@@ -600,7 +600,7 @@ verity() {
   # itself starts one block later -- pointing the table at $blocks lands on
   # the superblock and the root mount fails with no verity error at all.
   # heatos.test is DEBUG scaffolding, and the cmdline lives INSIDE the UKI
-  # signature -- so it must never ship in a production image. attack.sh
+  # signature -- so it must never ship in a production image. selftest.sh
   # rebuilds a test-flavoured UKI for its own runs.
   local testflag=""
   [ "${HEATOS_TEST:-0}" = 1 ] && testflag=" heatos.test"

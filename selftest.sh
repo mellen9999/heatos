@@ -1,12 +1,15 @@
 #!/bin/bash
-# each check asserts an EXPECTED FAILURE. the harness fails if an attack works.
+# defensive self-test. boots heatos in a throwaway qemu vm and asserts its own
+# tamper-detection refuses every alteration -- no external target, no secrets,
+# no network exploit. each check asserts an EXPECTED FAILURE: the harness fails
+# if a tampered image is accepted.
 set -uo pipefail
 cd "$(dirname "$0")"
 
 has() { local n; n=$(grep -c -- "$1" || true); [ "${n:-0}" -gt 0 ]; }
 pass=0; fail=0; skip=0; sections=0
 # the gate runner already learned this: a run that dies partway through prints
-# a smaller number and looks exactly like a clean one. count the attacks that
+# a smaller number and looks exactly like a clean one. count the checks that
 # actually ran and refuse to report a result if any of them went missing.
 EXPECTED_SECTIONS=10
 section() { sections=$((sections+1)); echo; echo "$1"; }
@@ -30,7 +33,7 @@ trap restore EXIT
 ok()  { printf '  \033[1;32mPASS\033[0m  %s\n' "$1"; pass=$((pass+1)); }
 bad() { printf '  \033[1;31mFAIL\033[0m  %s\n' "$1"; fail=$((fail+1)); }
 # a skip is never silence: it is counted and reported, because "9 passed" with
-# an attack quietly not evaluated is the exact failure this harness exists to
+# a check quietly not evaluated is the exact failure this harness exists to
 # catch everywhere else.
 skipped() { printf '  \033[1;33mSKIP\033[0m  %s\n' "$1"; skip=$((skip+1)); }
 
@@ -110,7 +113,7 @@ grep -q HEATOS-TEST-BEGIN <<< "$o4" && bad "tampered UKI booted" || ok "firmware
 rm -f /tmp/heatos-a4.efi /tmp/heatos-a4.img
 
 echo
-section "A5  no dynamic loader to hijack"
+section "A5  no dynamic loader to preload into"
 if [ -z "$(find root -name 'ld-musl-*' -o -name 'ld-linux*' 2>/dev/null)" ]; then
 	ok "no ld-musl/ld-linux in the image (LD_PRELOAD has nothing to load)"
 else
@@ -179,7 +182,7 @@ fi
 echo
 printf '  %d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
 if [ "$sections" -ne "$EXPECTED_SECTIONS" ]; then
-	printf '\033[1;31m  only %d of %d attacks ran -- the harness was truncated\033[0m\n\n' \
+	printf '\033[1;31m  only %d of %d checks ran -- the harness was truncated\033[0m\n\n' \
 		"$sections" "$EXPECTED_SECTIONS"
 	exit 1
 fi
