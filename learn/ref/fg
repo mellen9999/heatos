@@ -1,0 +1,13 @@
+fg
+Usage: fg [JOB]
+
+Bring a background or stopped job into the foreground and give it the
+terminal. With no argument, the most recent job.
+
+	fg		the last job
+	fg %1		job 1
+
+ctrl-z stops the foreground job and hands you back the prompt; fg resumes
+it where it left off.
+
+See also: bg, jobs, kill

@@ -1,0 +1,7 @@
+local
+Usage: local NAME[=VALUE]...
+
+Shell builtin. Scope a variable to the function it is declared in, so it
+does not leak into the caller. Without it every variable is global.
+
+See also: set, return

@@ -1,0 +1,14 @@
+alias
+Usage: alias [NAME[=VALUE]]
+
+Give a command a shorter name. With no arguments, list every alias.
+
+	alias ll='ls -l'	define one
+	alias ll			show what ll expands to
+	alias				list them all
+
+Aliases are expanded only in interactive shells and only as the FIRST word
+of a command, so they are a typing convenience, never a scripting tool.
+Nothing here persists -- the root is read-only and there is no rc file.
+
+See also: unalias, type, command

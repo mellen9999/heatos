@@ -1,0 +1,114 @@
+name: variables
+boss: $VARIABLE
+flavor: I hold what you've forgotten.
+brief: A variable is name=value, with no spaces around the =. You read it back
+brief: with $name. Command substitution $(cmd) runs a command and becomes its
+brief: output, which is how you get a number out of wc and into a comparison.
+brief:
+brief: Quote your expansions. "$x" is one word even when the value has spaces;
+brief: $x is however many words the value happens to split into. Nearly every
+brief: shell script bug that survives review is a missing pair of quotes.
+---
+q: store the word %word% in a variable called %var%
+a: %var%=%word%
+ref: sh
+teach: sh
+hint: no spaces around the equals sign
+---
+q: print the value of %var%
+a: %var%=%word%; echo $%var%
+out: %word%
+ref: echo
+teach: echo
+---
+q: store the output of the date command in a variable called %tvar%
+a: %tvar%=$(date)
+ref: sh
+teach: sh
+hint: $( ) runs a command and becomes its output
+---
+q: store the number of lines in %log% in a variable called %cvar%
+a: %cvar%=$(wc -l < %log%)
+ref: wc
+teach: wc -l
+---
+q: print the length of the value in %var%
+a: %var%=%word%; echo ${#%var%}
+out: [0-9]
+ref: sh
+teach: sh
+hint: a hash inside the braces gives the length
+---
+q: print %var%, or the word default if it is unset or empty
+a: echo ${%var%:-default}
+out: default
+ref: sh
+teach: sh
+---
+q: print the line count of %log% inside a sentence reading "lines: N"
+a: echo "lines: $(wc -l < %log%)"
+out: ^lines: 10$
+ref: echo
+teach: echo
+---
+q: export %mvar% with the value %word% so child processes inherit it
+a: export %mvar%=%word%
+ref: export
+teach: export
+---
+q: show every exported variable in the environment
+a: env
+out: =
+ref: env
+teach: env
+---
+q: run one command with %mvar% set to %word%, without changing your own shell
+a: env %mvar%=%word% sh -c 'echo $%mvar%'
+out: %word%
+ref: env
+teach: env
+---
+q: run a command with the environment completely emptied first
+a: env -i sh -c 'echo empty'
+out: empty
+ref: env
+teach: env
+---
+q: run a command with %mvar% removed from the environment
+a: env -u %mvar% sh -c 'echo gone'
+out: gone
+ref: env
+teach: env -u
+---
+q: print the environment with entries separated by NUL rather than newline
+a: env -0
+out: =
+ref: env
+teach: env -0
+---
+q: remove the variable %var% from your shell entirely
+a: unset %var%
+ref: unset
+teach: unset
+---
+q: read a line from standard input into a variable called %var%
+a: read %var%
+ref: read
+teach: read
+---
+q: read a line into %var% without letting backslashes escape anything
+a: read -r %var%
+ref: read
+teach: read -r
+hint: -r is what you want essentially always; without it a backslash vanishes
+---
+q: prompt with "name: " and read the reply into %var%
+a: read -p "name: " %var%
+ref: read
+teach: read -p
+---
+q: print the first field of %csv%, using a variable to hold the separator
+a: d=,; cut -d"$d" -f1 %csv%
+out: ^gateway$
+ref: cut
+teach: cut -d

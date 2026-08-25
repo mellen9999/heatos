@@ -1,0 +1,25 @@
+[
+Usage: [ EXPRESSION ]
+
+Evaluate EXPRESSION and exit 0 if true, 1 if false. The bracket form of
+`test`: the final argument must be a literal ]. This is what `if [ ... ]`
+in a shell script actually runs.
+
+	-e FILE		FILE exists
+	-f FILE		FILE exists and is a regular file
+	-d FILE		FILE exists and is a directory
+	-r/-w/-x FILE	FILE is readable / writable / executable
+	-s FILE		FILE exists and is not empty
+	-L FILE		FILE is a symbolic link
+	-z STR		STR is empty
+	-n STR		STR is not empty
+	STR1 = STR2	strings are equal
+	STR1 != STR2	strings differ
+	N1 -eq N2	numbers equal (-ne -lt -le -gt -ge also)
+	! EXPR		negate
+	EXPR -a EXPR	and;  EXPR -o EXPR	or
+
+Quote your variables: [ -n $x ] breaks when x is empty or has spaces,
+[ -n "$x" ] does not.
+
+See also: test

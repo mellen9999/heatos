@@ -1,0 +1,18 @@
+jobs
+Usage: jobs [-l]
+
+List the jobs started from this shell and their state: Running, Stopped,
+or Done.
+
+	-l	also show each job's process id
+
+Jobs are numbered, and %1 refers to job 1.
+
+	sleep 60 &		start one
+	jobs			[1] + Running  sleep 60
+	fg %1			bring it forward
+
+Jobs belong to one shell. They are not visible from another terminal, and
+they die when this shell does -- abduco is what survives that.
+
+See also: fg, bg, kill, ps, abduco

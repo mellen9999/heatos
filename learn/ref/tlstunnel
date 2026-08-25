@@ -1,0 +1,16 @@
+tlstunnel
+Usage: tlstunnel - HOST PORT
+
+Open a TLS connection to HOST:PORT and pipe stdin/stdout through it.
+The literal - means "use stdin/stdout".
+
+	printf 'HEAD / HTTP/1.0\r\nHost: example.org\r\n\r\n' \
+	    | tlstunnel - example.org 443
+
+Trust is not read from a directory at runtime: the certificate
+authorities in trust/ are compiled into the binary, so the trusted set
+is covered by the hash tree and the image signature. A normal system
+trusts around 150 roots, any one of which can issue for any name. This
+trusts one. A certificate outside that set is refused, not warned about.
+
+See also: nc, wget

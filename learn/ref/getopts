@@ -1,0 +1,18 @@
+getopts
+Usage: getopts OPTSTRING NAME
+
+Parse option flags in a shell script, one per call, in a loop. A letter
+followed by : in OPTSTRING takes an argument, which lands in $OPTARG.
+$OPTIND tracks how far along it got.
+
+	while getopts "vf:" o; do
+		case $o in
+		v) verbose=1 ;;
+		f) file=$OPTARG ;;
+		esac
+	done
+	shift $((OPTIND - 1))
+
+The trailing shift is what leaves the non-option arguments in "$@".
+
+See also: shift, set, sh

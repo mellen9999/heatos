@@ -1,0 +1,6 @@
+tty
+Usage: tty [-s]
+
+Print file name of stdin's terminal
+
+	-s	Print nothing, only return exit status

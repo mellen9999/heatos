@@ -1,0 +1,7 @@
+return
+Usage: return [N]
+
+Shell builtin. Leave the current function with status N. Unlike exit, the
+shell itself keeps running.
+
+See also: exit, local

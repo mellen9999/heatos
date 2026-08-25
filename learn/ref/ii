@@ -1,0 +1,21 @@
+ii
+Usage: ii -s SERVER [-p PORT] [-n NICK] [-f FULLNAME] [-i DIR]
+
+Minimal IRC client. It has no interface: it maps the connection onto the
+filesystem. Each channel becomes a directory holding an `in` FIFO you
+write to and an `out` file you read.
+
+	-s SERVER	host to connect to
+	-p PORT		port (default 6667)
+	-n NICK		nickname
+	-f FULLNAME	real name field
+	-i DIR		root of the tree (default ~/irc)
+
+	ii -s irc.example.org -n vos -i ~/irc &
+	echo '/j #chan' > ~/irc/irc.example.org/in
+	tail -f ~/irc/irc.example.org/#chan/out
+
+Because it is just files, every text tool on this system works on it --
+grep the log, tail the channel, echo to send.
+
+See also: tail, grep, mkfifo

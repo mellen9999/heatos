@@ -1,0 +1,16 @@
+set
+Usage: set [-eux] [--] [ARG]...
+
+Shell builtin. Change shell options, or set the positional parameters.
+With no arguments, print every shell variable.
+
+	-e	exit as soon as any command fails
+	-u	error on an undefined variable instead of using empty
+	-x	print each command before running it -- the debugging flag
+	-o	with no argument, list the current option settings
+
+	set -eu		the sane default at the top of a script
+	set -x		start tracing
+	set +x		stop tracing
+
+See also: unset, export

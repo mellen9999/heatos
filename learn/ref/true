@@ -1,0 +1,9 @@
+true
+Usage: true
+
+Do nothing and exit 0. Used where a command is required but no action is
+wanted -- `while true`, or to swallow a failure under `set -e`:
+
+	somecmd || true
+
+See also: false

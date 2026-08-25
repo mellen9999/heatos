@@ -1,0 +1,11 @@
+unalias
+Usage: unalias [-a] NAME...
+
+Remove an alias.
+
+	-a	remove every alias at once
+
+	unalias ll
+	unalias -a
+
+See also: alias

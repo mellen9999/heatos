@@ -1,0 +1,11 @@
+umount
+Usage: umount [-rlfda] [-t FSTYPE] FILESYSTEM|DIRECTORY
+
+Unmount filesystems
+
+	-a	Unmount all filesystems
+	-r	Remount devices read-only if mount is busy
+	-l	Lazy umount (detach filesystem)
+	-f	Force umount (i.e., unreachable NFS server)
+	-d	Free loop device if it has been used
+	-t FSTYPE[,...]	Unmount only these filesystem type(s)

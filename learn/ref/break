@@ -1,0 +1,6 @@
+break
+Usage: break [N]
+
+Shell builtin. Leave the innermost loop, or N levels of loop.
+
+See also: continue

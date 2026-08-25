@@ -1,0 +1,4 @@
+realpath
+Usage: realpath FILE...
+
+Print absolute pathnames of FILEs

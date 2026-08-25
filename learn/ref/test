@@ -1,0 +1,29 @@
+test
+Usage: test EXPRESSION
+
+Evaluate EXPRESSION and exit 0 if true, 1 if false. Identical to [ but
+without the trailing ]. The operators are the same, and are listed here
+rather than pointed at, so this page answers on its own.
+
+	-e FILE		FILE exists
+	-f FILE		FILE exists and is a regular file
+	-d FILE		FILE exists and is a directory
+	-r/-w/-x FILE	FILE is readable / writable / executable
+	-s FILE		FILE exists and is not empty
+	-L FILE		FILE is a symbolic link
+	-z STR		STR is empty
+	-n STR		STR is not empty
+	STR1 = STR2	strings are equal
+	STR1 != STR2	strings differ
+	N1 -eq N2	numbers equal (-ne -lt -le -gt -ge also)
+	! EXPR		negate
+	EXPR -a EXPR	and;  EXPR -o EXPR	or
+
+	test -f /etc/passwd	regular file exists
+	test "$a" = "$b"	strings equal
+	test $n -gt 10		number greater than
+
+Quote your variables: test -n $x breaks when x is empty or has spaces,
+test -n "$x" does not.
+
+See also: [

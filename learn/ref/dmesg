@@ -1,0 +1,9 @@
+dmesg
+Usage: dmesg [-cr] [-n LEVEL] [-s SIZE]
+
+Print or control the kernel ring buffer
+
+	-c		Clear ring buffer after printing
+	-n LEVEL	Set console logging level
+	-s SIZE		Buffer size
+	-r		Print raw message buffer

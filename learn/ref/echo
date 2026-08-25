@@ -1,0 +1,11 @@
+echo
+Usage: echo [-neE] [ARG]...
+
+Print ARGs to stdout separated by spaces, followed by a newline.
+
+	-n	no trailing newline
+	-e	interpret backslash escapes (\n \t \\ \0NNN)
+	-E	do not interpret escapes (default)
+
+For anything with escapes or leading dashes, prefer printf -- echo's
+handling of those varies between shells and is not portable.

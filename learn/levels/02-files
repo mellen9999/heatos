@@ -1,0 +1,153 @@
+name: files
+boss: CopyPasta
+flavor: Every copy is a ghost of the original.
+brief: Six commands move bytes around: cp copies, mv renames or moves, rm
+brief: deletes, mkdir and rmdir make and unmake directories, touch creates an
+brief: empty file or bumps its timestamp.
+brief:
+brief: Two of them are quietly dangerous. cp and mv overwrite the destination
+brief: without asking. -n refuses to, -i asks first. Learn those two flags now
+brief: and you will not need to learn them from a loss later.
+---
+q: copy %cfg% to %cfg2%
+a: cp %cfg% %cfg2%
+state: exists:%cfg2%
+ref: cp
+teach: cp
+---
+q: copy %txt% into the %dir% directory, keeping its name
+a: cp %txt% %dir%/
+a: cp %txt% %dir%
+state: exists:%dir%/%txt%
+ref: cp
+teach: cp
+---
+q: copy the whole %dir% directory, and everything inside it, to %dir2%-copy
+a: cp -r %dir% %dir2%-copy
+a: cp -R %dir% %dir2%-copy
+a: cp -a %dir% %dir2%-copy
+state: exists:%dir2%-copy
+ref: cp
+teach: cp -r
+hint: the flag cp calls "Recurse"
+---
+q: copy %cfg% to %cfg2%, but refuse to overwrite it if it already exists
+a: cp -n %cfg% %cfg2%
+ref: cp
+teach: cp -n
+hint: n for "no clobber"
+---
+q: copy %txt% to %txt%.bak preserving its timestamps and permissions
+a: cp -p %txt% %txt%.bak
+a: cp -a %txt% %txt%.bak
+state: exists:%txt%.bak
+ref: cp
+teach: cp -p
+hint: p for preserve
+---
+q: copy %dir% to %dir2%-archive preserving everything -- one flag, not three
+a: cp -a %dir% %dir2%-archive
+state: exists:%dir2%-archive
+ref: cp
+teach: cp -a
+hint: cp calls it "Same as -dpR"
+---
+q: rename %txt% to %word%.txt
+a: mv %txt% %word%.txt
+state: exists:%word%.txt
+ref: mv
+teach: mv
+---
+q: move %cfg% into %dir%/
+a: mv %cfg% %dir%/
+a: mv %cfg% %dir%
+state: exists:%dir%/%cfg%
+ref: mv
+teach: mv
+---
+q: move %txt% to %dir%/, but never overwrite a file already there
+a: mv -n %txt% %dir%/
+a: mv -n %txt% %dir%
+ref: mv
+teach: mv -n
+---
+q: delete %txt%
+a: rm %txt%
+state: gone:%txt%
+ref: rm
+teach: rm
+---
+q: delete %dir% and everything inside it
+a: rm -r %dir%
+a: rm -rf %dir%
+state: gone:%dir%
+ref: rm
+teach: rm -r
+---
+q: delete %txt% without complaining if it is already gone
+a: rm -f %txt%
+ref: rm
+teach: rm -f
+hint: f for force -- it also silences the "no such file" error
+---
+q: create a directory called %word%
+a: mkdir %word%
+state: exists:%word%
+ref: mkdir
+teach: mkdir
+---
+q: create %dir%/%word%/deep, making the missing parent directories too
+a: mkdir -p %dir%/%word%/deep
+state: exists:%dir%/%word%/deep
+ref: mkdir
+teach: mkdir -p
+hint: p for parents
+---
+q: create a directory %word% that only you can enter, using a numeric mode
+a: mkdir -m 700 %word%
+state: exists:%word%
+ref: mkdir
+teach: mkdir -m
+---
+q: remove the empty directory %word% -- create it first if you like
+a: rmdir %word%
+ref: rmdir
+teach: rmdir
+---
+q: create an empty file called %word%.txt
+a: touch %word%.txt
+a: > %word%.txt
+state: exists:%word%.txt
+ref: touch
+teach: touch
+---
+q: update the timestamp on %txt% to now, without changing its contents
+a: touch %txt%
+state: match:%txt%:rotate
+ref: touch
+teach: touch
+---
+q: update %txt%'s timestamp but do NOT create it if it is missing
+a: touch -c %txt%
+ref: touch
+teach: touch -c
+---
+q: make a symbolic link called %word%-link pointing at %txt%
+a: ln -s %txt% %word%-link
+state: exists:%word%-link
+ref: ln
+teach: ln -s
+hint: s for symbolic; without it you get a hard link
+---
+q: make a hard link called %word%-hard to %txt%
+a: ln %txt% %word%-hard
+state: exists:%word%-hard
+ref: ln
+teach: ln
+---
+q: make a symlink %word%-link to %txt%, replacing it if it already exists
+a: ln -sf %txt% %word%-link
+a: ln -fs %txt% %word%-link
+state: exists:%word%-link
+ref: ln
+teach: ln -f

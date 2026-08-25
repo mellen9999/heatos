@@ -1,0 +1,7 @@
+rmdir
+Usage: rmdir [-p] DIRECTORY...
+
+Remove DIRECTORY if it is empty
+
+	-p	Include parents
+	--ignore-fail-on-non-empty

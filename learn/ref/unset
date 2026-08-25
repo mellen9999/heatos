@@ -1,0 +1,7 @@
+unset
+Usage: unset NAME...
+
+Shell builtin. Remove a variable or function so it no longer exists --
+different from setting it empty, which `set -u` can tell apart.
+
+See also: set, export

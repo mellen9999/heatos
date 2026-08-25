@@ -1,0 +1,7 @@
+false
+Usage: false
+
+Do nothing and exit 1. The counterpart to true; useful for testing error
+paths and as a placeholder that always fails.
+
+See also: true

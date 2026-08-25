@@ -1,8 +1,8 @@
-# vrl
+# vos
 
-verified root linux -- an operating system that lives on a usb stick and can prove it hasn't been
+verify os -- an operating system that lives on a usb stick and can prove it hasn't been
 altered. plug it in, boot it, and your machine's own disks are never touched --
-vrl ships no driver that can see them. pull the stick and nothing remains;
+vos ships no driver that can see them. pull the stick and nothing remains;
 nothing was ever written.
 
 every block of the root filesystem is covered by a hash tree. the tree's root
@@ -20,7 +20,7 @@ disk, refuses a mounted one, makes you type the disk's model back before it
 writes, and reads every byte back with direct I/O to confirm the write landed.
 
 boot it from your firmware's boot menu. with secure boot off, the firmware just
-runs it. with secure boot on, enroll your vrl keys first (see below) and the
+runs it. with secure boot on, enroll your vos keys first (see below) and the
 firmware verifies the signature on every boot.
 
 the root is named on the cmdline by PARTUUID, never by `/dev/sda`, and the
@@ -66,7 +66,7 @@ static linking survivable when a dependency gets a CVE.
 
 `./build.sh all` generates a platform key (PK), key-exchange key (KEK) and
 signing key (db) under `keys/`, and the public halves land on the stick under
-`/vrl-keys/`. to turn secure boot on:
+`/vos-keys/`. to turn secure boot on:
 
 1. in your firmware setup, clear the existing keys / enter setup mode.
 2. enroll from the stick: `db.der`, then `KEK.der`, then `PK.der` last --
@@ -125,6 +125,15 @@ the build fails, loudly, on any of:
 - a plaintext private signing key sitting on disk
 - an image that is in `revoked` (you would be shipping a brick)
 - a revocation digest that disagrees with the signature it is meant to revoke
+- a second shell in the image, or `/bin/sh` that is not busybox ash
+- a shipped command with no `learn` entry, a `learn` entry for nothing shipped,
+  or a requested busybox applet that did not actually build
+- a `learn` question whose answer is not in the reference it cites
+- a lesson using a command no earlier lesson introduced
+- a documented command that no lesson introduces
+- a `learn` answer invoking a command vos does not ship
+- a challenge track that stops getting harder
+- a `bzImage` built from a different `.config` than the one just validated
 
 a build that reports success while quietly dropping features is the failure
 mode this is built against. every claim above has a check that fails when it
@@ -159,7 +168,7 @@ protection, and linked with a non-executable stack.
 
 a signature says who signed an image. it never says when.
 
-so every image vrl has ever signed stays bootable forever. an old release --
+so every image vos has ever signed stays bootable forever. an old release --
 older kernel, older bugs, whatever CVE you rebuilt to escape -- can be dropped
 back onto the ESP, and the firmware runs it. the signature is valid, because it
 is valid. verity passes, because that old image has its own consistent root
@@ -187,17 +196,58 @@ whole reason the file is tracked and the image is not.
 
 ## userland
 
-busybox, bash, cmdchamp, ii (irc), and a tls tunnel -- musl, `-static-pie`,
-every one of them built from a pinned source in this repo. `/bin/sh` is busybox
-ash: small, and the only shell you type at. bash is not a second login shell --
-it is the runtime cmdchamp needs (its data model is bash associative arrays), so
-it rides along the way an app ships its interpreter. `manifest` declares what
-the image must hold; the component copies used to be `[ -f x ] && cp x`, so a
+busybox, ii (irc), a tls tunnel, and `learn` -- musl, `-static-pie`, every one
+of them built from a pinned source in this repo. `manifest` declares what the
+image must hold; the component copies used to be `[ -f x ] && cp x`, so a
 component that failed to build shrank the image and every gate still went green.
+
+**one shell.** `/bin/sh` is busybox ash and nothing else is. the image used to
+carry two shell parsers -- ash for the prompt, and bash purely as the runtime
+for cmdchamp, whose data model is bash associative arrays. two parsers is twice
+the thing to audit, and bash is the larger of them by a wide margin: it ships
+`/dev/tcp/*/*` and `/dev/udp/*/*`, a socket client inside the shell, on a system
+that compiles out bpf, io_uring and kexec. G23 fails the build if a second shell
+comes back.
 
 on real hardware the framebuffer console gets its own shell so a screen and
 keyboard are usable; the serial console stays primary and is what the harness
 reads.
+
+`learn` is this repo's own, and it is why the one shell can be ash. it teaches
+the whole shipped command surface from nothing to fluent -- the ~140 applets,
+builtins and binaries this image actually contains, in dependency order. losing
+cmdchamp cost the corpus that needed bash; on a read-only root the filesystem is
+already a lookup table, so `learn` reads `ref/<cmd>` and needs no associative
+array at all.
+
+24 lessons and 99 questions cover the whole surface in dependency order, from
+`ls` to reading a suspect disk's bytes without mounting it. then 8 challenges,
+25 scenarios, no hints and no reference lookups -- the last one chains twelve
+distinct commands in a single pipeline. `learn` resumes the curriculum,
+`learn challenge` is the second track.
+
+five rules govern it, and all five are gates rather than intentions:
+
+- everything shipped is documented, and nothing documented is unshipped (G24).
+  the same check compares `busybox --list` against `busybox.config.applets`,
+  which closes a real hole: an applet dropped for an unmet dependency used to
+  ship silently, because `manifest` names only a handful of them by hand.
+- a lesson may only use commands an earlier lesson introduced (G26), so
+  "teach in the right order" survives someone adding a lesson in a hurry.
+- no question may be asked whose answer is not in the entry it points at (G25).
+  busybox ships no man pages, so these entries *are* the manual -- and every one
+  is generated from the help text of the binary this image contains, which means
+  a flag documented here exists here. this gate has already caught a lesson
+  teaching `nc -l`, which upstream busybox supports and this build does not.
+- every documented command is introduced by some lesson (G27), so "teaches
+  everything" is a build property rather than a promise that decays.
+- the challenge track escalates (G29): the last challenge must chain strictly
+  more distinct commands than the first, and at least four.
+
+the reference is complete; the curriculum is selective. a lesson's `uses:` are
+drilled with questions, its `mentions:` are named and explained but not drilled
+-- because nobody needs to be quizzed on `ls -X`, and nobody should be unable to
+look it up either.
 
 tls trusts exactly the certificate authorities in `trust/`, compiled into the
 binary rather than read from a directory, so the set is covered by the hash

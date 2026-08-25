@@ -1,0 +1,11 @@
+let
+Usage: let EXPRESSION...
+
+Evaluate an arithmetic expression. Exit status is 0 when the result is
+non-zero, which is backwards from what you expect and is why $(( )) is
+the better habit.
+
+	let i=i+1
+	i=$((i + 1))		the same thing, preferred
+
+See also: sh, test

@@ -1,0 +1,118 @@
+# ctx -- roll a question context, then render a template against it.
+#
+# this is the part that makes a generated question read like a person wrote it.
+# two rules, both learned the hard way upstream:
+#
+#   1. one pool per SEMANTIC ROLE, never one shared pool. a single name pool
+#      makes half the rolls nonsense -- "store the word count of notes.txt in
+#      now". var.count holds count/num/total, var.time holds now/stamp. the
+#      role is the wording.
+#   2. roll ONCE per question and substitute the same roll into the prompt and
+#      every accepted answer. a second roll between them would ask about
+#      app.log and accept an answer about server.log.
+#
+# no arrays: the roll is emitted as a sed script, and rendering is one sed pass.
+# that is also what guarantees rule 2 -- prompt and answers share one script.
+
+POOLS="$ROOT/pools"
+SUBST=""            # path to the rolled sed script; set by ctx_init
+
+ctx_init() {
+	SUBST="$TMP/subst"
+	: > "$SUBST"
+}
+
+# rnd MAX -> REPLY in 0..MAX-1
+rnd() { REPLY=$(( RANDOM % $1 )); }
+
+# pick POOL -> REPLY is a random line
+pick() {
+	_p="$POOLS/$1"
+	[ -f "$_p" ] || { echo "learn: no pool '$1'" >&2; REPLY=""; return 1; }
+	_n=$(grep -c . "$_p")
+	rnd "$_n"
+	REPLY=$(grep . "$_p" | sed -n "$((REPLY + 1))p")
+}
+
+# pick2 POOL -> REPLY and REPLY2 differ whenever the pool has more than one entry
+pick2() {
+	pick "$1"; _a=$REPLY
+	_t=0
+	while :; do
+		pick "$1"; _b=$REPLY
+		[ "$_b" != "$_a" ] && break
+		_t=$((_t + 1)); [ "$_t" -ge 8 ] && break
+	done
+	REPLY=$_a; REPLY2=$_b
+}
+
+# sub NAME VALUE -- add one substitution to the rolled script.
+# | delimits the rule and & means 'the whole match' on the replacement side, so
+# a value carrying either would emit a rule that silently does the wrong thing.
+# no pool holds one; this refuses loudly rather than trusting that.
+sub() {
+	case "$2" in
+		*'|'*|*'&'*|*'\\'*)
+			echo "learn: pool value is not sed-safe: $2" >&2; return 1 ;;
+	esac
+	printf 's|%%%s%%|%s|g\n' "$1" "$2" >> "$SUBST"
+}
+
+# roll -- fresh context for one question.
+roll() {
+	: > "$SUBST"
+
+	pick2 logs;  sub log "$REPLY";  sub log2 "$REPLY2"
+	pick2 txts;  sub txt "$REPLY";  sub txt2 "$REPLY2"
+	pick2 cfgs;  sub cfg "$REPLY";  sub cfg2 "$REPLY2"
+	pick2 csvs;  sub csv "$REPLY";  sub csv2 "$REPLY2"
+	pick2 dirs;  sub dir "$REPLY";  sub dir2 "$REPLY2"
+	pick  scripts; sub script "$REPLY"
+	pick  bins;    sub bin "$REPLY"
+	pick  archives; sub archive "$REPLY"
+
+	pick2 terms; sub term "$REPLY"; sub term2 "$REPLY2"
+	pick  sev;   sub sev "$REPLY"
+	pick  fields; sub field "$REPLY"
+	pick  exts;   sub ext "$REPLY"
+	pick2 ips;    sub ip "$REPLY";  sub ip2 "$REPLY2"
+	pick2 ports;  sub port "$REPLY"; sub port2 "$REPLY2"
+	pick  ifaces; sub iface "$REPLY"
+	pick  hosts;  sub host "$REPLY"
+	pick  users;  sub user "$REPLY"
+	pick  procs;  sub proc "$REPLY"
+	pick  sizes;  sub size "$REPLY"
+	pick  old;    sub old "$REPLY"
+	pick  new;    sub new "$REPLY"
+	pick  words;  sub word "$REPLY"
+
+	pick var.value; sub var "$REPLY"
+	pick var.count; sub cvar "$REPLY"
+	pick var.time;  sub tvar "$REPLY"
+	pick var.host;  sub hvar "$REPLY"
+	pick var.mode;  sub mvar "$REPLY"
+
+	rnd 20; sub n  "$((REPLY + 1))"
+	rnd 45; sub n2 "$((REPLY + 5))"
+	rnd 8;  sub n3 "$((REPLY + 2))"
+	rnd 4;  sub col "$((REPLY + 1))"
+}
+
+# render -- stdin through the rolled script, then collapse {a|b|c} alternations.
+# awk picks the branch; it is seeded per call so two renders of the same
+# template read differently, and so `learn daily` reproduces exactly.
+render() {
+	sed -f "$SUBST" | awk -v seed="$1" '
+		BEGIN { srand(seed) }
+		{
+			line = $0; out = ""
+			while (match(line, /\{[^{}]*\|[^{}]*\}/)) {
+				out = out substr(line, 1, RSTART - 1)
+				body = substr(line, RSTART + 1, RLENGTH - 2)
+				n = split(body, alt, "|")
+				out = out alt[int(rand() * n) + 1]
+				line = substr(line, RSTART + RLENGTH)
+			}
+			print out line
+		}'
+}

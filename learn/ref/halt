@@ -1,0 +1,8 @@
+halt
+Usage: halt [-d DELAY] [-nf]
+
+Halt the system
+
+	-d SEC	Delay interval
+	-n	Do not sync
+	-f	Force (don't go through init)

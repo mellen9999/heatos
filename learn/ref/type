@@ -1,0 +1,12 @@
+type
+Usage: type NAME...
+
+Shell builtin. Say what NAME actually is: a builtin, a function, an
+alias, or a path to a program. Useful when a command does not behave the
+way the manual for the program says -- often because it is a builtin and
+never reached the program at all.
+
+	type cd		cd is a shell builtin
+	type ls		ls is /bin/ls
+
+See also: which, hash

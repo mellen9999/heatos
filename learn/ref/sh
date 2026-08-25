@@ -1,0 +1,37 @@
+sh
+Usage: sh [-ilsx] [-c 'SCRIPT'] [FILE [ARGS]]
+
+The shell. On this system /bin/sh is busybox ash, and it is the only shell
+installed -- there is no second parser to fall back to or to be surprised by.
+
+	-c SCRIPT	run SCRIPT and exit, instead of reading a file or a tty
+	-i		interactive: prompt, job control, history
+	-s		read the script from standard input
+	-l		login shell
+	-e		exit at the first command that fails
+	-u		treat an unset variable as an error
+	-x		trace: print each command before running it
+
+The grammar you will actually use:
+
+	name=value		assign; no spaces around the =
+	$name  ${name}		expand it
+	"$name"			expand it as ONE word, spaces and all
+	${name:-default}	its value, or default if unset or empty
+	${#name}		how many characters long it is
+	$(cmd)			run cmd, become its output
+	$((2 + 3))		arithmetic
+	cmd1 | cmd2		wire stdout into stdin
+	cmd > f  >> f  < f	redirect out, append, in
+	cmd 2> f  cmd > f 2>&1	errors only; both, in that order
+	cmd1 && cmd2		run cmd2 only if cmd1 succeeded
+	cmd1 || cmd2		run cmd2 only if cmd1 failed
+	cmd &			run in the background
+	$?  $$  $!  $#  $@  $0	status, pid, bg pid, argc, args, own name
+
+What ash deliberately does NOT have, because bash is not installed: arrays,
+associative arrays, process substitution <(cmd), here-strings <<<, and
+[[ ]]. Use [ ] and a pipe. Every one of those omissions is a parser feature
+that has carried a vulnerability at some point.
+
+See also: ash, set, export, read, test

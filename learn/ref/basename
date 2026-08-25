@@ -1,0 +1,7 @@
+basename
+Usage: basename FILE [SUFFIX] | -a FILE... | -s SUFFIX FILE...
+
+Strip directory path and SUFFIX from FILE
+
+	-a		All arguments are FILEs
+	-s SUFFIX	Remove SUFFIX (implies -a)

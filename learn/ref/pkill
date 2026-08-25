@@ -1,0 +1,14 @@
+pkill
+Usage: pkill [-l|-SIGNAL] [-xfvnoe] [-s SID|-P PPID|PATTERN]
+
+Send signal to processes selected by regex PATTERN
+
+	-l	List all signals
+	-x	Match whole name (not substring)
+	-f	Match against entire command line
+	-s SID	Match session ID (0 for current)
+	-P PPID	Match parent process ID
+	-v	Negate the match
+	-n	Signal the newest process only
+	-o	Signal the oldest process only
+	-e	Display name and PID of the process being killed

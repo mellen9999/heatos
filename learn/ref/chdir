@@ -1,0 +1,7 @@
+chdir
+Usage: chdir [DIR]
+
+Change directory. An older spelling of cd, kept for compatibility; cd is
+what you should type.
+
+See also: cd, pwd

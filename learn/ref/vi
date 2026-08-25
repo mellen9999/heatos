@@ -1,0 +1,8 @@
+vi
+Usage: vi [-c CMD] [-R] [-H] [FILE]...
+
+Edit FILE
+
+	-c CMD	Initial command to run ($EXINIT and ~/.exrc also available)
+	-R	Read-only
+	-H	List available features

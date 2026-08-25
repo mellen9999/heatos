@@ -1,0 +1,7 @@
+pwd
+Usage: pwd
+
+Shell builtin. Print the working directory -- the absolute path of where
+you currently are. Takes no arguments you need.
+
+See also: cd, ls

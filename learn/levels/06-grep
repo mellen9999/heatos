@@ -1,0 +1,145 @@
+name: searching text
+boss: Murmur
+flavor: I decide what your commands get to read.
+brief: grep prints the lines that match a pattern. It is the single most
+brief: useful command on this system, and most of its power is in six flags:
+brief: -i ignore case, -v invert, -n number, -c count, -l name files, -r walk
+brief: a tree.
+brief:
+brief: Patterns are regular expressions unless you say otherwise. -F turns
+brief: that off and matches the text literally, which is what you want the
+brief: moment your pattern contains a dot or a bracket you meant as itself.
+---
+q: print every line of %log% containing %sev%
+a: grep %sev% %log%
+out: %sev%
+ref: grep
+teach: grep
+---
+q: print every line of %log% containing %sev%, ignoring case
+a: grep -i %sev% %log%
+out: %sev%
+ref: grep
+teach: grep -i
+---
+q: print every line of %log% that does NOT contain %sev%
+a: grep -v %sev% %log%
+out: .
+ref: grep
+teach: grep -v
+hint: v for invert
+---
+q: count how many lines of %log% contain %sev%
+a: grep -c %sev% %log%
+out: ^[0-9]+$
+ref: grep
+teach: grep -c
+hint: this counts LINES, not occurrences -- two matches on one line count once
+---
+q: print matching lines of %log% with their line numbers
+a: grep -n %sev% %log%
+out: ^[0-9]+:
+ref: grep
+teach: grep -n
+---
+q: search every file under the current directory for %term%, recursively
+a: grep -r %term% .
+out: .
+ref: grep
+teach: grep -r
+---
+q: list only the NAMES of files under here that contain %term%
+a: grep -rl %term% .
+out: .
+ref: grep
+teach: grep -l
+---
+q: list the files under here that do NOT contain %term%
+a: grep -rL %term% .
+out: .
+ref: grep
+teach: grep -L
+---
+q: print only the matched text from %log%, not the whole line
+a: grep -o %sev% %log%
+out: ^%sev%$
+ref: grep
+teach: grep -o
+---
+q: print lines of %log% where %sev% appears as a whole word, not inside another
+a: grep -w %sev% %log%
+out: %sev%
+ref: grep
+teach: grep -w
+---
+q: print lines of %log% that consist of exactly %sev% and nothing else
+a: grep -x %sev% %log%
+ref: grep
+teach: grep -x
+---
+q: find %sev% in %log% and show the 2 lines after each match
+a: grep -A 2 %sev% %log%
+out: %sev%
+ref: grep
+teach: grep -A
+---
+q: find %sev% in %log% and show the 2 lines before each match
+a: grep -B 2 %sev% %log%
+out: %sev%
+ref: grep
+teach: grep -B
+---
+q: find %sev% in %log% and show 2 lines of context on either side
+a: grep -C 2 %sev% %log%
+out: %sev%
+ref: grep
+teach: grep -C
+---
+q: print only the first 2 matching lines of %log% and stop
+a: grep -m 2 %sev% %log%
+out: %sev%
+ref: grep
+teach: grep -m
+---
+q: search %log% for the literal text 0.0.0.0 -- the dots must not be wildcards
+a: grep -F 0.0.0.0 %log%
+out: 0\.0\.0\.0
+ref: grep
+teach: grep -F
+hint: F for fixed string
+---
+q: find lines in %log% holding an IP-like number, using extended regex
+a: grep -E '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' %log%
+out: [0-9]
+ref: grep
+teach: grep -E
+---
+q: match either %sev% or %term% in %log% in one extended-regex pass
+a: grep -E '%sev%|%term%' %log%
+out: .
+ref: grep
+teach: grep -E
+---
+q: check quietly whether %log% mentions %sev% -- no output, just an exit status
+a: grep -q %sev% %log%
+ref: grep
+teach: grep -q
+hint: this is the form you use inside an if
+---
+q: search %log% for %sev% and suppress any error about unreadable files
+a: grep -s %sev% %log%
+out: %sev%
+ref: grep
+teach: grep -s
+---
+q: search %log% using each line of %txt% as a separate pattern
+a: grep -f %txt% %log%
+ref: grep
+teach: grep -f
+---
+q: search %log% for %sev% naming the pattern explicitly with a flag
+a: grep -e %sev% %log%
+out: %sev%
+ref: grep
+teach: grep -e
+hint: -e is how you search for something starting with a dash

@@ -1,0 +1,14 @@
+cut
+Usage: cut [OPTIONS] [FILE]...
+
+Print selected fields from FILEs to stdout
+
+	-b LIST	Output only bytes from LIST
+	-c LIST	Output only characters from LIST
+	-d SEP	Field delimiter for input (default -f TAB, -F run of whitespace)
+	-O SEP	Field delimeter for output (default = -d for -f, one space for -F)
+	-D	Don't sort/collate sections or match -fF lines without delimeter
+	-f LIST	Print only these fields (-d is single char)
+	-F LIST	Print only these fields (-d is regex)
+	-s	Output only lines containing delimiter
+	-n	Ignored

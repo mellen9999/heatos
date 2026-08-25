@@ -1,0 +1,10 @@
+gzip
+Usage: gzip [-cfkdt] [FILE]...
+
+Compress FILEs (or stdin)
+
+	-d	Decompress
+	-c	Write to stdout
+	-f	Force
+	-k	Keep input files
+	-t	Test integrity

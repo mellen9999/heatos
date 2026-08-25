@@ -1,0 +1,12 @@
+head
+Usage: head [OPTIONS] [FILE]...
+
+Print first 10 lines of FILEs (or stdin).
+With more than one FILE, precede each with a filename header.
+
+	-n N[bkm]	Print first N lines
+	-n -N[bkm]	Print all except N last lines
+	-c [-]N[bkm]	Print first N bytes
+			(b:*512 k:*1024 m:*1024^2)
+	-q		Never print headers
+	-v		Always print headers

@@ -1,0 +1,103 @@
+name: first steps
+boss: n00b
+flavor: You don't know where you are yet.
+brief: Three commands answer "where am I, and what is here". pwd prints the
+brief: directory you are standing in. ls lists what it contains. cd moves you.
+brief: Everything else in this system is those three plus a filter.
+brief:
+brief: Answers RUN. Type what you would really type -- if it produces the right
+brief: output it is right, whether or not it is the phrasing anyone expected.
+---
+q: {print|show} the directory you are currently in
+a: pwd
+out: ^/
+ref: pwd
+teach: pwd
+hint: print working directory
+---
+q: {list|show} the contents of the current directory
+a: ls
+out: server\.log
+ref: ls
+teach: ls
+hint: two letters
+---
+q: list the current directory, including names that start with a dot
+a: ls -a
+out: ^\.$|^\.\.$
+ref: ls
+teach: ls -a
+hint: the flag ls describes as "Include names starting with ."
+---
+q: list %dir% in long format, so you can see sizes and permissions
+a: ls -l %dir%
+a: ls -l %dir%/
+out: ^total
+ref: ls
+teach: ls -l
+hint: the long format flag, then the path
+---
+q: list the current directory with sizes in K and M rather than raw bytes
+a: ls -lh
+a: ls -hl
+out: ^total
+ref: ls
+teach: ls -h
+hint: two flags -- long format, and the one ls calls "Human readable"
+---
+q: list the current directory {newest first|sorted by modification time}
+a: ls -lt
+a: ls -t
+out: .
+ref: ls
+teach: ls -t
+hint: sort by time
+---
+q: list the current directory one name per line, nothing else
+a: ls -1
+out: ^server\.log$
+ref: ls
+teach: ls -1
+hint: the digit one, not the letter l
+---
+q: {print|echo} the word %word%
+a: echo %word%
+out: ^%word%$
+ref: echo
+teach: echo
+---
+q: print %word% with no trailing newline
+a: echo -n %word%
+out: %word%
+ref: echo
+teach: echo -n
+hint: n for newline -- the flag suppresses it
+---
+q: print the value of your HOME directory using the HOME variable
+a: echo $HOME
+a: echo "$HOME"
+a: echo ${HOME}
+out: ^/
+ref: echo
+teach: echo
+hint: a dollar sign in front of the name
+---
+q: change into %dir%
+a: cd %dir%
+a: cd %dir%/
+a: cd ./%dir%
+ref: cd
+teach: cd
+---
+q: go up one directory
+a: cd ..
+a: cd ../
+ref: cd
+teach: cd
+hint: two dots mean "the parent"
+---
+q: go back to your home directory, in the shortest way possible
+a: cd
+ref: cd
+teach: cd
+hint: cd with no argument already means home

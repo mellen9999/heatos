@@ -1,0 +1,103 @@
+name: exit status and the special variables
+boss: AndOr
+flavor: Exit zero and you pass. Anything else is mine.
+brief: Every command returns a number. Zero means success; anything else is a
+brief: failure the command chose. $? holds the last one.
+brief:
+brief: That number is what && and || branch on. cmd1 && cmd2 runs the second
+brief: only if the first succeeded; cmd1 || cmd2 only if it failed. This is
+brief: the smallest conditional the shell has, and the most used.
+brief:
+brief: The other specials: $$ this shell's pid, $! the last background pid,
+brief: $# how many arguments, $@ all of them, $0 the name it was invoked as.
+---
+q: print the exit status of the command you just ran
+a: true; echo $?
+out: ^0$
+ref: sh
+teach: sh
+---
+q: run false and then show its exit status
+a: false; echo $?
+out: ^1$
+ref: false
+teach: false
+---
+q: run true and confirm its exit status is zero
+a: true; echo $?
+out: ^0$
+ref: true
+teach: true
+---
+q: print %word% only if %log% contains %sev%
+a: grep -q %sev% %log% && echo %word%
+out: %word%
+ref: grep
+teach: grep -q
+---
+q: print "missing" only if %log% does NOT contain the word nonexistent
+a: grep -q nonexistent %log% || echo missing
+out: ^missing$
+ref: grep
+teach: grep -q
+---
+q: print found if %sev% is in %log%, and missing if it is not, in one line
+a: grep -q %sev% %log% && echo found || echo missing
+out: ^found$
+ref: grep
+teach: grep -q
+---
+q: print this shell's own process id
+a: echo $$
+out: ^[0-9]+$
+ref: sh
+teach: sh
+---
+q: start sleep 1 in the background and print the pid it was given
+a: sleep 1 & echo $!
+out: ^[0-9]+$
+ref: sleep
+teach: sleep
+---
+q: exit the shell with status 0
+a: exit 0
+ref: exit
+teach: exit
+---
+q: exit the shell with status 3
+a: exit 3
+ref: exit
+teach: exit
+hint: any number 0-255; zero means success and everything else is yours to define
+---
+q: invert an exit status -- succeed when grep finds nothing in %log%
+a: ! grep -q nonexistent %log%
+ref: grep
+teach: grep -q
+hint: a leading ! flips the status
+---
+q: make the shell stop at the first command that fails
+a: set -e
+ref: set
+teach: set -e
+---
+q: make the shell treat an unset variable as an error rather than an empty string
+a: set -u
+ref: set
+teach: set -u
+---
+q: make the shell print each command before running it
+a: set -x
+ref: set
+teach: set -x
+hint: this is the shell debugger, and it is usually enough
+---
+q: turn command tracing back off
+a: set +x
+ref: set
+teach: set
+---
+q: show the shell's current option settings
+a: set -o
+ref: set
+teach: set

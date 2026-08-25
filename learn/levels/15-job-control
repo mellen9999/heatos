@@ -1,0 +1,106 @@
+name: job control
+boss: BackgroundNoise
+flavor: I keep running after you look away.
+brief: A & at the end runs a command in the background and hands you back the
+brief: prompt. jobs lists what you started, fg brings one forward, bg resumes a
+brief: stopped one. ^Z stops the job in front of you.
+brief:
+brief: $! is the pid of the last thing you backgrounded. wait blocks until it
+brief: finishes. That pair is how a script starts several things at once and
+brief: then collects them.
+brief:
+brief: All of this dies when the terminal does -- which is what abduco is for.
+---
+q: run "sleep 2" in the background
+a: sleep 2 &
+ref: sleep
+teach: sleep
+hint: an ampersand at the end
+---
+q: run "sleep 2" in the background and print the pid it was given
+a: sleep 2 & echo $!
+out: ^[0-9]+$
+ref: sleep
+teach: sleep
+---
+q: start "sleep 1" in the background and then wait for it to finish
+a: sleep 1 & wait
+ref: wait
+teach: wait
+---
+q: start two sleeps at once and wait for both
+a: sleep 1 & sleep 1 & wait
+ref: wait
+teach: wait
+---
+q: wait for one specific background job by its pid
+a: sleep 1 & wait $!
+ref: wait
+teach: wait
+---
+q: list the jobs running in this shell
+a: jobs
+ref: sh
+teach: sh
+---
+q: run %script% so it keeps running after the terminal goes away
+a: nohup ./%script% &
+ref: nohup
+teach: nohup
+hint: nohup makes the process ignore the hangup signal
+---
+q: run %script% in a brand new session, fully detached from this terminal
+a: setsid ./%script%
+ref: setsid
+teach: setsid
+---
+q: give %script% at most 5 seconds to finish, then kill it
+a: timeout 5 ./%script%
+out: running
+ref: timeout
+teach: timeout
+---
+q: give sleep 10 two seconds, then send it KILL rather than TERM
+a: timeout -s KILL 2 sleep 10
+ref: timeout
+teach: timeout -s
+---
+q: run sleep 10 with a 1 second limit, sending KILL if it ignores the first signal
+a: timeout -k 1 1 sleep 10
+ref: timeout
+teach: timeout -k
+---
+q: start a detached session called work running a shell, so it survives a drop
+a: abduco -n work /bin/sh
+ref: abduco
+teach: abduco -n
+---
+q: start a session called work and attach to it now
+a: abduco -c work /bin/sh
+ref: abduco
+teach: abduco -c
+---
+q: reattach to the session called work
+a: abduco -a work
+ref: abduco
+teach: abduco -a
+---
+q: attach to work if it exists, create it if it does not
+a: abduco -A work /bin/sh
+ref: abduco
+teach: abduco -A
+---
+q: watch the session work without being able to type into it
+a: abduco -r work
+ref: abduco
+teach: abduco -r
+---
+q: list the sessions abduco is holding
+a: abduco
+ref: abduco
+teach: abduco
+---
+q: attach to work using a different detach key, ctrl-q
+a: abduco -e ^q -a work
+ref: abduco
+teach: abduco -e

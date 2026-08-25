@@ -1,0 +1,146 @@
+name: xargs and doing it to everything
+boss: Swarm
+flavor: A thousand commands. One directive.
+brief: Some commands read filenames as arguments; pipes carry text on stdin.
+brief: xargs is the adaptor between them: it turns lines of input into
+brief: arguments of a command.
+brief:
+brief: The classic trap is filenames with spaces. find -print0 emits names
+brief: separated by a NUL byte, which cannot occur in a filename, and xargs -0
+brief: reads them back. Use that pair by default and the problem never arises.
+---
+q: find every .log file and count the lines of each, using xargs
+a: find . -name '*.log' | xargs wc -l
+out: [0-9]
+ref: xargs
+teach: xargs
+---
+q: do the same, safely, for filenames that might contain spaces
+a: find . -name '*.log' -print0 | xargs -0 wc -l
+out: [0-9]
+ref: xargs
+teach: xargs -0
+hint: NUL is the one byte a filename cannot contain
+---
+q: pass exactly one argument per command invocation
+a: ls | xargs -n 1 echo
+out: .
+ref: xargs
+teach: xargs -n
+---
+q: put each input where you want it, not just at the end, using a placeholder
+a: ls *.log | xargs -I {} echo found {}
+out: ^found .*\.log$
+ref: xargs
+teach: xargs -I
+---
+q: show each command before running it
+a: ls | xargs -t echo
+out: .
+ref: xargs
+teach: xargs -t
+---
+q: do nothing at all when the input is empty, rather than running once
+a: printf '' | xargs -r echo nothing
+ref: xargs
+teach: xargs -r
+hint: without -r, an empty input still runs the command once with no arguments
+---
+q: stop reading input at the word STOP
+a: printf 'a b STOP c' | xargs -E STOP echo
+out: ^a b$
+ref: xargs
+teach: xargs -E
+---
+q: run at most 2 commands at the same time
+a: ls | xargs -P 2 -n 1 echo
+out: .
+ref: xargs
+teach: xargs -P
+---
+q: ask before running each command
+a: ls | xargs -p echo
+ref: xargs
+teach: xargs -p
+---
+q: take the argument list from %txt% rather than standard input
+a: xargs -a %txt% echo
+out: rotate
+ref: xargs
+teach: xargs -a
+---
+q: keep each command line under 100 bytes, splitting into more invocations
+a: ls | xargs -s 100 echo
+out: .
+ref: xargs
+teach: xargs -s
+---
+q: strip the directory part off the path %dir%/%txt%
+a: basename %dir%/%txt%
+out: ^%txt%$
+ref: basename
+teach: basename
+---
+q: strip the .txt suffix as well as the directory
+a: basename %txt% .txt
+out: .
+ref: basename
+teach: basename
+---
+q: strip a suffix using the explicit flag rather than a second argument
+a: basename -s .txt %txt%
+out: .
+ref: basename
+teach: basename -s
+---
+q: take the basename of several paths at once
+a: basename -a %txt% %log%
+out: .
+ref: basename
+teach: basename -a
+---
+q: print the directory part of %dir%/%txt%
+a: dirname %dir%/%txt%
+out: ^%dir%$
+ref: dirname
+teach: dirname
+---
+q: resolve %txt% to its full absolute path
+a: realpath %txt%
+out: ^/
+ref: realpath
+teach: realpath
+---
+q: follow a symlink to whatever it finally points at
+a: readlink -f %txt%
+out: ^/
+ref: readlink
+teach: readlink -f
+---
+q: read a symlink without a trailing newline
+a: readlink -n %txt%
+ref: readlink
+teach: readlink -n
+---
+q: where does the command sed live
+a: which sed
+out: sed
+ref: which
+teach: which
+---
+q: is sed a builtin, a file, or a function
+a: type sed
+out: sed
+ref: type
+teach: type
+---
+q: remember where a command lives so the shell stops searching for it
+a: hash sed
+ref: hash
+teach: hash
+---
+q: check whether sed is available, the portable way
+a: command -v sed
+out: sed
+ref: command
+teach: command -v

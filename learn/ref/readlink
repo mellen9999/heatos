@@ -1,0 +1,8 @@
+readlink
+Usage: readlink [-fnv] FILE
+
+Display the value of a symlink
+
+	-n	Don't add newline
+	-f	Canonicalize by following all symlinks
+	-v	Verbose

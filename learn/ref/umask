@@ -1,0 +1,10 @@
+umask
+Usage: umask [MASK]
+
+Shell builtin. Set the permission bits withheld from newly created files.
+It subtracts: 077 means new files are readable only by their owner.
+
+vos's init sets umask 077 before handing you a shell, so anything you
+write to tmpfs is private by default.
+
+See also: chmod

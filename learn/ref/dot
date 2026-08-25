@@ -1,0 +1,18 @@
+.
+Usage: . FILE [ARGS]
+
+Read FILE and run it in the CURRENT shell, rather than starting a new one.
+Variables it sets, directories it cd's to, and functions it defines all
+survive, because nothing was forked.
+
+	. ./settings.sh		load settings into this shell
+	sh ./settings.sh	run it in a child -- the changes are lost
+
+That difference is the whole reason this exists. `source` is the bash
+spelling; ash has only the dot.
+
+This page is stored as "dot" because a file cannot be named "." -- that
+name always means the directory itself. learn translates it for you, so
+`learn ref .` works.
+
+See also: sh, exec, eval

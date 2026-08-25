@@ -1,0 +1,7 @@
+exit
+Usage: exit [N]
+
+Shell builtin. Leave the shell with status N (default: the status of the
+last command). 0 means success; anything else is a failure.
+
+See also: return, true, false

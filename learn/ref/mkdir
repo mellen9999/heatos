@@ -1,0 +1,7 @@
+mkdir
+Usage: mkdir [-m MODE] [-p] DIRECTORY...
+
+Create DIRECTORY
+
+	-m MODE	Mode
+	-p	No error if exists; make parent directories as needed

@@ -1,0 +1,4 @@
+server.log
+app.log
+logs/access.log
+logs/error.log

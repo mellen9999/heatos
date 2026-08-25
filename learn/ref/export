@@ -1,0 +1,14 @@
+export
+Usage: export NAME=VALUE  |  export NAME
+
+Shell builtin. Mark a variable so that programs the shell starts inherit
+it. Without export a variable exists only inside the shell itself.
+
+	export TERM=linux
+	export PATH="$PATH:/opt/bin"
+	export		list everything currently exported
+
+vos's init exports HOME, TERM and the XDG_* paths this way before it
+hands you a shell.
+
+See also: set, unset, read

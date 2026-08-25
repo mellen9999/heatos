@@ -1,5 +1,5 @@
 #!/bin/bash
-# vrl commit wall: artifacts and keys never enter the repo, and the
+# vos commit wall: artifacts and keys never enter the repo, and the
 # image cap can only move in a visible diff.
 set -uo pipefail
 
@@ -47,8 +47,8 @@ done <<< "$staged"
 
 # G1 -- if an image exists, it must be under the cap declared in build.sh
 CAP=$(grep -oE '^IMAGE_MAX=[0-9]+' build.sh 2>/dev/null | cut -d= -f2)
-if [ -n "${CAP:-}" ] && [ -f vrl.img ]; then
-	sz=$(stat -c%s vrl.img)
+if [ -n "${CAP:-}" ] && [ -f vos.img ]; then
+	sz=$(stat -c%s vos.img)
 	if [ "$sz" -gt "$CAP" ]; then
 		say "image is $sz bytes, cap is $CAP -- over by $((sz - CAP))"
 	fi

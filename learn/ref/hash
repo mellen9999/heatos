@@ -1,0 +1,7 @@
+hash
+Usage: hash [-r] [NAME...]
+
+Shell builtin. Show or reset the shell's cache of where commands live.
+-r clears it, which matters after PATH changes.
+
+See also: type, which

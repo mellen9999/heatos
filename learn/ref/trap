@@ -1,0 +1,11 @@
+trap
+Usage: trap [HANDLER SIGNAL...]
+
+Shell builtin. Run HANDLER when a signal arrives. EXIT is a pseudo-signal
+that fires when the shell ends, which is how scripts clean up reliably.
+
+	trap 'rm -f "$tmp"' EXIT
+	trap '' INT		ignore ctrl-c
+	trap			list current traps
+
+See also: kill, exit

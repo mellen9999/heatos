@@ -1,0 +1,10 @@
+bg
+Usage: bg [JOB]
+
+Resume a stopped job in the background, so it runs while you keep working.
+
+	ctrl-z		stop the job in front of you
+	bg		let it carry on behind you
+	bg %2		specifically job 2
+
+See also: fg, jobs

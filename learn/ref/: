@@ -1,0 +1,11 @@
+:
+Usage: :
+
+Do nothing, successfully. The null command: it expands its arguments and
+returns 0.
+
+	while :; do ... done	loop forever
+	: > file		truncate a file to nothing
+	: ${VAR:=default}	set VAR only if it was unset
+
+See also: true, false

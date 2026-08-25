@@ -1,0 +1,16 @@
+blkid
+Usage: blkid [BLOCKDEV]...
+
+Print UUIDs of all filesystems, or of the block devices named. Reports
+the filesystem type and label too, by reading each device's superblock.
+
+	blkid			every device it can see
+	blkid /dev/sda1		just that one
+
+On vos this is mostly a way to confirm what the machine actually exposes.
+The stick you booted from appears; the host's internal disk does not,
+because no NVMe or SATA driver is compiled in. A device that has no
+driver cannot be read, mounted, or written -- which is the guarantee,
+enforced by absence rather than by policy.
+
+See also: findfs, mount, df, blockdev

@@ -1,0 +1,81 @@
+# cards -- what you know, and when you last proved it.
+#
+# every distinct prompt is a card with a tier: 0 unseen, 1 learning, 2 mastered.
+# right promotes one tier, wrong demotes one. a card promotes at most once per
+# session, so mastery costs two sittings and cannot be farmed in one.
+#
+# a card unseen for 30 days decays a tier. that is the difference between a
+# score and a skill: the number goes down when you stop, because so does the
+# skill. tier 0 is forgotten -- the card leaves the file entirely.
+#
+# storage is one line per card, "key<TAB>tier<TAB>stamp", in a file on p3 when
+# p3 is unlocked and in tmpfs when it is not. no arrays: awk owns the file.
+# the separator is a tab and not a space because the key is a whole question
+# template -- it is full of spaces, and splitting on them silently truncated
+# every lookup to the first word.
+
+CARDS="$STATE/cards"
+SESSION_SEEN="$TMP/seen"
+DECAY_DAYS=30
+
+cards_init() {
+	mkdir -p "$STATE" 2>/dev/null || :
+	: > "$SESSION_SEEN"
+	[ -f "$CARDS" ] || : > "$CARDS" 2>/dev/null || :
+}
+
+# a card is keyed by the TEMPLATE, not the rendered prompt. the roll changes
+# the filenames every time; what you are learning is the shape of the question,
+# so `list %dir% in long format` is one card however it renders.
+card_key() { printf '%s/%s#%s' "$1" "$2" "$3" | tr -d '\t'; }
+
+card_tier() {
+	[ -f "$CARDS" ] || { echo 0; return; }
+	awk -F'\t' -v k="$1" '$1 == k { print $2; found = 1; exit } END { if (!found) print 0 }' "$CARDS"
+}
+
+card_set() {
+	local tmp="$TMP/cards.$$"
+	[ -f "$CARDS" ] || : > "$CARDS"
+	awk -F'\t' -v OFS='\t' -v k="$1" -v t="$2" -v s="$3" '
+		$1 == k { next }
+		{ print }
+		END { if (t > 0) print k, t, s }
+	' "$CARDS" > "$tmp" 2>/dev/null && mv "$tmp" "$CARDS" 2>/dev/null || :
+}
+
+now() { date +%s; }
+
+# card_grade KEY RIGHT -- promote or demote, at most one promotion per session
+card_grade() {
+	local k=$1 right=$2 t
+	t=$(card_tier "$k")
+	if [ "$right" = 1 ]; then
+		grep -qxF -- "$k" "$SESSION_SEEN" 2>/dev/null && return 0
+		echo "$k" >> "$SESSION_SEEN"
+		[ "$t" -lt 2 ] && t=$((t + 1))
+	else
+		[ "$t" -gt 0 ] && t=$((t - 1))
+	fi
+	card_set "$k" "$t" "$(now)"
+}
+
+# cards_decay -- run once at startup. a tier that has not been proved in
+# DECAY_DAYS drops by one; a card that drops to 0 is dropped from the file.
+cards_decay() {
+	[ -s "$CARDS" ] || return 0
+	local tmp="$TMP/cards.$$" cutoff
+	cutoff=$(( $(now) - DECAY_DAYS * 86400 ))
+	awk -F'\t' -v OFS='\t' -v c="$cutoff" '
+		{ t = $2; if ($3 < c) t = t - 1; if (t > 0) print $1, t, $3 }
+	' "$CARDS" > "$tmp" 2>/dev/null && mv "$tmp" "$CARDS" 2>/dev/null || :
+}
+
+# weakest first: tier 0 before tier 1 before tier 2. this is what makes a
+# review session spend its time where you are actually weak.
+cards_sort_weak() {
+	while IFS= read -r line; do
+		[ -n "$line" ] || continue
+		printf '%s\t%s\n' "$(card_tier "${line%%	*}")" "$line"
+	done | sort -n -k1,1 | cut -f2-
+}

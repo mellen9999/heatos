@@ -1,0 +1,30 @@
+abduco
+Usage: abduco [-a|-A|-c|-n] [-r] [-l] [-f] [-e detachkey] name command
+
+Detach a program from the terminal that started it. The program keeps its
+own pseudo-terminal, owned by abduco, so it survives the terminal going
+away -- a closed console, a dropped serial line, a killed ssh session.
+
+	-c	create a session and attach to it
+	-n	create a session and leave it detached
+	-a	attach to an existing session
+	-A	attach if it exists, create it if it does not
+	-e	set the detach key (default is ctrl-\)
+	-r	attach read-only -- watch without being able to type
+	-f	force, even when the session looks already attached
+	-l	force the created session to be a login shell
+
+	abduco -c work			start a session called work
+	ctrl-\				detach; the program keeps running
+	abduco				list sessions
+	abduco -a work			pick it back up
+	abduco -r work			watch it without touching it
+
+With no command, /bin/sh is started. Several people may attach to one
+session at once and all see the same screen, so the console and a remote
+session can watch the same work.
+
+Sessions are unix sockets under $HOME, which is tmpfs here -- so they do
+not survive a reboot.
+
+See also: setsid, cttyhack, tty

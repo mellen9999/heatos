@@ -1,0 +1,13 @@
+readonly
+Usage: readonly [NAME[=VALUE]]...
+
+Mark a variable so it cannot be changed or unset for the life of this
+shell. With no arguments, list the ones already marked.
+
+	readonly ROOT=/usr/share/learn
+	ROOT=/tmp		error, and the value is unchanged
+
+Useful at the top of a script for values that must not drift underneath
+you later on.
+
+See also: export, set, unset

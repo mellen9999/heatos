@@ -1,0 +1,20 @@
+# busybox CONFIG symbols to keep that are not applet names.
+#
+# build.sh trim mode turns off every CONFIG_*=y whose symbol is not an applet we
+# asked for. that is the right default -- it is what keeps the binary small --
+# but it also stripped the ash features that make ash a shell you can actually
+# live in, and one of them (RANDOM) is load-bearing for learn's question
+# generator. without this file those come back off on every clean build and
+# nothing notices. G30 pins the list to reality.
+#
+# BASH_COMPAT is deliberately absent: vrl ships one shell and it is ash. adding
+# bash's parser back in is the thing this design exists to avoid.
+
+ASH_RANDOM_SUPPORT   # $RANDOM -- learn's context roll; seedable for `learn daily`
+ASH_ALIAS            # alias/unalias
+ASH_CMDCMD           # command -v / command -p
+ASH_GETOPTS          # getopts, for writing scripts on the stick
+ASH_JOB_CONTROL      # jobs/fg/bg + ^Z
+ASH_ECHO             # echo/printf/test as builtins: no fork per call, and the
+ASH_PRINTF           # only versions guaranteed present when PATH is broken
+ASH_TEST

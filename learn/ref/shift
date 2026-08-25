@@ -1,0 +1,7 @@
+shift
+Usage: shift [N]
+
+Shell builtin. Discard the first N positional parameters (default 1), so
+$2 becomes $1 and so on. The standard way to walk an argument list.
+
+See also: set

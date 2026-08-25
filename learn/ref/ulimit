@@ -1,0 +1,10 @@
+ulimit
+Usage: ulimit [-f SIZE] [-a]
+
+Shell builtin. Show or set resource limits for the shell and everything
+it starts.
+
+	-a	show all current limits
+	-f N	cap file size at N blocks
+
+See also: free, ps

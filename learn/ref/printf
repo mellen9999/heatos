@@ -1,0 +1,36 @@
+printf
+Usage: printf FORMAT [ARG]...
+
+Format and print ARG(s) according to FORMAT (a-la C printf). Unlike echo,
+it adds no newline of its own -- you write one where you want one -- and
+its behaviour is identical in every shell, which is why it is the right
+choice for anything with escapes or leading dashes.
+
+Escapes in FORMAT:
+
+	\n	newline
+	\t	tab
+	\r	carriage return
+	\\	a literal backslash
+	\0NNN	the byte with octal value NNN
+
+Conversions, each consuming one ARG:
+
+	%s	the argument as a string
+	%d	as a signed decimal integer
+	%x	as lowercase hex
+	%c	as a single character
+	%%	a literal percent sign
+
+Width and alignment go between % and the letter: %5d right-aligns in
+five columns, %-12s left-aligns in twelve.
+
+	printf 'hello\n'
+	printf '%s is %d bytes\n' "$f" "$n"
+	printf '%-12s %s\n' name value
+	printf 'GET / HTTP/1.0\r\n\r\n' | nc example.org 80
+
+FORMAT is reused until the arguments run out, so `printf '%s\n' a b c`
+prints three lines.
+
+See also: echo, read

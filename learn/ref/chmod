@@ -1,0 +1,9 @@
+chmod
+Usage: chmod [-Rcvf] MODE[,MODE]... FILE...
+
+MODE is octal number (bit pattern sstrwxrwxrwx) or [ugoa]{+|-|=}[rwxXst]
+
+	-R	Recurse
+	-c	List changed files
+	-v	Verbose
+	-f	Hide errors

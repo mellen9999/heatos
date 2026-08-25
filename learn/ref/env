@@ -1,0 +1,8 @@
+env
+Usage: env [-i0] [-u NAME]... [-] [NAME=VALUE]... [PROG ARGS]
+
+Print current environment or run PROG after setting up environment
+
+	-, -i	Start with empty environment
+	-0	NUL terminated output
+	-u NAME	Remove variable from environment

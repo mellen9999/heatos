@@ -1,0 +1,121 @@
+# fixtures -- the tree answers run against.
+#
+# every path here is read out of learn/pools, not written twice. that is the
+# invariant: the roll picks a filename from pools/logs, and the sandbox builds
+# exactly what pools/logs names, so a generated question cannot ask about a
+# file that does not exist. G31 checks it from the outside too.
+#
+# the content is small, fixed and deliberately shaped so the interesting
+# answers have interesting output: repeated lines to dedupe, mixed severities
+# to filter and count, a csv with a header row to skip, a binary with a string
+# buried in it.
+
+SANDBOX="${LEARN_SANDBOX:-$TMP/sandbox}"
+SANDBOX_OK=0
+
+# parent directory of every pooled path that has one. the grep comes BEFORE
+# the strip: filtering after it drops samples/target.bin, whose parent is a
+# single component and so no longer contains a slash to match.
+_fx_dirs() { grep '/' | sed 's|/[^/]*$||' | sort -u; }
+
+sandbox_build() {
+	rm -rf "$SANDBOX" 2>/dev/null
+	mkdir -p "$SANDBOX" || return 1
+	cd "$SANDBOX" || return 1
+
+	# directories: the ones pools/dirs names, plus every parent implied by a
+	# pooled file path (logs/access.log implies logs/).
+	mkdir -p $(grep . "$POOLS/dirs") 2>/dev/null
+	mkdir -p $(cat "$POOLS/logs" "$POOLS/bins" "$POOLS/archives" | _fx_dirs) 2>/dev/null
+
+	local f
+	for f in $(grep . "$POOLS/logs"); do
+		cat > "$f" <<-'EOF'
+		2024-03-01 09:14:02 INFO  service started
+		2024-03-01 09:14:05 INFO  listening on 0.0.0.0:8080
+		2024-03-01 09:20:41 WARN  slow query took 2103ms
+		2024-03-01 09:21:07 ERROR connection refused 10.0.0.50
+		2024-03-01 09:21:07 ERROR connection refused 10.0.0.50
+		2024-03-01 09:22:18 INFO  retry succeeded
+		2024-03-01 09:31:55 ERROR timeout talking to 192.168.1.100
+		2024-03-01 09:40:12 DEBUG cache hit ratio 0.87
+		2024-03-01 09:44:39 WARN  disk usage at 91%
+		2024-03-01 09:52:00 FATAL out of memory, aborting
+		EOF
+	done
+
+	for f in $(grep . "$POOLS/txts"); do
+		cat > "$f" <<-'EOF'
+		rotate the logs before they fill the disk
+		check the certificate expiry
+		rotate the logs before they fill the disk
+		verify the root hash after every build
+		ask why the fan is loud
+		verify the root hash after every build
+		EOF
+	done
+
+	for f in $(grep . "$POOLS/csvs"); do
+		cat > "$f" <<-'EOF'
+		name,id,status,count
+		gateway,1,up,42
+		bastion,2,down,7
+		router,3,up,19
+		jump-host,4,up,7
+		EOF
+	done
+
+	for f in $(grep . "$POOLS/cfgs"); do
+		cat > "$f" <<-'EOF'
+		# generated -- do not edit by hand
+		listen = 0.0.0.0
+		port = 8080
+		debug = true
+		retries = 3
+
+		timeout = 30
+		EOF
+	done
+
+	for f in $(grep . "$POOLS/scripts"); do
+		printf '#!/bin/sh\n# %s\nset -eu\necho running %s\n' "$f" "$f" > "$f"
+		chmod 0755 "$f"
+	done
+
+	for f in $(grep . "$POOLS/bins"); do
+		{ printf '\177ELF\002\001\001\0'; printf '%s' "unlocked-by-strings"
+		  dd if=/dev/zero bs=64 count=1 2>/dev/null; } > "$f"
+	done
+
+	# archives are built from the tree so their contents are real and listable
+	tar czf "$(sed -n 1p "$POOLS/archives")" src data 2>/dev/null
+	tar cf  "$(sed -n 2p "$POOLS/archives")" $(grep . "$POOLS/txts") 2>/dev/null
+
+	# a couple of files that only exist to be found by the finding lessons
+	printf 'staged\n' > src/main.c
+	printf 'staged\n' > src/util.c
+	printf 'old\n'    > backup/notes.txt.bak
+	: > data/empty
+
+	# the pools are the manifest. if anything they name did not get built, a
+	# generated question is about to ask after a file that is not there --
+	# say so now rather than grading someone wrong for it.
+	local missing="" p
+	for p in $(cat "$POOLS/logs" "$POOLS/txts" "$POOLS/csvs" "$POOLS/cfgs" \
+	               "$POOLS/scripts" "$POOLS/bins" "$POOLS/archives" \
+	               "$POOLS/dirs" 2>/dev/null | grep .); do
+		[ -e "$p" ] || missing="$missing $p"
+	done
+	cd - >/dev/null 2>&1 || :
+	[ -z "$missing" ] || { echo "learn: sandbox missing:$missing" >&2; return 1; }
+	SANDBOX_OK=1
+}
+
+# rebuild only when an answer actually changed something. a read-only answer
+# (the common case) leaves the tree alone and costs nothing.
+SANDBOX_DIRTY=0
+sandbox_reset() {
+	[ "$SANDBOX_OK" = 1 ] || { sandbox_build || return 1; return 0; }
+	[ "$SANDBOX_DIRTY" = 1 ] || return 0
+	sandbox_build
+}

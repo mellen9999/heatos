@@ -1,0 +1,126 @@
+name: sed
+boss: Lookaround
+flavor: I remember what you wrote. I match it again.
+brief: sed edits a stream. It reads a line, applies your commands, prints the
+brief: result. The one you will use forever is s/old/new/ -- and the trailing
+brief: g, which changes every match on the line instead of only the first.
+brief:
+brief: -n turns off the automatic printing, which turns sed into a selector:
+brief: -n '5p' prints only line 5. -i edits the file in place, and on a
+brief: read-only root that only works on files you put somewhere writable.
+---
+q: replace the first %old% on each line of %cfg% with %new%
+a: sed 's/%old%/%new%/' %cfg%
+out: .
+ref: sed
+teach: sed
+---
+q: replace EVERY %old% on every line of %cfg% with %new%
+a: sed 's/%old%/%new%/g' %cfg%
+out: .
+ref: sed
+teach: sed
+hint: the g goes after the final slash
+---
+q: replace %old% with %new% in %cfg%, ignoring case
+a: sed 's/%old%/%new%/gi' %cfg%
+a: sed 's/%old%/%new%/Ig' %cfg%
+out: .
+ref: sed
+teach: sed
+---
+q: print only line 3 of %log%, and nothing else
+a: sed -n '3p' %log%
+out: WARN
+ref: sed
+teach: sed -n
+hint: -n suppresses the automatic print, so only what you p yourself appears
+---
+q: print lines 2 through 4 of %log%
+a: sed -n '2,4p' %log%
+out: .
+ref: sed
+teach: sed -n
+---
+q: print every line of %log% that mentions %sev%, using sed rather than grep
+a: sed -n '/%sev%/p' %log%
+out: %sev%
+ref: sed
+teach: sed -n
+---
+q: delete every line of %log% mentioning %sev%
+a: sed '/%sev%/d' %log%
+out: .
+ref: sed
+teach: sed
+---
+q: delete the comment lines -- the ones starting with # -- from %cfg%
+a: sed '/^#/d' %cfg%
+out: listen
+ref: sed
+teach: sed
+---
+q: delete the blank lines from %cfg%
+a: sed '/^$/d' %cfg%
+out: timeout
+ref: sed
+teach: sed
+---
+q: delete the first line of %csv%, the header row
+a: sed '1d' %csv%
+out: ^gateway
+ref: sed
+teach: sed
+---
+q: strip every leading space from the lines of %log%
+a: sed 's/^ *//' %log%
+out: 2024
+ref: sed
+teach: sed
+---
+q: do two edits in one pass -- drop comments, then drop blank lines -- from %cfg%
+a: sed -e '/^#/d' -e '/^$/d' %cfg%
+out: listen
+ref: sed
+teach: sed -e
+hint: -e lets you give more than one script
+---
+q: pull the number out of every port line in %cfg% using an extended regex
+a: sed -E 's/^port = ([0-9]+)$/\1/' %cfg%
+out: 8080
+ref: sed
+teach: sed -E
+hint: -E gives you (groups) without backslashes; \1 is what the group caught
+---
+q: same thing, but with the older flag letter for extended regular expressions
+a: sed -r 's/^port = ([0-9]+)$/\1/' %cfg%
+out: 8080
+ref: sed
+teach: sed -r
+hint: -r and -E are the same flag; -E is the portable spelling
+---
+q: swap the first two comma-separated fields of %csv%
+a: sed -E 's/^([^,]+),([^,]+)/\2,\1/' %csv%
+out: .
+ref: sed
+teach: sed -E
+---
+q: copy %cfg% to edit.ini and then change %old% to %new% inside it, in place
+a: cp %cfg% edit.ini && sed -i 's/%old%/%new%/g' edit.ini
+state: exists:edit.ini
+ref: sed
+teach: sed -i
+hint: -i writes the file back rather than printing it
+---
+q: print only the last line of %log% using sed
+a: sed -n '$p' %log%
+out: out of memory
+ref: sed
+teach: sed -n
+hint: $ means "the last line"
+---
+q: print every line of %log% from the first %sev% to the end
+a: sed -n '/%sev%/,$p' %log%
+out: .
+ref: sed
+teach: sed -n

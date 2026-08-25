@@ -1,0 +1,15 @@
+# shell builtins: part of the command surface, but not busybox applets, so they
+# never appear in `busybox --list`.
+#
+# this list is NOT hand-maintained any more. it was, and it silently went stale
+# the moment busybox.config.features turned on alias/getopts/jobs -- seven live
+# builtins that nothing documented and no gate noticed, because the gate only
+# checked the names someone had remembered to write down.
+#
+# G24 now derives the truth from two places that cannot both be wrong: the
+# builtin table in the pinned ash.c, filtered by what the BUILT binary reports
+# for `type NAME`. this file must equal that set exactly, in both directions.
+. : [ alias bg break cd chdir command continue echo eval exec exit
+export false fg getopts hash history jobs kill let local printf pwd
+read readonly return set shift test times trap true type ulimit umask
+unalias unset wait

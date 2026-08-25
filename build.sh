@@ -4,15 +4,18 @@ cd "$(dirname "$0")"
 
 KVER="${KVER:-6.12.43}"
 BBVER="${BBVER:-1.37.0}"
-BASHVER="${BASHVER:-5.3}"
 IIVER="${IIVER:-2.0}"
 BSSLVER="${BSSLVER:-0.6}"
-CMDCHAMP_SRC="${CMDCHAMP_SRC:-$HOME/projects/cmdchamp}"
+ABDVER="${ABDVER:-0.6}"
+# the binaries that are not busybox applets. this was written out three separate
+# times -- seed(), and twice inside G24 -- so adding one meant editing three
+# places and forgetting any of them failed confusingly. one list, read everywhere.
+EXTRA_BINS="ii tlstunnel learn abduco"
 # plaintext private keys live ONLY here, only while unlocked. /dev/shm is
 # tmpfs, so nothing lands on disk. the path is scoped to THIS tree: /dev/shm is
 # shared across every checkout and worktree a user has open, so a bare per-uid
 # path let one tree's unlock silently satisfy another tree's.
-RAMKEYS="/dev/shm/vrl-keys-$(id -u)-$(printf %s "$PWD" | sha256sum | cut -c1-12)"
+RAMKEYS="/dev/shm/vos-keys-$(id -u)-$(printf %s "$PWD" | sha256sum | cut -c1-12)"
 JOBS="$(nproc)"
 IMAGE_MAX=8388608
 SALT=56524c000000000000000000000000000000000000000000000000000000000a
@@ -36,8 +39,8 @@ export SOURCE_DATE_EPOCH=1755648000
 # the same source builds differently in a different timezone.
 export TZ=UTC
 export KBUILD_BUILD_TIMESTAMP="$(date -u -d "@$SOURCE_DATE_EPOCH" 2>/dev/null)"
-export KBUILD_BUILD_USER=vrl
-export KBUILD_BUILD_HOST=vrl
+export KBUILD_BUILD_USER=vos
+export KBUILD_BUILD_HOST=vos
 
 say() { printf '\n\033[1;33m==> %s\033[0m\n' "$*"; }
 
@@ -102,14 +105,15 @@ fetch() {
       "linux-$KVER.tar.xz" "linux-$KVER"
   get "https://busybox.net/downloads/busybox-$BBVER.tar.bz2" \
       "busybox-$BBVER.tar.bz2" "busybox-$BBVER"
-  # bash: GNU publishes PGP sigs, not digest lists, so the pin is anchored to
-  # a signature check done once by hand (Chet Ramey, DSA 7C0135FB...).
-  get "https://ftp.gnu.org/gnu/bash/bash-$BASHVER.tar.gz" \
-      "bash-$BASHVER.tar.gz" "bash-$BASHVER"
   # ii: suckless publishes no signature, so this pin is trust-on-first-use
   # over TLS only. see SOURCES.md -- it is weaker than the others on purpose.
   get "https://dl.suckless.org/tools/ii-$IIVER.tar.gz" \
       "ii-$IIVER.tar.gz" "ii-$IIVER"
+  # abduco: brain-dump.org publishes no signature either -- see SOURCES.md.
+  # 0.6 is from 2015 and has not needed a release since, which is the good kind
+  # of stale: four C files that do one thing.
+  get "https://www.brain-dump.org/projects/abduco/abduco-$ABDVER.tar.gz" \
+      "abduco-$ABDVER.tar.gz" "abduco-$ABDVER"
   # bearssl: also no upstream signature -- see SOURCES.md
   get "https://bearssl.org/bearssl-$BSSLVER.tar.gz" \
       "bearssl-$BSSLVER.tar.gz" "bearssl-$BSSLVER"
@@ -169,6 +173,16 @@ kernel() {
   echo 0 > "$d/.version"
   make -C "$d" -j"$JOBS" bzImage
   cp "$d/arch/x86/boot/bzImage" bzImage
+  # bind the binary to the config it was built from. G14 checks .config, not
+  # bzImage, so a kernel built days before kernel.config changed passed every
+  # gate while failing the boot-time asserts -- the config said lockdown and
+  # no-vsyscall, the running kernel disagreed, and nothing in the build noticed.
+  # two digests: the expanded config (what was really compiled) and our source
+  # kernel.config (the only one a gate can recompute without rebuilding).
+  {
+    sha256sum < "$d/.config"   | awk '{print "expanded " $1}'
+    sha256sum < kernel.config  | awk '{print "source   " $1}'
+  } > bzImage.config.sha256
 }
 
 bbset() {
@@ -208,7 +222,9 @@ busybox() {
   if [ "${BBMODE:-trim}" = trim ]; then
     grep -o '^CONFIG_[A-Z0-9_]*=y' "$d/.config" | sed 's/^CONFIG_//;s/=y$//' > /tmp/bb-all.$$
     local keep
-    keep=$(tr ' ' '\n' < busybox.config.applets | grep -v '^$' | tr 'a-z' 'A-Z' | sort -u)
+    keep=$( { grep -v '^[[:space:]]*#' busybox.config.applets
+              sed 's/#.*//' busybox.config.features
+            } | tr ' ' '\n' | grep -v '^$' | tr 'a-z' 'A-Z' | sort -u)
     while read -r sym; do
       case "$sym" in
         STATIC|*FEATURE*|*PLATFORM*|*LFS*|DESKTOP|LONG_OPTS|SHOW_USAGE|*_PREFIX*|INSTALL_*|*_APPLET_*) continue ;;
@@ -217,6 +233,11 @@ busybox() {
     done < /tmp/bb-all.$$
     rm -f /tmp/bb-all.$$
   fi
+
+  # keeping a symbol out of the trim list only means trim will not turn it OFF;
+  # it says nothing about defconfig having it ON. assert it instead of hoping.
+  local feat
+  for feat in $(sed 's/#.*//' busybox.config.features); do bbset "$d" "$feat" y; done
 
   # `yes |` takes SIGPIPE when make exits; pipefail would turn that into exit 141
   # and silently abort before compiling. this bit us twice.
@@ -232,22 +253,15 @@ busybox() {
   cp "$d/busybox" busybox
   # form gates can pass on a binary that segfaults -- so prove it executes
   ./busybox true 2>/dev/null || { echo "FAIL: built busybox does not run" >&2; return 1; }
+  # oldconfig can silently drop a symbol whose dependencies were trimmed away.
+  # a feature that vanishes here is exactly the quiet shrink this repo exists to
+  # catch, so read it back out of the config we just compiled.
+  local missing=""
+  for feat in $(sed 's/#.*//' busybox.config.features); do
+    grep -qx "CONFIG_$feat=y" "$d/.config" || missing="$missing $feat"
+  done
+  [ -z "$missing" ] || { echo "FAIL: busybox dropped requested features:$missing" >&2; return 1; }
   printf '  busybox binary: %d bytes (musl static-pie, runs)\n' "$(stat -c%s busybox)"
-}
-
-bash_() {
-  say "building bash $BASHVER (musl static-pie)"
-  local d="src/bash-$BASHVER" specs="$PWD/musl-static-pie.specs"
-  [ -d "$d" ] || { echo "FAIL: bash source missing, run fetch" >&2; return 1; }
-  if [ ! -f "$d/bash" ]; then
-    ( cd "$d" && CC="gcc -specs=$specs" ./configure --host=x86_64-pc-linux-gnu \
-        --without-bash-malloc --disable-nls --enable-static-link >/dev/null 2>&1 \
-      && make -j"$JOBS" >/dev/null 2>&1 )
-  fi
-  [ -f "$d/bash" ] || { echo "FAIL: bash did not build" >&2; return 1; }
-  strip "$d/bash"; cp "$d/bash" bash
-  ./bash -c 'exit 0' || { echo "FAIL: built bash does not run" >&2; return 1; }
-  printf '  bash: %d bytes\n' "$(stat -c%s bash)"
 }
 
 ta() {
@@ -281,6 +295,28 @@ tls() {
   printf '  tlstunnel: %d bytes\n' "$(stat -c%s tlstunnel)"
 }
 
+abduco() {
+  say "building abduco $ABDVER (session detach, musl static-pie)"
+  local d="src/abduco-$ABDVER" specs="$PWD/musl-static-pie.specs"
+  [ -d "$d" ] || { echo "FAIL: abduco source missing, run fetch" >&2; return 1; }
+  # upstream defaults to running dvtm, which this system does not ship. the
+  # override is a tracked file so the change shows up in a diff.
+  [ -f abduco.config.h ] || { echo "FAIL: abduco.config.h missing" >&2; return 1; }
+  cp abduco.config.h "$d/config.h"
+  rm -f "$d/abduco"
+  # -lutil for forkpty(). musl keeps forkpty in libc and ships an empty
+  # libutil.a for compatibility, so this resolves and costs nothing.
+  gcc -specs="$specs" -fPIE -Os -isystem "$PWD/sysroot/include" \
+    -std=c99 -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700 \
+    -DVERSION="\"$ABDVER\"" -DNDEBUG -I"$d" \
+    -o abduco "$d/abduco.c" -lutil || return 1
+  strip abduco
+  # form gates pass on a binary that segfaults, so prove it executes
+  { ./abduco 2>&1 || true; } | has 'Active sessions' \
+    || { echo "FAIL: built abduco does not run" >&2; return 1; }
+  printf '  abduco: %d bytes\n' "$(stat -c%s abduco)"
+}
+
 ii_() {
   say "building ii $IIVER (irc, musl static-pie)"
   local d="src/ii-$IIVER" specs="$PWD/musl-static-pie.specs"
@@ -305,43 +341,39 @@ rootfs() {
   # names come from busybox itself, not our config list -- the two drift
   # (CONFIG_TEST1 is the applet named "["), and a missing applet makes
   # shell tests fail open rather than fail loud.
-  ./busybox --list > /tmp/vrl-applets.$$ 2>/dev/null || {
+  ./busybox --list > /tmp/vos-applets.$$ 2>/dev/null || {
     echo "FAIL: busybox --list unavailable (enable the busybox applet)" >&2; return 1; }
-  [ -s /tmp/vrl-applets.$$ ] || { echo "FAIL: empty applet list" >&2; return 1; }
+  [ -s /tmp/vos-applets.$$ ] || { echo "FAIL: empty applet list" >&2; return 1; }
   while read -r a; do
     ln -sf busybox "root/bin/$a"
-  done < /tmp/vrl-applets.$$
-  grep -qx '\[' /tmp/vrl-applets.$$ || { echo "FAIL: '[' applet missing -- shell tests would fail open" >&2; rm -f /tmp/vrl-applets.$$; return 1; }
-  rm -f /tmp/vrl-applets.$$
+  done < /tmp/vos-applets.$$
+  grep -qx '\[' /tmp/vos-applets.$$ || { echo "FAIL: '[' applet missing -- shell tests would fail open" >&2; rm -f /tmp/vos-applets.$$; return 1; }
+  rm -f /tmp/vos-applets.$$
   # every component is REQUIRED. these were `[ -f x ] && cp x` -- one missing
   # binary silently produced a smaller image that still passed every gate.
   # a build that ships less than it claims must fail, not shrink.
   local b
-  for b in bash ii tlstunnel; do
+  for b in ii tlstunnel abduco; do
     [ -f "$b" ] || { echo "FAIL: $b not built -- run ./build.sh all" >&2; return 1; }
     cp "$b" "root/bin/$b"
   done
 
-  # cmdchamp is content, not recipe -- it lives outside this repo. pin its
-  # digest or the image quietly depends on the state of one directory on one
-  # machine, and sources.sha256 stops describing what is in the image.
-  local want have
-  want=$(awk '$2=="cmdchamp"{print $1}' sources.sha256)
-  [ -n "$want" ] || { echo "FAIL: cmdchamp not pinned in sources.sha256" >&2; return 1; }
-  [ -f "$CMDCHAMP_SRC/cmdchamp" ] || { echo "FAIL: no cmdchamp at $CMDCHAMP_SRC" >&2; return 1; }
-  have=$(sha256sum < "$CMDCHAMP_SRC/cmdchamp" | awk '{print $1}')
-  [ "$want" = "$have" ] || {
-    echo "FAIL: cmdchamp digest mismatch (pinned ${want:0:16}..., got ${have:0:16}...)" >&2; return 1; }
-  mkdir -p root/opt/cmdchamp root/usr/bin
-  cp "$CMDCHAMP_SRC/cmdchamp" root/opt/cmdchamp/cmdchamp
-  chmod +x root/opt/cmdchamp/cmdchamp
-  ln -sf /opt/cmdchamp/cmdchamp root/bin/cmdchamp
-  # cmdchamp's shebang is #!/usr/bin/env bash and upstream content is not ours
-  # to rewrite, so provide the path it expects.
-  ln -sf /bin/busybox root/usr/bin/env
+  # learn is this repo's own: an ash script over a plain-text corpus. on a
+  # read-only root the filesystem IS the lookup table, so it needs no shell
+  # data structures -- which is what lets the one shell be ash.
+  [ -x learn/learn ] || { echo "FAIL: learn/learn missing or not executable" >&2; return 1; }
+  local part
+  for part in ref lib pools levels; do
+    [ -d "learn/$part" ] || { echo "FAIL: learn/$part missing -- run ./build.sh seed" >&2; return 1; }
+  done
+  [ -f learn/skip ] || { echo "FAIL: learn/skip missing" >&2; return 1; }
+  install -m 0755 learn/learn root/bin/learn
+  mkdir -p root/usr/share/learn
+  cp -r learn/ref learn/lib learn/pools learn/levels root/usr/share/learn/
+  cp learn/skip learn/builtins root/usr/share/learn/
 
   # hand-written shims for things busybox lacks
-  # overlay carries the tput shim cmdchamp needs and the udhcpc script without
+  # overlay carries the udhcpc script without
   # which dhcp silently configures nothing. it was optional; under `set -e` a
   # failing test in an && list does not abort, so a missing overlay just
   # produced a quieter, more broken image.
@@ -350,7 +382,7 @@ rootfs() {
 
   cp init root/init
   chmod +x root/init
-  echo 'vrl' > root/etc/hostname
+  echo 'vos' > root/etc/hostname
   # without /etc/passwd, anything calling getpwuid() fails -- ii did exactly that
   printf 'root:x:0:0:root:/root:/bin/sh\n' > root/etc/passwd
   printf 'root:x:0:\n' > root/etc/group
@@ -364,7 +396,7 @@ rootfs() {
 }
 
 keys() {
-  say "generating vrl secure boot keys"
+  say "generating vos secure boot keys"
   # idempotent against BOTH states: plaintext keys/db.key (freshly generated)
   # and sealed keys/db.key.enc (seal deletes db.key, so checking only the
   # plaintext made `all` regenerate certs over a sealed key -- old key, new
@@ -373,11 +405,11 @@ keys() {
   mkdir -p keys
   for k in PK KEK db; do
     openssl req -new -x509 -newkey rsa:2048 -nodes -sha256 -days 3650 \
-      -subj "/CN=vrl $k/" -keyout "keys/$k.key" -out "keys/$k.crt" 2>/dev/null
+      -subj "/CN=vos $k/" -keyout "keys/$k.key" -out "keys/$k.crt" 2>/dev/null
     openssl x509 -in "keys/$k.crt" -outform DER -out "keys/$k.der"
   done
   chmod 700 keys; chmod 600 keys/*.key
-  echo "  PK/KEK/db written to keys/ (gitignored, vrl-only -- NOT heatpc's)"
+  echo "  PK/KEK/db written to keys/ (gitignored, vos-only -- NOT heatpc's)"
 }
 
 seal() {
@@ -390,14 +422,14 @@ seal() {
   fi
   [ -f keys/db.key ] || { echo "FAIL: no keys/db.key -- run ./build.sh keys first" >&2; return 1; }
   local pass
-  if [ -n "${VRL_KEYPASS:-}" ]; then pass="$VRL_KEYPASS"
-  else read -rsp "  passphrase for vrl signing keys: " pass; echo; fi
+  if [ -n "${VOS_KEYPASS:-}" ]; then pass="$VOS_KEYPASS"
+  else read -rsp "  passphrase for vos signing keys: " pass; echo; fi
   [ -n "$pass" ] || { echo "FAIL: empty passphrase" >&2; return 1; }
   local k
   for k in PK KEK db; do
     [ -f "keys/$k.key" ] || continue
-    VRL_PASS="$pass" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
-      -in "keys/$k.key" -out "keys/$k.key.enc" -pass env:VRL_PASS || return 1
+    VOS_PASS="$pass" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
+      -in "keys/$k.key" -out "keys/$k.key.enc" -pass env:VOS_PASS || return 1
     shred -u "keys/$k.key" 2>/dev/null || rm -f "keys/$k.key"
   done
   chmod 600 keys/*.enc
@@ -408,14 +440,14 @@ reseal() {
   say "changing the signing passphrase"
   unlock || return 1
   local newpass
-  if [ -n "${VRL_NEWKEYPASS:-}" ]; then newpass="$VRL_NEWKEYPASS"
+  if [ -n "${VOS_NEWKEYPASS:-}" ]; then newpass="$VOS_NEWKEYPASS"
   else read -rsp "  NEW passphrase: " newpass; echo; fi
   [ -n "$newpass" ] || { echo "FAIL: empty passphrase" >&2; return 1; }
   local k
   for k in PK KEK db; do
     [ -f "$RAMKEYS/$k.key" ] || continue
-    VRL_PASS="$newpass" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
-      -in "$RAMKEYS/$k.key" -out "keys/$k.key.enc.new" -pass env:VRL_PASS || return 1
+    VOS_PASS="$newpass" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
+      -in "$RAMKEYS/$k.key" -out "keys/$k.key.enc.new" -pass env:VOS_PASS || return 1
     mv "keys/$k.key.enc.new" "keys/$k.key.enc"
   done
   lock
@@ -440,14 +472,14 @@ unlock() {
   [ -f "$RAMKEYS/db.key" ] && { echo "  cached key does not match keys/db.crt -- re-unlocking"; rm -rf "$RAMKEYS"; }
   [ -f keys/db.key.enc ] || { echo "FAIL: keys/db.key.enc missing -- run ./build.sh keys then seal" >&2; return 1; }
   local pass
-  if [ -n "${VRL_KEYPASS:-}" ]; then pass="$VRL_KEYPASS"
+  if [ -n "${VOS_KEYPASS:-}" ]; then pass="$VOS_KEYPASS"
   else read -rsp "  passphrase to unlock signing keys: " pass; echo; fi
   mkdir -p "$RAMKEYS"; chmod 700 "$RAMKEYS"
   local k
   for k in PK KEK db; do
     [ -f "keys/$k.key.enc" ] || continue
-    VRL_PASS="$pass" openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
-      -in "keys/$k.key.enc" -out "$RAMKEYS/$k.key" -pass env:VRL_PASS 2>/dev/null \
+    VOS_PASS="$pass" openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+      -in "keys/$k.key.enc" -out "$RAMKEYS/$k.key" -pass env:VOS_PASS 2>/dev/null \
       || { rm -rf "$RAMKEYS"; echo "FAIL: wrong passphrase" >&2; return 1; }
   done
   chmod 600 "$RAMKEYS"/*.key
@@ -474,15 +506,15 @@ uki() {
     echo "FAIL: kernel lacks EFI_STUB -- firmware cannot load it" >&2; return 1; }
 
   unlock || return 1
-  ukify build --linux=bzImage --cmdline="$(cat cmdline.txt)" --stub="$stub" --output=vrl.efi >/dev/null
-  sbsign --key "$RAMKEYS/db.key" --cert keys/db.crt --output vrl-signed.efi vrl.efi >/dev/null \
-    || { echo "FAIL: signing failed -- refusing to ship an unsigned image" >&2; rm -f vrl-signed.efi; return 1; }
-  [ -f vrl-signed.efi ] || { echo "FAIL: no signed image produced" >&2; return 1; }
-  sbverify --cert keys/db.crt vrl-signed.efi >/dev/null 2>&1 || {
+  ukify build --linux=bzImage --cmdline="$(cat cmdline.txt)" --stub="$stub" --output=vos.efi >/dev/null
+  sbsign --key "$RAMKEYS/db.key" --cert keys/db.crt --output vos-signed.efi vos.efi >/dev/null \
+    || { echo "FAIL: signing failed -- refusing to ship an unsigned image" >&2; rm -f vos-signed.efi; return 1; }
+  [ -f vos-signed.efi ] || { echo "FAIL: no signed image produced" >&2; return 1; }
+  sbverify --cert keys/db.crt vos-signed.efi >/dev/null 2>&1 || {
     echo "FAIL: signature does not verify" >&2; return 1; }
 
   mkdir -p esp/EFI/BOOT
-  cp vrl-signed.efi esp/EFI/BOOT/BOOTX64.EFI
+  cp vos-signed.efi esp/EFI/BOOT/BOOTX64.EFI
 
   cp "$OVMF_VARS" ovmf-vars.fd
   # errors here used to go to /dev/null with no status check: enrollment could
@@ -493,7 +525,7 @@ uki() {
     --add-kek "$SBGUID" keys/KEK.der \
     --add-db  "$SBGUID" keys/db.der >/dev/null 2>&1 \
     || { echo "FAIL: could not enroll keys into ovmf-vars.fd" >&2; return 1; }
-  printf '  signed UKI: %d bytes, keys enrolled into ovmf-vars.fd\n' "$(stat -c%s vrl-signed.efi)"
+  printf '  signed UKI: %d bytes, keys enrolled into ovmf-vars.fd\n' "$(stat -c%s vos-signed.efi)"
   dbx || return 1
 }
 
@@ -533,7 +565,7 @@ revoke() {
   fi
   # revoking the image you are about to ship bricks the next boot. G14 catches
   # it at build time, but say it here too, while it is still one line to undo.
-  if [ -f vrl-signed.efi ] && [ "$h" = "$(python3 pehash.py vrl-signed.efi)" ]; then
+  if [ -f vos-signed.efi ] && [ "$h" = "$(python3 pehash.py vos-signed.efi)" ]; then
     echo "FAIL: that is the CURRENT signed image -- revoking it would refuse your own boot" >&2
     return 1
   fi
@@ -543,7 +575,7 @@ revoke() {
 }
 
 # assemble the bootable stick image: GPT (fixed GUIDs) + FAT32 ESP carrying the
-# signed UKI and the public keys for enrollment + raw vrl.img as p2. entirely
+# signed UKI and the public keys for enrollment + raw vos.img as p2. entirely
 # deterministic (no root, no loop mount -- sfdisk + mtools), so the layout is
 # reproducible even though we do not pin it: everything that MATTERS on the stick
 # is already covered (p2 by image.sha256 + the verity tree, BOOTX64.EFI by the db
@@ -551,13 +583,13 @@ revoke() {
 # most deny boot, never change what runs.
 stick() {
   say "assembling stick.img"
-  [ -f vrl-signed.efi ] || { echo "FAIL: no signed UKI -- run ./build.sh uki" >&2; return 1; }
-  [ -f vrl.img ]        || { echo "FAIL: no vrl.img -- run ./build.sh verity" >&2; return 1; }
+  [ -f vos-signed.efi ] || { echo "FAIL: no signed UKI -- run ./build.sh uki" >&2; return 1; }
+  [ -f vos.img ]        || { echo "FAIL: no vos.img -- run ./build.sh verity" >&2; return 1; }
   for k in PK KEK db; do [ -f "keys/$k.der" ] || { echo "FAIL: keys/$k.der missing" >&2; return 1; }; done
 
   local esp_bytes root_bytes esp_start_s esp_size_s root_start_s root_size_s total
   esp_bytes=$((STICK_ESP_MIB * 1024 * 1024))
-  root_bytes=$(stat -c%s vrl.img)                 # already a 4K multiple (verity padded it)
+  root_bytes=$(stat -c%s vos.img)                 # already a 4K multiple (verity padded it)
   esp_start_s=2048                                    # 1 MiB, in 512B sectors
   esp_size_s=$((esp_bytes / 512))
   root_start_s=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 / 512 ))
@@ -573,21 +605,21 @@ stick() {
   sfdisk stick.img >/dev/null <<EOF
 label: gpt
 label-id: $GPT_DISK
-start=$esp_start_s, size=$esp_size_s, type=C12A7328-F81F-11D2-BA4B-00A08693446B, uuid=$PU_ESP, name="VRL-ESP"
-start=$root_start_s, size=$root_size_s, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=$PU_ROOT, name="VRL-ROOT"
+start=$esp_start_s, size=$esp_size_s, type=C12A7328-F81F-11D2-BA4B-00A08693446B, uuid=$PU_ESP, name="VOS-ESP"
+start=$root_start_s, size=$root_size_s, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=$PU_ROOT, name="VOS-ROOT"
 EOF
 
   # FAT32 in a temp file, then dd into the ESP slot. --invariant drops the
   # volume id + creation timestamp that would otherwise randomise the bytes.
   rm -f esp.part; truncate -s "$esp_bytes" esp.part
-  mkfs.fat --invariant -F 32 -n VRL esp.part >/dev/null
+  mkfs.fat --invariant -F 32 -n VOS esp.part >/dev/null
   # pin mtime of everything we copy so mcopy writes deterministic dir entries
-  touch -d "@$SOURCE_DATE_EPOCH" vrl-signed.efi keys/PK.der keys/KEK.der keys/db.der
-  mmd   -i esp.part ::/EFI ::/EFI/BOOT ::/vrl-keys
-  mcopy -pm -i esp.part vrl-signed.efi ::/EFI/BOOT/BOOTX64.EFI
-  mcopy -pm -i esp.part keys/PK.der keys/KEK.der keys/db.der ::/vrl-keys/
+  touch -d "@$SOURCE_DATE_EPOCH" vos-signed.efi keys/PK.der keys/KEK.der keys/db.der
+  mmd   -i esp.part ::/EFI ::/EFI/BOOT ::/vos-keys
+  mcopy -pm -i esp.part vos-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+  mcopy -pm -i esp.part keys/PK.der keys/KEK.der keys/db.der ::/vos-keys/
   dd if=esp.part    of=stick.img bs=1M seek=1                     conv=notrunc status=none
-  dd if=vrl.img  of=stick.img bs=1M seek=$((1 + STICK_ESP_MIB)) conv=notrunc status=none
+  dd if=vos.img  of=stick.img bs=1M seek=$((1 + STICK_ESP_MIB)) conv=notrunc status=none
   rm -f esp.part
   printf '  stick.img: %d bytes (esp %d MiB + root %d bytes)\n' "$(stat -c%s stick.img)" "$STICK_ESP_MIB" "$root_bytes"
 }
@@ -636,30 +668,30 @@ usb() {
   [ "$want_stick" = "$have_stick" ] || { echo "FAIL: stick readback mismatch -- write did not land" >&2; return 1; }
   root_off=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 ))
   want_root=$(awk '$1=="image"{print $2}' image.sha256)
-  have_root=$(dd if="$dev" bs=1M skip=$((1 + STICK_ESP_MIB)) iflag=direct count=$(( ($(stat -c%s vrl.img) + 1048575) / 1048576 )) status=none | head -c "$(stat -c%s vrl.img)" | sha256sum | awk '{print $1}')
+  have_root=$(dd if="$dev" bs=1M skip=$((1 + STICK_ESP_MIB)) iflag=direct count=$(( ($(stat -c%s vos.img) + 1048575) / 1048576 )) status=none | head -c "$(stat -c%s vos.img)" | sha256sum | awk '{print $1}')
   if [ -n "$want_root" ] && [ "$want_root" != "$have_root" ]; then
     echo "FAIL: root partition on disk does not match pinned image digest" >&2; return 1; fi
   sync
-  printf '\n  \033[1;32mdone -- %s carries a verified vrl\033[0m\n' "$dev"
+  printf '\n  \033[1;32mdone -- %s carries a verified vos\033[0m\n' "$dev"
   echo "  boot it: firmware boot menu -> USB. secure boot: enroll keys from the"
-  echo "  stick's /vrl-keys (db, KEK, then PK last). see README."
+  echo "  stick's /vos-keys (db, KEK, then PK last). see README."
 }
 
 verity() {
   say "building verity hash tree"
-  cp rootfs.squashfs vrl.img
+  cp rootfs.squashfs vos.img
   local data blocks
-  data=$(stat -c%s vrl.img)
+  data=$(stat -c%s vos.img)
   if [ $((data % 4096)) -ne 0 ]; then
     data=$(( (data / 4096 + 1) * 4096 ))
-    truncate -s "$data" vrl.img
+    truncate -s "$data" vos.img
   fi
   blocks=$((data / 4096))
 
   # fixed salt AND fixed uuid: the image must be reproducible. a random salt
   # would change the root hash for identical content; a random uuid left the
   # root hash stable and still changed the image bytes on every single build.
-  veritysetup format vrl.img vrl.img \
+  veritysetup format vos.img vos.img \
     --hash-offset="$data" --data-blocks="$blocks" --salt="$SALT" --uuid="$VUUID" > verity.info
   local rh
   rh=$(awk '/Root hash/{print $NF}' verity.info)
@@ -669,11 +701,11 @@ verity() {
   # veritysetup writes a superblock AT the hash offset, so the hash tree
   # itself starts one block later -- pointing the table at $blocks lands on
   # the superblock and the root mount fails with no verity error at all.
-  # vrl.test is DEBUG scaffolding, and the cmdline lives INSIDE the UKI
+  # vos.test is DEBUG scaffolding, and the cmdline lives INSIDE the UKI
   # signature -- so it must never ship in a production image. selftest.sh
   # rebuilds a test-flavoured UKI for its own runs.
   local testflag=""
-  [ "${VRL_TEST:-0}" = 1 ] && testflag=" vrl.test"
+  [ "${VOS_TEST:-0}" = 1 ] && testflag=" vos.test"
   # the root is named by PARTUUID, not /dev/vda: on a real machine the stick is
   # /dev/sda|sdb, and dm-init resolves PARTUUID= via early_lookup_bdev. one
   # cmdline, inside one signature, boots qemu and metal alike.
@@ -698,8 +730,8 @@ verity() {
   printf 'dm-mod.waitfor=%s dm-mod.create="vroot,,,ro,0 %d verity 1 %s %s 4096 4096 %d %d sha256 %s %s 1 panic_on_corruption" root=/dev/dm-0 ro rootfstype=squashfs rootwait init=/init oops=panic panic=-1 page_alloc.shuffle=1 console=tty0 console=ttyS0,115200%s\n' \
     "$dev" "$((blocks * 8))" "$dev" "$dev" "$blocks" "$((blocks + 1))" "$rh" "$SALT" "$testflag" > cmdline.txt
 
-  printf '  vrl.img: %d bytes  root hash: %s
-' "$(stat -c%s vrl.img)" "$rh"
+  printf '  vos.img: %d bytes  root hash: %s
+' "$(stat -c%s vos.img)" "$rh"
 }
 
 toolchain() {
@@ -711,27 +743,14 @@ toolchain() {
   } | sha256sum | awk '{print $1}'
 }
 
-# cmdchamp is external content under active development, so its digest changes
-# every time it is edited and the pin goes stale. re-pin it in one step instead
-# of hand-editing sources.sha256. this is deliberate and shows up as a diff.
-repin() {
-  say "re-pinning cmdchamp digest"
-  [ -f "$CMDCHAMP_SRC/cmdchamp" ] || { echo "FAIL: no cmdchamp at $CMDCHAMP_SRC" >&2; return 1; }
-  grep -q ' cmdchamp$' sources.sha256 || { echo "FAIL: cmdchamp line missing from sources.sha256" >&2; return 1; }
-  local d; d=$(sha256sum < "$CMDCHAMP_SRC/cmdchamp" | awk '{print $1}')
-  awk -v d="$d" '$2=="cmdchamp"{print d"  cmdchamp"; next} {print}' sources.sha256 > sources.sha256.tmp \
-    && mv sources.sha256.tmp sources.sha256
-  echo "  cmdchamp re-pinned to ${d:0:16}... -- commit the sources.sha256 diff"
-}
-
 pin() {
   say "pinning the bytes this source produces"
-  [ -f vrl.img ] || { echo "FAIL: no vrl.img -- build first" >&2; return 1; }
+  [ -f vos.img ] || { echo "FAIL: no vos.img -- build first" >&2; return 1; }
   { echo "# the exact artifact this source builds. regenerate with ./build.sh pin."
     echo "# G13 compares against this. a mismatch on the SAME toolchain means the"
     echo "# image no longer corresponds to the source; on a different toolchain it"
     echo "# only means you cannot independently verify this build."
-    printf 'image     %s\n'   "$(sha256sum < vrl.img      | awk '{print $1}')"
+    printf 'image     %s\n'   "$(sha256sum < vos.img      | awk '{print $1}')"
     printf 'squashfs  %s\n'   "$(sha256sum < rootfs.squashfs | awk '{print $1}')"
     printf 'roothash  %s\n'   "$(cat verity.roothash)"
     printf 'toolchain %s\n'   "$(toolchain)"
@@ -739,14 +758,91 @@ pin() {
   cat image.sha256
 }
 
+# seed the learn corpus from the built busybox's OWN help text. busybox help is
+# compiled per-config, so this is the exact flag set THIS build ships -- a ref
+# generated any other way could document a flag that is not there. seeded
+# entries are committed and then improved by hand; this only fills gaps, it
+# never overwrites prose someone wrote.
+seed() {
+  say "seeding learn/ref from the built binaries"
+  [ -f busybox ] || { echo "FAIL: busybox not built -- run ./build.sh busybox" >&2; return 1; }
+  mkdir -p learn/ref
+  local a n=0 kept=0 help
+  # NOTE: several applets exit non-zero on --help ('[' evaluates it as a test
+  # expression), so every help call is guarded -- under `set -e` + pipefail an
+  # unguarded one aborts the loop after the first applet and silently seeds
+  # nothing. that is the same class of bug the `yes |` note above records.
+  for a in $(./busybox --list | sort); do
+    if [ -f "learn/ref/$a" ]; then
+      kept=$((kept + 1))
+      continue
+    fi
+    help=$({ ./busybox "$a" --help 2>&1 || true; } | sed -n '/^Usage:/,$p')
+    if [ -z "$help" ]; then
+      help="TODO: no --help text; write this entry by hand."
+    fi
+    printf '%s
+%s
+' "$a" "$help" > "learn/ref/$a"
+    n=$((n + 1))
+  done
+  # non-busybox binaries have no --help convention worth scraping; stub them so
+  # G24 names what still needs prose instead of silently passing.
+  for a in $EXTRA_BINS; do
+    if [ -f "learn/ref/$a" ]; then
+      kept=$((kept + 1))
+      continue
+    fi
+    printf '%s
+TODO: write this entry by hand.
+' "$a" > "learn/ref/$a"
+    n=$((n + 1))
+  done
+  printf '  seeded %d new, kept %d existing
+' "$n" "$kept"
+}
+
+# is TOK a legitimate flag cluster for the command documented by REF?
+# handles bundling (-rf = -r -f) and attached values (-f1 = -f with arg "1").
+# a flag counts as documented only if the ref EXPLAINS it on its own line --
+# not if it merely appears inside a usage cluster like [-rf]. a cluster tells
+# you a flag exists; it does not tell you what it does, and a question is only
+# answerable from a ref that says what the flag does.
+# busybox writes aliases as "-R,-r\tRecurse", so the flag may sit after a comma
+# rather than after the leading whitespace. matching only the first form called
+# `cp -r` undocumented when the ref documents it perfectly well.
+documented() {
+  grep -qE "^[[:space:]]+(-[^[:space:],]+,)*-$1([[:space:],=]|\[|$)" "$2" && return 0
+  # tar documents its mode letters bare ("c\tCreate"), because that is tar's own
+  # syntax; the dashed form works too. accept a lone letter on a flag line.
+  grep -qE "^[[:space:]]+$1[[:space:]]" "$2"
+}
+
+flagchk() {
+  local tok="${1#-}" ref="$2" i=0 c consumed=0
+  # whole-token match first: busybox has multi-char short flags in places
+  documented "$tok" "$ref" && return 0
+  while [ -n "$tok" ]; do
+    c="${tok%"${tok#?}"}"          # first character
+    if documented "$c" "$ref"; then
+      consumed=$((consumed + 1)); tok="${tok#?}"
+    else
+      # remainder is an attached argument -- fine iff a real flag came first
+      [ "$consumed" -gt 0 ] && return 0
+      return 1
+    fi
+  done
+  return 0
+}
+
 size() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=19   # origin 17 + G20/G21 (revocation)
+  local EXPECTED_GATES=24   # origin 17 + G20/G21 + G23/G24 + G25/G26 (learn checks itself) + G28 (kernel/config binding)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
-  local sz; sz=$(stat -c%s vrl.img)
+  local sz; sz=$(stat -c%s vos.img)
   g "G1 image <= $IMAGE_MAX ($sz)" "$([ "$sz" -le "$IMAGE_MAX" ] && echo ok || echo FAIL)"
 
   local elfs interp exec_type
@@ -809,7 +905,7 @@ size() {
     want_img=$(awk '$1=="image"{print $2}'     image.sha256)
     want_sq=$(awk '$1=="squashfs"{print $2}'   image.sha256)
     want_tc=$(awk '$1=="toolchain"{print $2}'  image.sha256)
-    have_img=$(sha256sum < vrl.img | awk '{print $1}')
+    have_img=$(sha256sum < vos.img | awk '{print $1}')
     have_sq=$(sha256sum < rootfs.squashfs | awk '{print $1}')
     have_tc=$(toolchain)
     if [ "$want_tc" != "$have_tc" ]; then
@@ -836,20 +932,20 @@ size() {
   # and the next boot is refused by our own firmware, with a secure boot error
   # that looks like an attack rather than a typo.
   local cur="" rev=0
-  if [ -f vrl-signed.efi ]; then
-    cur=$(python3 pehash.py vrl-signed.efi 2>/dev/null || true)
+  if [ -f vos-signed.efi ]; then
+    cur=$(python3 pehash.py vos-signed.efi 2>/dev/null || true)
     [ -n "$cur" ] && rev=$(grep -c "^$cur" revoked || true)
   fi
   g "G20 shipped image is not revoked" \
     "$([ -n "$cur" ] && [ "$rev" = 0 ] && echo ok || echo FAIL)"
-  [ -n "$cur" ] || printf '    no vrl-signed.efi to check -- run ./build.sh uki\n' >&2
+  [ -n "$cur" ] || printf '    no vos-signed.efi to check -- run ./build.sh uki\n' >&2
 
   # G21 -- the revocation hash function agrees with the signature it revokes.
   # dbx matches an authenticode digest, not sha256sum of the file; if pehash.py
   # computed the wrong number every dbx entry would match nothing, revoke
   # nothing, and look exactly like revocation that works.
   g "G21 revocation digest matches signature" \
-    "$([ -n "$cur" ] && python3 pehash.py --verify vrl-signed.efi >/dev/null 2>&1 && echo ok || echo FAIL)"
+    "$([ -n "$cur" ] && python3 pehash.py --verify vos-signed.efi >/dev/null 2>&1 && echo ok || echo FAIL)"
 
   g "G7 kernel has no module loader" "$(grep -q '^CONFIG_MODULES=y' "src/linux-$KVER/.config" && echo FAIL || echo ok)"
 
@@ -888,18 +984,18 @@ size() {
   g "G18 no firmware blobs in image ($fw)" "$([ "${fw:-0}" -eq 0 ] && echo ok || echo FAIL)"
 
   # G17 -- stick.img is coherent with the pinned artifacts: right PARTUUIDs, p2
-  # byte-equal to vrl.img, ESP carries the exact signed UKI.
+  # byte-equal to vos.img, ESP carries the exact signed UKI.
   if [ -f stick.img ]; then
     local s_ok=1 j pe pr root_off
     j=$(sfdisk -J stick.img 2>/dev/null || true)
     printf '%s' "$j" | grep -qi "\"$PU_ESP\""  || { s_ok=0; printf '    esp PARTUUID absent\n' >&2; }
     printf '%s' "$j" | grep -qi "\"$PU_ROOT\"" || { s_ok=0; printf '    root PARTUUID absent\n' >&2; }
     root_off=$(( (1 + STICK_ESP_MIB) * 1024 * 1024 ))
-    cmp -s -n "$(stat -c%s vrl.img)" vrl.img <(dd if=stick.img bs=1M skip=$((1 + STICK_ESP_MIB)) count=$(( ($(stat -c%s vrl.img) + 1048575) / 1048576 )) status=none 2>/dev/null) \
-      || { s_ok=0; printf '    p2 region != vrl.img\n' >&2; }
-    mcopy -n -i stick.img@@1M ::/EFI/BOOT/BOOTX64.EFI /tmp/vrl-esp-uki.$$ 2>/dev/null \
-      && cmp -s vrl-signed.efi /tmp/vrl-esp-uki.$$ || { s_ok=0; printf '    ESP UKI != vrl-signed.efi\n' >&2; }
-    rm -f /tmp/vrl-esp-uki.$$
+    cmp -s -n "$(stat -c%s vos.img)" vos.img <(dd if=stick.img bs=1M skip=$((1 + STICK_ESP_MIB)) count=$(( ($(stat -c%s vos.img) + 1048575) / 1048576 )) status=none 2>/dev/null) \
+      || { s_ok=0; printf '    p2 region != vos.img\n' >&2; }
+    mcopy -n -i stick.img@@1M ::/EFI/BOOT/BOOTX64.EFI /tmp/vos-esp-uki.$$ 2>/dev/null \
+      && cmp -s vos-signed.efi /tmp/vos-esp-uki.$$ || { s_ok=0; printf '    ESP UKI != vos-signed.efi\n' >&2; }
+    rm -f /tmp/vos-esp-uki.$$
     g "G17 stick.img coherent with artifacts" "$([ "$s_ok" -eq 1 ] && echo ok || echo FAIL)"
   else
     g "G17 stick.img coherent" FAIL
@@ -908,13 +1004,122 @@ size() {
 
   # G19 -- the whole bootable system fits the size claim, not just the disk
   # image. the UKI (kernel + cmdline) lives on the ESP and was never gated.
-  if [ -f vrl-signed.efi ]; then
-    local whole; whole=$(( $(stat -c%s vrl-signed.efi) + $(stat -c%s vrl.img) ))
+  if [ -f vos-signed.efi ]; then
+    local whole; whole=$(( $(stat -c%s vos-signed.efi) + $(stat -c%s vos.img) ))
     g "G19 UKI + image <= $IMAGE_MAX ($whole)" "$([ "$whole" -le "$IMAGE_MAX" ] && echo ok || echo FAIL)"
   else
     g "G19 UKI + image size" FAIL
-    printf '    no vrl-signed.efi -- run ./build.sh uki\n' >&2
+    printf '    no vos-signed.efi -- run ./build.sh uki\n' >&2
   fi
+
+  # G23 -- exactly one shell. two shell parsers used to ship (busybox ash for
+  # /bin/sh, bash purely as cmdchamp's interpreter). one parser is less to
+  # audit, and the survivor is the small one; this fails if bash comes back.
+  local shells sh_ok=1
+  shells=$(unsquashfs -l rootfs.squashfs 2>/dev/null | grep -cE 'squashfs-root/(bin|usr/bin)/(bash|dash|ksh|mksh|oksh|zsh)$' || true)
+  [ "${shells:-0}" -eq 0 ] || { sh_ok=0; printf '    a second shell is in the image\n' >&2; }
+  readlink root/bin/sh 2>/dev/null | grep -qx busybox \
+    || { sh_ok=0; printf '    /bin/sh is not busybox\n' >&2; }
+  g "G23 exactly one shell (busybox ash)" "$([ "$sh_ok" -eq 1 ] && echo ok || echo FAIL)"
+
+  # G24 -- learn documents the system that actually ships, in both directions,
+  # and the applet list is what was asked for. the third check closes a real
+  # gap: rootfs() symlinks whatever `busybox --list` reports, so an applet
+  # dropped by oldconfig (unmet dep, typo) shipped silently -- manifest names
+  # only a handful of applets, so G12 never saw it. same silent-shrink failure
+  # this repo already learned about with components and with artifact names.
+  local c_ok=1 want_ap have_ap miss_ref miss_cmd miss_ap
+  want_ap=$(grep -v '^[[:space:]]*#' busybox.config.applets | tr ' ' '\n' | grep -v '^$' | sort -u)
+  have_ap=$(./busybox --list 2>/dev/null | sort -u)
+  # two names in the config list are not applet names and never appear in
+  # --list: CONFIG_TEST1 builds the applet called '[', and 'busybox' is the
+  # binary itself. everything else missing is a real silent shrink.
+  miss_ap=$(comm -23 <(printf '%s\n' "$want_ap") <(printf '%s\n' "$have_ap") \
+    | grep -vxE 'test1|busybox' | grep -c . || true)
+  [ "${miss_ap:-0}" -eq 0 ] || { c_ok=0; printf '    %s requested applet(s) did not build\n' "$miss_ap" >&2; }
+  # shell builtins are part of the surface but never appear in --list. verify
+  # each declared one really IS a builtin of the ash THIS build produced, so the
+  # list cannot drift into fiction.
+  local builtins bi_bad=0 b
+  builtins=$(grep -v '^[[:space:]]*#' learn/builtins | tr ' ' '\n' | grep -v '^$' | sort -u)
+  for b in $builtins; do
+    printf 'type %s\n' "$b" | ./busybox ash 2>&1 | grep -q 'builtin' \
+      || { bi_bad=$((bi_bad + 1)); printf '    %s is not a builtin of the built ash\n' "$b" >&2; }
+  done
+  [ "$bi_bad" -eq 0 ] || c_ok=0
+  # every shipped command has a ref ...
+  miss_ref=$( { printf '%s\n' "$have_ap"; printf '%s\n' "$builtins"; printf '%s\n' $EXTRA_BINS; } | sort -u | while read -r c; do
+      [ -n "$c" ] && [ ! -f "learn/ref/$c" ] && echo "$c"; done | grep -c . || true)
+  [ "${miss_ref:-0}" -eq 0 ] || { c_ok=0; printf '    %s shipped command(s) undocumented\n' "$miss_ref" >&2; }
+  # ... and every ref is a shipped command
+  miss_cmd=$(ls -1 learn/ref 2>/dev/null | while read -r r; do
+      # -F: command names are literals. '[' is a real applet and an invalid regex.
+      printf '%s\n' "$have_ap" | grep -qxF "$r" && continue
+      printf '%s\n' "$builtins" | grep -qxF "$r" && continue
+      case " $EXTRA_BINS " in *" $r "*) continue ;; esac
+      echo "$r"; done | grep -c . || true)
+  [ "${miss_cmd:-0}" -eq 0 ] || { c_ok=0; printf '    %s ref(s) document nothing shipped\n' "$miss_cmd" >&2; }
+  g "G24 learn corpus covers the surface exactly" "$([ "$c_ok" -eq 1 ] && echo ok || echo FAIL)"
+
+  # G25/G26 -- the curriculum checks itself, using the shell that will run it.
+  #
+  # these used to be two hundred lines of host awk that re-implemented learn's
+  # own parser: a second answer checker, a second flag table, a second notion
+  # of what "documented" means. two implementations of one rule drift, and the
+  # copy that runs at build time is the one nobody exercises by hand.
+  #
+  # so the build now runs the real thing, under the real busybox, against the
+  # real corpus. learn selftest renders every question, feeds each of its own
+  # answers back through the grader, and EXECUTES them against the sandbox --
+  # so a question that teaches a flag this build compiled out fails here.
+  # busybox decides what to be from argv[0], so `busybox -c ...` is not a
+  # shell -- it needs a name. give it one that lives for the length of the run.
+  local st_out st_ok=1 lsh
+  lsh=$(mktemp -d); ln -sf "$PWD/busybox" "$lsh/sh"
+  st_out=$(LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
+           XDG_STATE_HOME="$lsh/state" HOME="$lsh/home" NO_COLOR=1 \
+           ./busybox ash learn/learn selftest 2>&1) || st_ok=0
+  printf '%s\n' "$st_out" | grep -v '^learn: ' >&2 || true
+  g "G25 $(printf '%s' "$st_out" | sed -n 's/^learn: //p' | tail -1)" \
+    "$([ "$st_ok" -eq 1 ] && echo ok || echo FAIL)"
+
+  # G26 -- every documented flag is taught or explicitly retired in learn/skip.
+  # this is the gate the whole "we teach everything" claim rests on, and it is
+  # only checkable because the program surface is fixed at build time. a
+  # busybox bump that adds a flag lands in neither set and stops the build.
+  local cv_out cv_ok=1
+  cv_out=$(LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
+           XDG_STATE_HOME="$lsh/state" HOME="$lsh/home" NO_COLOR=1 \
+           ./busybox ash learn/learn coverage 2>&1) || cv_ok=0
+  local cv_t cv_s cv_u
+  cv_t=$(printf '%s\n' "$cv_out" | awk '$1 == "taught"   {print $2}')
+  cv_s=$(printf '%s\n' "$cv_out" | awk '$1 == "skipped"  {print $2}')
+  cv_u=$(printf '%s\n' "$cv_out" | awk '$1 == "untaught" {print $2}')
+  rm -rf "$lsh"
+  [ "$cv_ok" -eq 1 ] || printf '    %s flags are neither taught nor listed in learn/skip\n' "$cv_u" >&2
+  g "G26 curriculum covers the surface (${cv_t:-0} taught, ${cv_s:-0} retired, ${cv_u:-?} open)" \
+    "$([ "$cv_ok" -eq 1 ] && echo ok || echo FAIL)"
+
+  # G28 -- the bzImage on disk was built from the kernel.config on disk.
+  #
+  # G14 reads kernel.config and confirms the hardening lines are present. it
+  # never looks at the binary, so a bzImage built days before kernel.config
+  # last changed passes it while failing the boot-time asserts: the config
+  # promised lockdown and no vsyscall page, the running kernel disagreed, and
+  # nothing in the build noticed. that cost three red self-test sections and
+  # an afternoon chasing them in the wrong place.
+  local kb_ok=1 kb_want kb_have
+  if [ ! -f bzImage ] || [ ! -f bzImage.config.sha256 ]; then
+    kb_ok=0; printf '    no bzImage or no config stamp -- run ./build.sh kernel\n' >&2
+  else
+    kb_want=$(sha256sum < kernel.config | awk '{print $1}')
+    kb_have=$(awk '/^source/ {print $2}' bzImage.config.sha256)
+    [ "$kb_want" = "$kb_have" ] || {
+      kb_ok=0
+      printf '    kernel.config has changed since bzImage was built -- rebuild the kernel\n' >&2; }
+  fi
+  g "G28 bzImage was built from this kernel.config" \
+    "$([ "$kb_ok" -eq 1 ] && echo ok || echo FAIL)"
 
   # a gate that dies mid-run under set -e looked exactly like a passing one,
   # so prove every gate actually executed.
@@ -965,12 +1170,12 @@ bootusb() {
 }
 
 case "${1:-all}" in
-  deps|fetch|kernel|headers|busybox|bash_|ii_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|repin|size|boot|bootusb) "$@" ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|size|boot|bootusb) "$@" ;;
   all)
-    deps; fetch; kernel; headers; busybox; bash_; tls; ii_; rootfs; verity; keys
+    deps; fetch; kernel; headers; busybox; tls; ii_; abduco; rootfs; verity; keys
     # clean clone makes plaintext keys; seal them so uki's unlock has db.key.enc
     # and G11 stays green. a sealed tree short-circuits keys() and skips this.
     if [ -f keys/db.key ]; then seal; fi
     uki; stick; size ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|bash_|ii_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|dbx|revoke IMAGE|stick|usb <dev>|pin|repin|size|boot|bootusb|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|dbx|revoke IMAGE|stick|usb <dev>|pin|seed|size|boot|bootusb|all}"; exit 1 ;;
 esac

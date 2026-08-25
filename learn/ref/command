@@ -1,0 +1,17 @@
+command
+Usage: command [-p] [-v|-V] NAME [ARGS]
+
+Run NAME as a command, ignoring any shell function or alias of the same
+name. With -v it does not run anything, it just says what would run.
+
+	-v	print the path or the word "builtin"
+	-V	the same, in a longer sentence
+	-p	use a safe default PATH rather than yours
+
+	command -v ls		is ls available, and what is it
+	command ls		run the real ls, not an alias
+
+`command -v` is the portable way to test whether something exists -- more
+reliable than `which`, because it also knows about builtins.
+
+See also: type, which, hash

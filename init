@@ -10,6 +10,14 @@ mount -t devtmpfs -o nosuid,noexec none /dev 2>/dev/null
 # provable at runtime (the test block reads it; A8 asserts it).
 mount -t securityfs -o nosuid,nodev,noexec none /sys/kernel/security 2>/dev/null
 
+# ptys. devtmpfs does not create /dev/pts, and without it openpty() fails --
+# which means no multiplexer and no ssh session can allocate a terminal. nothing
+# in the image used a pty until now, which is why this was missing and nothing
+# noticed. ptmxmode=666 so an unprivileged process could open it the day
+# anything here stops running as root.
+mkdir -p /dev/pts
+mount -t devpts -o nosuid,noexec,gid=5,mode=620,ptmxmode=666 none /dev/pts 2>/dev/null
+
 # the root is read-only by design, so anything that needs to write gets a
 # RAM-backed home. nothing here survives a reboot, which is the point.
 mount -t tmpfs -o nosuid,nodev,noexec none /tmp
@@ -47,7 +55,7 @@ export TERM=linux
 mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
 
 ip link set lo up 2>/dev/null
-if ! grep -q vrl.nonet /proc/cmdline; then
+if ! grep -q vos.nonet /proc/cmdline; then
 	for dev in $(ls /sys/class/net 2>/dev/null); do
 		[ "$dev" = lo ] && continue
 		ip link set "$dev" up 2>/dev/null
@@ -55,9 +63,9 @@ if ! grep -q vrl.nonet /proc/cmdline; then
 	done
 fi
 
-if grep -q vrl.test /proc/cmdline; then
+if grep -q vos.test /proc/cmdline; then
 	echo
-	echo "VRL-TEST-BEGIN"
+	echo "VOS-TEST-BEGIN"
 	printf 'rootfs-type: '; awk '$2=="/" {print $3}' /proc/mounts
 	printf 'rootfs-flags: '; awk '$2=="/" {print $4}' /proc/mounts
 	printf 'write-to-root: '; if touch /probe 2>/dev/null; then echo "SUCCEEDED (BAD)"; else echo "refused (good)"; fi
@@ -75,34 +83,51 @@ if grep -q vrl.test /proc/cmdline; then
 	printf 'kptr-restrict: '; cat /proc/sys/kernel/kptr_restrict 2>/dev/null || echo '?'
 	printf 'dmesg-restrict: '; cat /proc/sys/kernel/dmesg_restrict 2>/dev/null || echo '?'
 	printf 'busybox-runs: '; busybox true && echo yes || echo no
-	printf 'bash-runs: '; if [ -x /bin/bash ]; then /bin/bash -c 'exit 0' && echo yes || echo no; else echo absent; fi
-	printf 'bash-assoc-arrays: '; /bin/bash -c 'declare -A m; m[k]=ok; [[ ${m[k]} == ok ]]' 2>/dev/null && echo yes || echo no
-	printf 'tput-shim: '; echo "$(tput cols)x$(tput lines)"
-	printf 'cmdchamp-version: '; cmdchamp --version 2>&1 | tail -1
-	# `explain ls` exercises the assoc-array explain corpus -- a real functional
-	# check. the old `--list` was not a subcommand: it fell through to usage and
-	# always printed 2 lines, so the probe read "2" whether cmdchamp worked or not.
-	printf 'cmdchamp-explain: '; cmdchamp explain ls 2>/dev/null | grep -c . | tr -d ' '
+	printf 'no-bash: '; if [ -e /bin/bash ]; then echo "present (BAD)"; else echo "absent (good)"; fi
+	# a pty is the thing every multiplexer and every ssh session needs. prove one
+	# can actually be allocated, not merely that the config claims to allow it.
+	printf 'devpts-mounted: '; awk '$2=="/dev/pts" {print $3; f=1} END{if(!f) print "no"}' /proc/mounts
+	printf 'ptmx-node: '; if [ -c /dev/ptmx ]; then echo yes; else echo "no (BAD)"; fi
+	printf 'pty-alloc: '; if exec 9<>/dev/ptmx 2>/dev/null; then
+		ls /dev/pts 2>/dev/null | grep -q '^[0-9]' && echo ok || echo "FAILED (no slave)"
+		exec 9>&-
+	else echo "FAILED (no ptmx)"; fi
+	printf 'legacy-ptys: '; if [ -c /dev/ptyp0 ]; then echo "present (BAD)"; else echo "absent (good)"; fi
+	printf 'abduco-runs: '; abduco 2>&1 | head -1 | grep -q 'Active sessions' && echo yes || echo no
+	# the property that matters is not "abduco starts" but "the program outlives
+	# the thing that started it". start a counter detached, wait, and read the
+	# session back: if the session is still listed, nothing owned it but abduco.
+	abduco -n probe /bin/sh -c 'i=0; while [ $i -lt 20 ]; do echo $i > /tmp/tick; i=$((i+1)); sleep 1; done' >/dev/null 2>&1
+	sleep 3
+	printf 'abduco-session-listed: '; abduco 2>&1 | grep -q probe && echo yes || echo no
+	printf 'abduco-child-alive: '; [ -s /tmp/tick ] && echo yes || echo no
+	# learn must describe the system that is actually running, not the one it was
+	# written against -- A15 reads these two back.
+	printf 'learn-refs: '; ls /usr/share/learn/ref 2>/dev/null | grep -c . || echo 0
+	printf 'learn-runs: '; learn list 2>/dev/null | grep -c . || echo 0
+	printf 'learn-ref-ls: '; learn ref ls 2>/dev/null | head -1 | grep . || echo MISSING
+	printf 'learn-levels: '; ls /usr/share/learn/levels 2>/dev/null | grep -c . || echo 0
+	printf 'learn-pools: '; ls /usr/share/learn/pools 2>/dev/null | grep -c . || echo 0
 	# print presence, never addresses -- this output gets read aloud
 	printf 'net-iface-up: '; ip -o -4 addr show scope global 2>/dev/null | awk '{print $2}' | head -1 | grep . || echo none
 	printf 'net-has-address: '; [ "$(ip -o -4 addr show scope global 2>/dev/null | wc -l)" -gt 0 ] && echo yes || echo no
 	printf 'net-default-route: '; ip route show default 2>/dev/null | grep -oq 'dev' && echo yes || echo no
 	printf 'net-dns-servers: '; grep -c nameserver /tmp/resolv.conf 2>/dev/null || echo 0
-	irc=$(sed -n 's/.*vrl\.irc=\([^ ]*\).*/\1/p' /proc/cmdline)
+	irc=$(sed -n 's/.*vos\.irc=\([^ ]*\).*/\1/p' /proc/cmdline)
 	if [ -n "$irc" ]; then
 		ihost=${irc%:*}; iport=${irc##*:}
 		mkdir -p "$HOME/irc"
-		ii -s "$ihost" -p "$iport" -n vrl -f vrl -i "$HOME/irc" > /tmp/ii.log 2>&1 &
+		ii -s "$ihost" -p "$iport" -n vos -f vos -i "$HOME/irc" > /tmp/ii.log 2>&1 &
 		sleep 3
 		printf 'ii-stderr: '; head -2 /tmp/ii.log 2>/dev/null | tr '\n' ' '; echo
 		printf 'ii-home: '; echo "$HOME"; ls -d "$HOME/irc" 2>/dev/null || echo '  (no irc dir)'
 		d=$(find "$HOME/irc" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | head -1)
 		printf 'ii-created-tree: '; [ -n "$d" ] && echo yes || echo no
-		printf 'ii-server-greeting: '; grep -c 'Welcome to the vrl test network' "$d/out" 2>/dev/null || echo 0
+		printf 'ii-server-greeting: '; grep -c 'Welcome to the vos test network' "$d/out" 2>/dev/null || echo 0
 		printf 'ii-in-fifo: '; [ -p "$d/in" ] && echo yes || echo no
-		echo '/j #vrl' > "$d/in" 2>/dev/null
+		echo '/j #vos' > "$d/in" 2>/dev/null
 		sleep 2
-		printf 'ii-joined-channel: '; find "$HOME/irc" -maxdepth 2 -type d -name '#vrl' 2>/dev/null | wc -l
+		printf 'ii-joined-channel: '; find "$HOME/irc" -maxdepth 2 -type d -name '#vos' 2>/dev/null | wc -l
 	fi
 
 	echo 0 > /proc/sys/kernel/printk
@@ -113,7 +138,7 @@ if grep -q vrl.test /proc/cmdline; then
 	printf 'trust-anchors-in-binary: '; grep -ac 'Internet Security Research Group' /bin/tlstunnel 2>/dev/null || echo 0
 
 	printf 'writable-home: '; touch "$HOME/probe" 2>/dev/null && echo "yes (tmpfs)" || echo no
-	echo "VRL-TEST-END"
+	echo "VOS-TEST-END"
 	sync
 fi
 
@@ -123,20 +148,81 @@ umask 077
 banner() {
 	cat <<'BANNER'
 
-  vrl -- static-pie musl, read-only root
+  vos -- static-pie musl, read-only root
   every byte on this disk is covered by a hash tree
 
 BANNER
 }
 
-# real hardware: the framebuffer console gets its own login shell so a screen +
-# keyboard is usable. serial stays primary (exec below). same shell, another
-# tty -- not a second shell program. respawn on exit; the sleep stops a spin if
-# the tty is dead. under qemu -nographic the fbcon exists but is unseen, so this
-# runs harmlessly in the background there.
-if [ -c /dev/tty1 ] && [ -d /sys/class/graphics/fbcon ]; then
-	( while : ; do banner >/dev/tty1; setsid cttyhack /bin/sh <>/dev/tty1 >/dev/tty1 2>&1; sleep 1; done ) &
+# ── consoles ────────────────────────────────────────────────────────────────
+#
+# PID 1 used to end `exec /bin/sh`, which made PID 1 *be* the session. two
+# consequences: the shell had no controlling terminal, so job control was off
+# ("can't access tty"), and when it exited the kernel panicked. PID 1 is now a
+# supervisor that owns nothing and outlives every console.
+#
+# each console is a respawn loop. setsid gives the shell its own session and
+# cttyhack makes the terminal its controlling one -- that pair is what makes
+# ^C, ^Z, fg and bg work.
+console_loop() {
+	_dev=$1 _fail=0 _t0
+	while : ; do
+		_t0=$(date +%s 2>/dev/null || echo 0)
+		banner > "$_dev" 2>/dev/null
+		setsid cttyhack /bin/sh <>"$_dev" >"$_dev" 2>&1 \
+			|| /bin/sh <>"$_dev" >"$_dev" 2>&1
+		# a console nothing is attached to returns EOF instantly and would
+		# respawn forever. this machine may be passive-cooled; back off instead.
+		if [ "$(( $(date +%s 2>/dev/null || echo 0) - _t0 ))" -lt 2 ]; then
+			_fail=$((_fail + 1))
+		else
+			_fail=0
+		fi
+		if [ "$_fail" -ge 5 ]; then sleep 30; else sleep 1; fi
+	done
+}
+
+# how many virtual terminals to open. 6 is the convention every linux ships,
+# and 12 is the ceiling: past Alt+F12 there is no key to reach them and this
+# build has no chvt.
+ttys=$(sed -n 's/.*vos\.ttys=\([0-9][0-9]*\).*/\1/p' /proc/cmdline)
+[ -n "$ttys" ] || ttys=6
+[ "$ttys" -ge 1 ] 2>/dev/null || ttys=6
+[ "$ttys" -le 12 ] 2>/dev/null || ttys=12
+
+# real hardware: every virtual terminal gets its own shell, so Alt+F1..F6
+# switches between running sessions. under qemu -nographic the fbcon exists but
+# is unseen, so these run harmlessly in the background there.
+spawned=0
+if [ -d /sys/class/graphics/fbcon ]; then
+	n=1
+	while [ "$n" -le "$ttys" ]; do
+		if [ -c "/dev/tty$n" ]; then
+			console_loop "/dev/tty$n" &
+			spawned=$((spawned + 1))
+		fi
+		n=$((n + 1))
+	done
 fi
 
-banner
-exec /bin/sh
+# the serial/primary console gets a supervised session too, so losing the line
+# no longer takes PID 1 down with it.
+console_loop /dev/console &
+
+if grep -q vos.test /proc/cmdline; then
+	echo "ttys-spawned: $spawned"
+	echo "VOS-TEST-DONE"
+	sync
+	# PID 1 no longer exits, so a test boot would otherwise run until the
+	# harness timeout on every single section. end it deliberately instead --
+	# and only ever on a cmdline flag that lives inside the signed UKI.
+	poweroff -f
+fi
+
+# PID 1 must never exit -- an exit here is a kernel panic. wait returns as each
+# child is reaped; the sleep matters because wait with NO children returns
+# immediately, which would spin a core on a passive-cooled machine.
+while : ; do
+	wait
+	sleep 1
+done

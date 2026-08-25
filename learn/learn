@@ -1,0 +1,488 @@
+#!/bin/sh
+# learn -- vos's curriculum. teaches the whole shipped command surface, in
+# order, and grades you by running what you type.
+#
+# two properties this has that a quiz on a general-purpose distro cannot:
+#
+#   the surface is CLOSED. vos's programs are fixed at build time, so "teach
+#   everything" is a finite claim the build checks (G32) rather than an
+#   aspiration. a busybox bump that adds a flag breaks the build until someone
+#   decides whether to teach it.
+#
+#   the root filesystem is READ-ONLY. that is what makes it safe to execute a
+#   learner's answer and grade the output instead of string-matching it, with
+#   no sandbox library involved -- the isolation is the operating system.
+#
+# no arrays, no namerefs, no bashisms: the filesystem is the lookup table.
+set -u
+
+ROOT="${LEARN_ROOT:-/usr/share/learn}"
+REF="$ROOT/ref"
+LEVELS="$ROOT/levels"
+SHELLBIN="${LEARN_SH:-/bin/sh}"
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/learn"
+TMP="${TMPDIR:-/tmp}/learn.$$"
+
+die() { echo "learn: $*" >&2; exit 1; }
+[ -d "$REF" ] || die "no corpus at $REF"
+
+mkdir -p "$TMP" 2>/dev/null || die "cannot create $TMP"
+trap 'rm -rf "$TMP" 2>/dev/null' EXIT INT TERM
+
+for _l in ui ctx grade fixtures cards; do
+	[ -f "$ROOT/lib/$_l" ] || die "missing lib/$_l"
+	. "$ROOT/lib/$_l"
+done
+
+# ---- reference ------------------------------------------------------------
+
+# refname CMD -- the file a command's page is stored under.
+# "." can never be a filename: that name always means the directory itself.
+# it is the one command in the surface that needs translating, and doing it in
+# one place keeps every caller -- ref, coverage, selftest -- agreeing.
+refname() { [ "$1" = "." ] && echo dot || echo "$1"; }
+
+ref() {
+	[ $# -ge 1 ] || die "usage: learn ref <command>"
+	_r=$(refname "$1")
+	if [ -f "$REF/$_r" ]; then
+		cat "$REF/$_r"
+	else
+		echo "learn: no entry for '$1'" >&2
+		echo "try: learn -k $1" >&2
+		return 1
+	fi
+}
+
+surface() { ls -1 "$REF" 2>/dev/null | sed 's/^dot$/./' | sort; }
+
+search() {
+	[ $# -ge 1 ] || die "usage: learn -k <keyword>"
+	grep -rl -i -- "$1" "$REF" 2>/dev/null | sed "s|^$REF/||" | sort | while read -r c; do
+		printf '  %-14s %s\n' "$c" "$(sed -n '2p' "$REF/$c" 2>/dev/null)"
+	done
+}
+
+# ---- levels ---------------------------------------------------------------
+
+level_ids()   { ls -1 "$LEVELS" 2>/dev/null | sort; }
+level_path()  { echo "$LEVELS/$1"; }
+level_field() { sed -n "/^---$/q; s/^$2: \{0,1\}//p" "$(level_path "$1")"; }
+
+# how many question blocks a level holds
+level_nq() { awk '/^---$/ { c++ } END { print c + 0 }' "$(level_path "$1")"; }
+
+# q_load LEVEL INDEX -- fills Q_PROMPT, Q_ANSWERS, Q_OUT, Q_REF, Q_HINT, Q_ID.
+# the roll happens here, once, and the SAME rolled script renders the prompt
+# and every answer. rolling twice would ask about app.log and accept an answer
+# about server.log.
+q_load() {
+	local f blk seed
+	f=$(level_path "$1")
+	roll
+	seed=$(( RANDOM + $2 ))
+
+	blk="$TMP/blk"
+	awk -v n="$2" 'BEGIN { c = 0 } /^---$/ { c++; next } c == n' "$f" > "$blk"
+
+	Q_ID="$2"
+	Q_TPL=$(sed -n 's/^q: \{0,1\}//p' "$blk")
+	Q_PROMPT=$(printf '%s\n' "$Q_TPL" | render "$seed")
+	Q_ANSWERS=$(sed -n 's/^a: \{0,1\}//p' "$blk" | render "$seed")
+	Q_OUT=$(sed -n 's/^out: \{0,1\}//p' "$blk" | render "$seed" | head -1)
+	Q_STATE=$(sed -n 's/^state: \{0,1\}//p' "$blk" | render "$seed" | head -1)
+	Q_REF=$(sed -n 's/^ref: \{0,1\}//p' "$blk" | head -1)
+	Q_HINT=$(sed -n 's/^hint: \{0,1\}//p' "$blk" | render "$seed" | head -1)
+	Q_SETUP=$(sed -n 's/^setup: \{0,1\}//p' "$blk" | render "$seed")
+	[ -n "$Q_PROMPT" ]
+}
+
+# ---- the question loop ----------------------------------------------------
+
+ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 quit
+	local key tier input tries=0
+	q_load "$1" "$2" || return 1
+	key=$(card_key "$1" "$2" "$Q_TPL")
+
+	[ -n "$Q_SETUP" ] && { printf '%s\n' "$Q_SETUP" | say; echo; }
+	printf '  %s%s%s\n' "$W" "$Q_PROMPT" "$N"
+
+	while :; do
+		printf '  %s$%s ' "$C" "$N"
+		IFS= read -r input || return 2
+		case "$input" in
+			quit|:q)  return 2 ;;
+			'')       continue ;;
+			'?'|hint)
+				if [ "$MODE" = challenge ]; then
+					note "not in challenge mode."
+				elif [ -n "$Q_HINT" ]; then
+					note "$Q_HINT"
+				else
+					note "no hint. try: learn ref $Q_REF"
+				fi
+				continue ;;
+			man|tab)
+				if [ "$MODE" = challenge ]; then
+					note "not in challenge mode."
+				else
+					[ -n "$Q_REF" ] && ref "$Q_REF" | ${PAGER:-cat}
+				fi
+				continue ;;
+			skip)
+				card_grade "$key" 0
+				note "answer: $(printf '%s\n' "$Q_ANSWERS" | head -1)"
+				return 1 ;;
+		esac
+
+		if correct "$input"; then
+			card_grade "$key" 1
+			tier=$(card_tier "$key")
+			ok "right${tier:+  ${D}tier $tier${N}}"
+			return 0
+		fi
+
+		tries=$((tries + 1))
+		card_grade "$key" 0
+		if [ "$tries" -ge 2 ] || [ "$MODE" = challenge ]; then
+			no "wrong -- $(printf '%s\n' "$Q_ANSWERS" | head -1)"
+			return 1
+		fi
+		no "not that. one more try (or 'skip')."
+	done
+}
+
+run_level() {
+	local id=$1 nq i right=0 total=0 rc
+	nq=$(level_nq "$id")
+	[ "$nq" -gt 0 ] || { note "level $id has no questions yet"; return 0; }
+
+	hdr "$(level_field "$id" name)" "level ${id%%-*}  ${nq} questions"
+	level_field "$id" brief | say
+	echo
+
+	i=1
+	while [ "$i" -le "$nq" ]; do
+		ask "$id" "$i"; rc=$?
+		[ "$rc" = 2 ] && return 2
+		[ "$rc" = 0 ] && right=$((right + 1))
+		total=$((total + 1))
+		i=$((i + 1))
+		echo
+	done
+
+	rule
+	printf '  %s/%s\n' "$right" "$total"
+	[ "$right" = "$total" ]
+}
+
+# ---- stats ----------------------------------------------------------------
+
+stats() {
+	hdr "mastery" "$(grep -c . "$CARDS" 2>/dev/null || echo 0) cards"
+	local id n m
+	for id in $(level_ids); do
+		n=$(level_nq "$id")
+		m=$(awk -F'\t' -v p="$id/" '$1 ~ "^" p && $2 == 2' "$CARDS" 2>/dev/null | grep -c . || echo 0)
+		printf '  %s%-28s%s %s%s/%s%s\n' "$W" "$(level_field "$id" name)" "$N" \
+			"$([ "$m" = "$n" ] && echo "$G" || echo "$D")" "$m" "$n" "$N"
+	done
+	rule
+	note "tier 2 is mastered. a card unproved for $DECAY_DAYS days drops a tier."
+}
+
+# ---- coverage -------------------------------------------------------------
+#
+# vos's programs are fixed at build time, so "we teach everything" is a finite
+# claim and this is the ledger that settles it.
+#
+# every flag documented in the ref corpus is in exactly one of two sets:
+#   taught -- some question claims it in a teach: line
+#   skipped -- listed in learn/skip with a reason, on purpose
+# anything in neither is a hole, and the build fails on it. that is what keeps
+# the curriculum honest across a busybox version bump: a new flag arrives
+# undocumented in both sets, and the build stops until someone decides.
+
+# flags_of CMD -- the flags this build's own --help documents, one per line.
+# aliases are written "-R,-r", and tar documents bare mode letters, so both
+# shapes are split out here.
+flags_of() {
+	grep -oE '^[[:space:]]+(-[^[:space:],]+,)*-[^[:space:],=]+' "$REF/$(refname "$1")" 2>/dev/null |
+		grep -oE '\-[^[:space:],=]+' | sort -u
+}
+
+taught_set() {
+	sed -n 's/^teach: \{0,1\}//p' "$LEVELS"/* 2>/dev/null | while read -r cmd rest; do
+		[ -n "$rest" ] || continue
+		for f in $rest; do printf '%s %s\n' "$cmd" "$f"; done
+	done | sort -u
+}
+
+skip_set() {
+	[ -f "$ROOT/skip" ] || return 0
+	sed 's/#.*//' "$ROOT/skip" | awk 'NF >= 2 { print $1, $2 }' | sort -u
+}
+
+coverage() {
+	local cmd f total=0 done_=0 skipped=0
+	taught_set > "$TMP/taught"
+	skip_set   > "$TMP/skipped"
+	: > "$TMP/holes"
+
+	for cmd in $(surface); do
+		for f in $(flags_of "$cmd"); do
+			total=$((total + 1))
+			if grep -qxF -- "$cmd $f" "$TMP/taught"; then done_=$((done_ + 1))
+			elif grep -qxF -- "$cmd $f" "$TMP/skipped"; then skipped=$((skipped + 1))
+			else printf '%s %s\n' "$cmd" "$f" >> "$TMP/holes"
+			fi
+		done
+	done
+
+	local holes; holes=$(grep -c . "$TMP/holes" 2>/dev/null || echo 0)
+	hdr "coverage" "$total flags across $(surface | grep -c .) commands"
+	printf '  %s%-8s%s %d\n' "$G" taught "$N" "$done_"
+	printf '  %s%-8s%s %d\n' "$D" skipped "$N" "$skipped"
+	printf '  %s%-8s%s %d\n' "$([ "$holes" -eq 0 ] && echo "$D" || echo "$R")" untaught "$N" "$holes"
+	if [ "$holes" -gt 0 ] && [ "${1:-}" = -v ]; then
+		rule
+		awk '{ a[$1] = a[$1] " " $2 } END { for (c in a) print "  " c a[c] }' "$TMP/holes" | sort
+	fi
+	rule
+	note "learn coverage -v lists the holes. learn/skip is where a flag is"
+	note "retired on purpose, with the reason written down."
+	[ "$holes" -eq 0 ]
+}
+
+# ---- selftest -------------------------------------------------------------
+#
+# the build runs this. it is the difference between "the curriculum is correct"
+# and "nobody has typed the answers in a while".
+#
+# for every question, in every level:
+#   every listed answer is accepted by the grader
+#   the ref: it points at is a command vos actually ships
+#   every flag it claims to teach appears in one of its answers AND is
+#     documented in the ref -- so a coverage claim cannot be a lie
+#   every flag any answer USES is documented too, whether it is claimed or not
+#   the out: pattern matches what the first answer really prints
+#
+# the last one is the expensive check and the one that catches content bugs no
+# amount of reading finds: a question teaching a flag this build compiled out.
+
+# uses_flag FLAG -- does an answer on stdin actually use this flag?
+# short flags bundle: `sort -rn` uses -n without ever containing the two
+# characters "-n". long flags and word flags (-maxdepth, --spider) do not
+# bundle, so those match as whole tokens.
+uses_flag() {
+	case "$1" in
+		--*)  grep -qE -- "(^|[[:space:]])$1([[:space:]=]|$)" ;;
+		-?)   grep -qE -- "(^|[[:space:]])-[A-Za-z0-9]*${1#-}" ;;
+		*)    grep -qE -- "(^|[[:space:]])$1([[:space:]=]|$)" ;;
+	esac
+}
+
+# documented CMD FLAG -- does ref/CMD list this flag?
+# busybox writes aliases as "-R,-r", and tar documents bare mode letters, so
+# a flag may appear after a comma or alone on its line.
+documented() {
+	set -- "$(refname "$1")" "$2"
+	[ -f "$REF/$1" ] || return 1
+	# busybox usage lines write flags inside brackets and pipes -- "[-c SCRIPT]",
+	# "[-i|-n]" -- so a flag is documented when it follows a space, comma,
+	# bracket or bar, not only whitespace.
+	grep -qE "(^|[[:space:],[|/])$2([[:space:],=|/]|\[|\]|$)" "$REF/$1"
+}
+
+# flag_ok CMD TOKEN -- is this token a flag ref/CMD actually documents?
+# handles the three shapes a short flag arrives in:
+#   -n        plain
+#   -rn       a bundle: every letter must be documented
+#   -d,       a documented flag with its value stuck to it
+flag_ok() {
+	local cmd=$1 tok=$2 rest c seen=0
+	documented "$cmd" "$tok" && return 0
+	case "$tok" in --*) return 1 ;; esac
+
+	rest=${tok#-}
+	while [ -n "$rest" ]; do
+		c=${rest%"${rest#?}"}
+		if documented "$cmd" "-$c"; then seen=1; rest=${rest#?}
+		elif [ "$seen" = 1 ]; then return 0   # the tail is an attached value
+		else return 1
+		fi
+	done
+	return 0
+}
+
+# answer_flags -- every "cmd flag" pair an answer actually uses, attributed to
+# the command it belongs to.
+#
+# attribution is the whole difficulty. `ps aux | grep -c x` must check -c
+# against grep, never ps. three constructs move the boundary, and missing any
+# of them reports bugs that are not there:
+#   a pipe or list separator      cmd resets
+#   $(...) or a backtick          a whole new command starts inside
+#   a wrapper (env, timeout, sh)  the command it is about to run follows it
+# the wrapper case needs to know what IS a command, so the ref listing is fed
+# in and consulted -- `timeout 5 wc -l` must skip the 5 and land on wc.
+answer_flags() {
+	ls -1 "$REF" > "$TMP/cmds" 2>/dev/null
+	sed "s/['\"]//g" | awk -v cl="$TMP/cmds" '
+		BEGIN {
+			while ((getline c < cl) > 0) known[c] = 1
+			split("env timeout xargs nohup setsid watch flock sh ash chroot", w, " ")
+			for (i in w) wrapper[w[i]] = 1
+		}
+		{
+			cmd = ""; depth = 0; n = split($0, t, /[ \t]+/)
+			for (i = 1; i <= n; i++) {
+				tok = t[i]
+
+				# $(cmd ...) opens a fresh command and ) closes it again. without
+				# the pop, the -eq in [ "$(wc -l < f)" -eq 10 ] is attributed to
+				# wc, which has no -eq, and the gate reports a bug that is not there.
+				while (sub(/^["'\''(]*\$\(/, "", tok) || sub(/^["'\''(]*`/, "", tok)) {
+					stack[++depth] = cmd; cmd = ""
+				}
+				nclose = gsub(/[)`]+$/, "", tok)
+				gsub(/^["'\'']+|["'\'']+$/, "", tok)
+				if (tok != "" && cmd == "") { cmd = tok; if (nclose) { while (nclose-- > 0 && depth > 0) cmd = stack[depth--] } ; continue }
+				if (nclose) { while (nclose-- > 0 && depth > 0) cmd = stack[depth--] }
+				if (tok == "") continue
+
+				if (tok ~ /^[|;&(){}]+$/ || tok == "&&" || tok == "||") { cmd = ""; continue }
+				if (tok ~ /^(then|else|elif|fi|do|done|case|esac|in)$/) { cmd = ""; continue }
+
+				# find -exec starts a whole new command. without this the -l in
+				# `find . -exec wc -l {} +` is blamed on find, which has no -l.
+				if (tok == "-exec" || tok == "-ok") { print cmd, tok; cmd = ""; continue }
+
+				# only the operator is skipped, never the target: the target may
+				# carry the ) that closes a $( , and swallowing it loses the pop
+				if (tok ~ /^[0-9]?[<>]+$/) continue
+				if (cmd == "") { if (tok ~ /^[A-Za-z_][A-Za-z_0-9]*=/) continue; cmd = tok; continue }
+
+				if (tok !~ /^-./) {
+					# a wrapper hands off to the command named after it
+					if (wrapper[cmd] && known[tok]) cmd = tok
+					continue
+				}
+				if (tok ~ /^-[0-9]+$/) continue                   # head -5, kill -9
+				# chmod takes a symbolic MODE that begins with a dash: `chmod -x f`
+				# removes the execute bit, it does not pass a flag called -x.
+				if (cmd == "chmod" && tok ~ /^-[rwxXstugoa]+$/) continue
+				print cmd, tok
+			}
+		}' | sort -u
+}
+
+selftest() {
+	local id nq i bad=0 nq_all=0 a rc got flag base
+	sandbox_build || die "cannot build sandbox at $SANDBOX"
+
+	for id in $(level_ids); do
+		nq=$(level_nq "$id")
+		i=1
+		while [ "$i" -le "$nq" ]; do
+			q_load "$id" "$i" || { echo "FAIL $id/$i: no prompt" >&2; bad=$((bad+1)); i=$((i+1)); continue; }
+			nq_all=$((nq_all + 1))
+
+			[ -n "$Q_ANSWERS" ] || { echo "FAIL $id/$i: no answer" >&2; bad=$((bad+1)); }
+
+			# unrendered placeholder: a %name% with no pool behind it
+			case "$Q_PROMPT$Q_ANSWERS" in
+				*%*%*) echo "FAIL $id/$i: unrendered placeholder in: $Q_PROMPT" >&2; bad=$((bad+1)) ;;
+			esac
+
+			# ref must be a command we ship
+			if [ -n "$Q_REF" ] && [ ! -f "$REF/$Q_REF" ]; then
+				echo "FAIL $id/$i: ref '$Q_REF' is not a shipped command" >&2; bad=$((bad+1))
+			fi
+
+			# every listed answer must be accepted
+			printf '%s\n' "$Q_ANSWERS" | while IFS= read -r a; do
+				[ -n "$a" ] || continue
+				correct "$a" || echo "FAIL $id/$i: own answer rejected: $a"
+			done > "$TMP/st.$$" 2>&1
+			if [ -s "$TMP/st.$$" ]; then cat "$TMP/st.$$" >&2; bad=$((bad + $(grep -c . "$TMP/st.$$"))); fi
+			rm -f "$TMP/st.$$"
+
+			# every flag an answer USES must be documented in the corpus that
+			# ships beside it. without this, a question can quietly depend on a
+			# flag this build compiled out -- which is the one promise the whole
+			# curriculum rests on: nothing is asked that the docs cannot answer.
+			printf '%s\n' "$Q_ANSWERS" | answer_flags | while read -r ac af; do
+				[ -f "$REF/$ac" ] || continue
+				flag_ok "$ac" "$af" || echo "FAIL $id/$i: answer uses $ac $af, undocumented in ref/$ac"
+			done > "$TMP/fl.$$" 2>&1
+			if [ -s "$TMP/fl.$$" ]; then cat "$TMP/fl.$$" >&2; bad=$((bad + $(grep -c . "$TMP/fl.$$"))); fi
+			rm -f "$TMP/fl.$$"
+
+			# the coverage claim has to be true in both directions
+			for flag in $(sed -n "s/^teach: \{0,1\}//p" "$TMP/blk"); do
+				case "$flag" in
+					-*) printf '%s\n' "$Q_ANSWERS" | uses_flag "$flag" \
+					      || { echo "FAIL $id/$i: claims to teach $flag, no answer uses it" >&2; bad=$((bad+1)); }
+					    [ -n "$Q_REF" ] && { documented "$Q_REF" "$flag" \
+					      || { echo "FAIL $id/$i: teaches $flag, undocumented in ref/$Q_REF" >&2; bad=$((bad+1)); }; } ;;
+					*)  [ -f "$REF/$flag" ] || { echo "FAIL $id/$i: teaches '$flag', not a shipped command" >&2; bad=$((bad+1)); } ;;
+				esac
+			done
+
+			# and out:/state: must describe reality, not the author's hope
+			if [ -n "$Q_OUT" ] || [ -n "$Q_STATE" ]; then
+				a=$(printf '%s\n' "$Q_ANSWERS" | head -1)
+				if ! printf '%s\n' "$a" | unsafe; then
+					got=$(run_answer "$a"); SANDBOX_DIRTY=1
+					[ -z "$Q_OUT" ] || printf '%s\n' "$got" | grep -qE -- "$Q_OUT" \
+					  || { echo "FAIL $id/$i: out:/$Q_OUT/ does not match what '$a' prints" >&2; bad=$((bad+1)); }
+					[ -z "$Q_STATE" ] || check_state "$Q_STATE" \
+					  || { echo "FAIL $id/$i: state:$Q_STATE not true after '$a'" >&2; bad=$((bad+1)); }
+				fi
+			fi
+
+			i=$((i + 1))
+		done
+	done
+
+	printf 'learn: %d questions in %d levels, %d bad\n' \
+		"$nq_all" "$(level_ids | grep -c .)" "$bad"
+	[ "$bad" -eq 0 ]
+}
+
+# ---- dispatch -------------------------------------------------------------
+
+MODE=learn
+cards_init
+cards_decay
+ctx_init
+
+usage() {
+	cat <<-EOF
+	learn                 resume the curriculum
+	learn <n>             practice level n
+	learn ref <cmd>       the reference entry for a command
+	learn <cmd>           same, shorthand
+	learn -k <word>       search the corpus
+	learn list            every command vos ships
+	learn stats           what you have mastered
+	learn reset           forget all progress
+	EOF
+}
+
+case "${1:-}" in
+	'')       for _id in $(level_ids); do run_level "$_id" || break; done ;;
+	ref)      shift; ref "$@" ;;
+	-k)       shift; search "$@" ;;
+	list)     surface ;;
+	stats)    stats ;;
+	selftest) selftest ;;
+	coverage) shift; coverage "${1:--q}" ;;
+	reset)    rm -f "$CARDS" 2>/dev/null; ok "progress cleared" ;;
+	-h|--help|help) usage ;;
+	[0-9]*)   _id=$(level_ids | grep "^0*$1-" | head -1)
+	          [ -n "$_id" ] || die "no level $1"
+	          run_level "$_id" ;;
+	*)        if [ -f "$REF/$1" ]; then ref "$1"; else usage; exit 1; fi ;;
+esac

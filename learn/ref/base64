@@ -1,0 +1,7 @@
+base64
+Usage: base64 [-d] [-w COL] [FILE]
+
+Base64 encode or decode FILE to standard output
+
+	-d	Decode data
+	-w COL	Wrap lines at COL (default 76, 0 disables)

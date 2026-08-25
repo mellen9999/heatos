@@ -1,0 +1,106 @@
+# flags the curriculum deliberately does not drill, and why.
+#
+# this file exists so that "we only teach the useful stuff" is a decision on
+# the record instead of a gap nobody noticed. every flag the ref corpus
+# documents is either taught by a question or listed here. `learn coverage`
+# fails the build on anything in neither, so a busybox bump that adds a flag
+# stops the build until someone rules on it.
+#
+# format:  <command> <flag>   # reason
+#
+# the reasons collapse to five kinds:
+#   alias      -- a second spelling of a flag we already teach
+#   verbose    -- output chattiness, no new capability
+#   compat     -- accepted for other implementations, no-op or near enough
+#   absent     -- the feature it drives is not compiled into this build
+#   danger     -- works, but has no place in a drill that runs your answer
+
+# ── chattiness and confirmation: real, but nothing to learn ──
+chmod -c        # verbose
+chmod -f        # verbose
+chmod -v        # verbose
+cp -v           # verbose
+mv -v           # verbose
+ln -v           # verbose
+rm -v           # verbose
+ftpget -v       # verbose
+ftpput -v       # verbose
+mount -v        # verbose
+head -v         # verbose
+head -q         # verbose
+tail -v         # verbose
+tail -q         # verbose
+readlink -v     # verbose
+md5sum -w       # verbose
+sha1sum -w      # verbose
+sha256sum -w    # verbose
+sha512sum -w    # verbose
+diff -s         # verbose
+cmp -s          # verbose, and -s is taught on grep where it matters
+
+# ── second spellings of something already drilled ──
+cp -R           # alias of -r
+cp -H           # alias behaviour of -L, rarely distinguishable
+cp -P           # the default; -L is the one worth knowing
+grep -R         # alias of -r
+grep -H         # the default when more than one file is named
+grep -h         # verbose
+echo -E         # the default
+bzip2 -d        # bunzip2 is the applet that means this
+gzip -d         # gunzip is the applet that means this
+bunzip2 -c      # zcat is the applet that means this
+ls -lc          # -l plus a sort key we teach separately
+ls -lu          # as above
+ls -tc          # as above
+ls -tu          # as above
+find -print     # the default
+find -H         # symlink-follow nuance; -L is the one to know
+find -follow    # alias of -L
+find -amin      # -mmin is the one that matters in triage
+find -atime     # atime is unreliable on a read-only root
+find -cmin      # ctime nuance, rarely the question
+find -ctime     # as above
+find -ipath     # -iname and -path cover the idea
+find -regex     # -name covers the shipped use
+find -inum      # inode identity is taught through ln and stat
+find -samefile  # as above
+find -links     # as above
+
+# ── compat: accepted, no effect worth teaching ──
+cut -n          # no-op in this implementation
+df -P           # POSIX output form, same information
+df -k           # the default unit
+du -k           # the default unit
+du -l           # hard-link accounting nuance
+less -~         # display nicety
+less -E         # display nicety
+less -F         # display nicety
+less -m         # display nicety
+less -M         # display nicety
+less -R         # display nicety
+mount -f        # dry run, for scripts that will not run here
+mount -T        # alternate fstab path; vrl has one root
+hostname -F     # sets from a file; the root is read-only
+nproc --ignore  # arithmetic on a number you already have
+
+# ── the feature is not in this build ──
+nc -l           # CONFIG_NC_SERVER is off: listen mode is not compiled in
+ls --color[     # emitted by --help as a bracketed form, not a usable flag
+awk -f/-E       # emitted as a joined pair by --help, not a usable flag
+
+# ── works, but not inside a drill that executes your answer ──
+find -delete    # taught as a concept in the archives level, never executed
+find -ok        # interactive, would block the grader
+halt -f         # every question here would end the session
+halt -d
+halt -n
+poweroff -f
+poweroff -d
+poweroff -n
+reboot -f
+reboot -d
+reboot -n
+
+# ── abduco ──
+abduco -l       # login-shell flag; vos has one user and no login(1)
+abduco -f       # force-attach, only meaningful after an unclean detach

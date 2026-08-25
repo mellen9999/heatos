@@ -1,0 +1,24 @@
+kill
+Usage: kill [-l] [-SIG] PID...
+
+Send a signal (default: TERM) to given PIDs. "kill" is a misnomer: it
+sends a signal, and most signals can be caught or ignored by the target.
+
+	-l	List all signal names and numbers
+	-SIG	Send SIG instead of TERM, by number or name
+
+The three that matter:
+
+	-15	TERM	ask the process to exit. catchable, so it can
+			close files and clean up. this is the default.
+	-9	KILL	cannot be caught, blocked or ignored. the kernel
+			destroys the process immediately, so it never gets
+			to clean up. a last resort, not a first move.
+	-1	HUP	historically "hangup"; many daemons reload their
+			config on it instead of exiting.
+
+	kill 1234		TERM, the polite default
+	kill -9 1234		KILL, unconditional
+	kill -HUP 1234		by name instead of number
+
+See also: pkill, pgrep, ps, trap

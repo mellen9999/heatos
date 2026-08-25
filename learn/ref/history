@@ -1,0 +1,10 @@
+history
+Usage: history
+
+Print the commands this shell has run, numbered.
+
+The up arrow walks the same list. Nothing persists: the root is read-only,
+so there is no history file, and every boot starts empty. On a machine you
+do not trust that is a feature, not a limitation.
+
+See also: sh

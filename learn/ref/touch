@@ -1,0 +1,12 @@
+touch
+Usage: touch [-cham] [-d DATE] [-t DATE] [-r FILE] FILE...
+
+Update mtime of FILEs
+
+	-c	Don't create files
+	-h	Don't follow links
+	-a	Change only atime
+	-m	Change only mtime
+	-d DT	Date/time to use
+	-t DT	Date/time to use
+	-r FILE	Use FILE's date/time

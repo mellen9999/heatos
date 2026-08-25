@@ -1,0 +1,13 @@
+read
+Usage: read [-r] [-p PROMPT] NAME...
+
+Shell builtin. Read one line from stdin into NAME. Splits on whitespace
+if given several names; the last one absorbs the remainder.
+
+	-r	do not treat backslash as an escape (almost always what you want)
+	-p	print PROMPT first
+
+	read -r line < /etc/hostname
+	printf 'name? '; read -r answer
+
+See also: echo, printf

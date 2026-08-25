@@ -1,0 +1,70 @@
+name: redirection
+boss: DevNull
+flavor: Your stderr falls into the void.
+brief: A command has three channels: stdin (0) it reads, stdout (1) it prints,
+brief: and stderr (2) it complains on. Redirection re-points them at files.
+brief:
+brief: > truncates the target first. >> appends. That single character is the
+brief: difference between adding today's log and destroying yesterday's, and
+brief: no confirmation stands between you and it.
+brief:
+brief: 2> catches errors only. > file 2>&1 catches both, in that order --
+brief: 2>&1 > file does not, because the duplication happens before the move.
+---
+q: write the word %word% into %word%.txt, replacing anything already there
+a: echo %word% > %word%.txt
+state: match:%word%.txt:%word%
+ref: echo
+teach: echo
+---
+q: append the word %word% to the end of %txt% without destroying it
+a: echo %word% >> %txt%
+state: match:%txt%:rotate
+ref: echo
+teach: echo
+hint: two angle brackets, not one
+---
+q: feed %txt% into sort on its standard input, using a redirect rather than a filename
+a: sort < %txt%
+out: ask why the fan
+ref: sort
+teach: sort
+---
+q: run "ls %word%-missing" and send only its error message to errors.txt
+a: ls %word%-missing 2> errors.txt
+state: exists:errors.txt
+ref: ls
+teach: ls
+hint: the error channel is number 2
+---
+q: run "ls %word%-missing" and throw its error message away entirely
+a: ls %word%-missing 2> /dev/null
+ref: ls
+teach: ls
+hint: /dev/null is the bit bucket -- everything written to it is discarded
+---
+q: run "ls %dir% %word%-missing" sending both output and errors into all.txt
+a: ls %dir% %word%-missing > all.txt 2>&1
+ref: ls
+teach: ls
+hint: redirect stdout first, then point stderr at wherever stdout now goes
+---
+q: show %log% on screen AND save a copy into copy.txt at the same time
+a: cat %log% | tee copy.txt
+out: service started
+ref: tee
+teach: tee
+---
+q: show %log% on screen and APPEND a copy to copy.txt
+a: cat %log% | tee -a copy.txt
+out: service started
+ref: tee
+teach: tee -a
+hint: without -a, tee truncates the file the way > does
+---
+q: count the lines of %txt% and write the number into %cvar%.txt
+a: wc -l < %txt% > %cvar%.txt
+a: wc -l %txt% > %cvar%.txt
+state: exists:%cvar%.txt
+ref: wc
+teach: wc -l

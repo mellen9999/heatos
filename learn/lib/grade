@@ -1,0 +1,143 @@
+# grade -- decide whether an answer is right.
+#
+# three tiers, cheapest first:
+#
+#   1. text match against the listed answers, after normalisation
+#   2. RUN IT. the answer executes in the sandbox and is judged on its output.
+#
+# tier 2 is the one that matters. a listed-answer quiz can only accept the
+# phrasings its author happened to think of, which teaches you to guess the
+# author instead of the machine. running the answer means `sort -u` and
+# `sort | uniq` both pass because both are correct, and it means a question
+# has no wrong-but-unlisted answers to apologise for.
+#
+# vrl is the reason this is safe to do at all. root is a read-only squashfs and
+# the sandbox is a directory in tmpfs, so the worst an answer can reach is a
+# tree learn rebuilds on demand. upstream needs bubblewrap for this; here the
+# isolation is the operating system.
+
+# ---- normalisation --------------------------------------------------------
+#
+# upstream folds --ignore-case to -i, because GNU coreutils accepts both. this
+# build does not: busybox rejects --ignore-case, --lines and --all outright.
+# porting that table would accept answers that do not run on the machine the
+# lesson is teaching, so there is no long-flag fold here. the 31 long options
+# the corpus does document (--spider, --strip-components) are long-ONLY -- they
+# have no short form to fold to.
+
+# uncat -- `cat F | filter` is graded as the direct form the lesson teaches.
+# two folds, by how the filter names its input:
+#   filters that take a trailing filename (grep, sort, cut) -> `filter ... F`
+#   filters that only read stdin, or that decorate output with the filename
+#   (tr, wc) -> `filter ... < F`. wc from an argument prints "N file" but from
+#   stdin prints "N", so the redirect form is the one that matches.
+uncat() {
+	# # delimits these, not |: the pattern needs a literal pipe AND ERE
+	# alternation, and | cannot be all three at once.
+	sed -E '
+	  s#^cat[[:space:]]+([^ |<>&;]+)[[:space:]]*[|][[:space:]]*(wc|tr)([[:space:]].*)?$#\2\3 < \1#
+	  s#^cat[[:space:]]+([^ |<>&;]+)[[:space:]]*[|][[:space:]]*([a-z]+)([[:space:]].*)?$#\2\3 \1#
+	'
+}
+
+norm() {
+	tr -s ' \t' ' ' | sed 's/^ //; s/ $//' | uncat |
+		tr -s ' ' ' ' | sed 's/^ //; s/ $//'
+}
+
+# ---- running the answer ---------------------------------------------------
+
+# unsafe -- should this answer be graded on its text instead of by running it?
+#
+# the first cut of this blacklisted rm/mv/dd, which was wrong: those are what
+# the file lessons TEACH, and refusing to run them means the one command whose
+# whole effect is a mutation is the one never judged on its mutation.
+#
+# the second cut refused every absolute path, which was also wrong: reading
+# /proc/cmdline is most of what makes this vrl's curriculum and not a generic
+# shell quiz. reading out is harmless.
+#
+# what is actually unsafe is WRITING out. the answer runs with cwd inside a
+# disposable tmpfs tree, so scribbling there is free; the rule is that nothing
+# may modify anything outside it. reads go anywhere, writes stay home.
+unsafe() {
+	awk '
+		BEGIN {
+			split("rm mv cp ln chmod chown tee touch mkdir rmdir dd shred truncate", w, " ")
+			for (i in w) writer[w[i]] = 1
+			split("mkfs fdisk losetup mount umount blockdev sync halt reboot poweroff", b, " ")
+			for (i in b) banned[b[i]] = 1
+		}
+		{
+			cmd = ""; n = split($0, t, /[ \t]+/)
+			for (i = 1; i <= n; i++) {
+				tok = t[i]
+				if (tok == "|" || tok == ";" || tok == "&&" || tok == "||") { cmd = ""; continue }
+				if (cmd == "") { cmd = tok; if (banned[cmd]) { print "y"; exit } ; continue }
+
+				# a redirect target outside the tree, however it is spelled
+				if (tok ~ /^>>?$/) { nxt = t[i+1]; if (nxt ~ /^[\/~]/) { print "y"; exit } ; continue }
+				if (tok ~ /^>>?[\/~]/) { print "y"; exit }
+
+				# dd names its output with an operand, not an argument, so a
+				# path check that only looks at bare tokens misses of=/dev/sda
+				if (cmd == "dd" && tok ~ /^of=[\/~]/)   { print "y"; exit }
+
+				# an escaping path handed to something that writes
+				if (writer[cmd] && tok ~ /^[\/~]/)      { print "y"; exit }
+				if (tok ~ /(^|\/)\.\.(\/|$)/)           { print "y"; exit }
+			}
+		}
+	' | grep -q y
+}
+
+# run ANSWER -- stdout+stderr of the answer, executed in a fresh sandbox.
+run_answer() {
+	sandbox_reset
+	( cd "$SANDBOX" 2>/dev/null || exit 1
+	  # a wrong answer that blocks on stdin would hang the lesson
+	  timeout 5 "$SHELLBIN" -c "$1" </dev/null 2>&1 )
+}
+
+# ---- the verdict ----------------------------------------------------------
+
+# check_state SPEC -- did the answer leave the tree in the right shape?
+# `cp a b` prints nothing, so output cannot judge it; what it DID is the whole
+# point. three forms, which between them cover every mutating command vrl has:
+#   exists:PATH        the path is there afterwards
+#   gone:PATH          the path is not
+#   match:PATH:ERE     the path is there and its contents match
+check_state() {
+	case "$1" in
+		exists:*) [ -e "$SANDBOX/${1#exists:}" ] ;;
+		gone:*)   [ ! -e "$SANDBOX/${1#gone:}" ] ;;
+		match:*)  _r=${1#match:}; _p=${_r%%:*}; _e=${_r#*:}
+		          [ -e "$SANDBOX/$_p" ] && grep -qE -- "$_e" "$SANDBOX/$_p" 2>/dev/null ;;
+		*)        return 1 ;;
+	esac
+}
+
+# correct GIVEN -- $Q_ANSWERS holds the listed answers, one per line.
+# $Q_OUT, when set, is an ERE the answer's real output must match.
+# $Q_STATE, when set, is what the tree must look like afterwards.
+correct() {
+	_given=$(printf '%s\n' "$1" | norm)
+	[ -n "$_given" ] || return 1
+
+	# tier 1: does it match something we listed?
+	printf '%s\n' "$Q_ANSWERS" | while IFS= read -r _a; do
+		[ -n "$_a" ] || continue
+		[ "$(printf '%s\n' "$_a" | norm)" = "$_given" ] && exit 9
+	done
+	[ $? -eq 9 ] && return 0
+
+	# tier 2: it is not one we listed. run it and see if it is right anyway.
+	[ -n "${Q_OUT:-}" ] || [ -n "${Q_STATE:-}" ] || return 1
+	[ "${SANDBOX_OK:-0}" = 1 ] || return 1
+	printf '%s\n' "$1" | unsafe && return 1
+
+	_got=$(run_answer "$1"); SANDBOX_DIRTY=1
+	[ -z "${Q_OUT:-}" ]   || printf '%s\n' "$_got" | grep -qE -- "$Q_OUT" || return 1
+	[ -z "${Q_STATE:-}" ] || check_state "$Q_STATE" || return 1
+	return 0
+}

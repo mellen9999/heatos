@@ -1,0 +1,4 @@
+reset
+Usage: reset
+
+Reset terminal (ESC codes) and termios (signals, buffering, echo)

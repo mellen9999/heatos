@@ -1,0 +1,31 @@
+# ui -- terminal output. square, dense, ANSI-256, no motion.
+#
+# colour is a courtesy, never information: every state that colour marks is
+# also marked by a character, so NO_COLOR and a dumb terminal lose nothing.
+
+if [ -n "${NO_COLOR:-}" ] || [ "${TERM:-dumb}" = dumb ] || [ ! -t 1 ]; then
+	N= B= D= R= G= Y= C= M= W= U=
+else
+	N=$(printf '\033[0m')      B=$(printf '\033[1m')    D=$(printf '\033[2m')
+	R=$(printf '\033[38;5;196m') G=$(printf '\033[38;5;46m')
+	Y=$(printf '\033[38;5;226m') C=$(printf '\033[38;5;51m')
+	M=$(printf '\033[38;5;208m') W=$(printf '\033[38;5;231m')
+	U=$(printf '\033[4m')
+fi
+
+COLS=${COLUMNS:-80}
+[ "$COLS" -ge 40 ] 2>/dev/null || COLS=80
+
+rule() { printf '%s' "$D"; awk -v n="$COLS" 'BEGIN{while(n-->0)printf "-"}'; printf '%s\n' "$N"; }
+
+hdr() {
+	printf '\n%s%s%s %s\n' "$B$M" "$1" "$N" "${D}$2$N"
+	rule
+}
+
+# say -- prose, wrapped to the terminal, never past 76 columns
+say() { fold -s -w $(( COLS < 78 ? COLS - 2 : 76 )) | sed 's/^/  /'; }
+
+ok()   { printf '  %s+%s %s\n' "$G" "$N" "$1"; }
+no()   { printf '  %s-%s %s\n' "$R" "$N" "$1"; }
+note() { printf '  %s%s%s\n' "$D" "$1" "$N"; }

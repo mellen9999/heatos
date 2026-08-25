@@ -1,0 +1,24 @@
+learn
+Usage: learn [ref CMD | -k WORD | list | progress | reset]
+
+This program. Teaches the vos command surface from nothing to fluent,
+in order, and never asks a question it has not already given you the
+material to answer.
+
+	learn			resume the curriculum
+	learn ref ls		the reference entry for a command
+	learn ls		same thing, shorthand
+	learn -k pipe		search every entry for a word
+	learn list		every documented command
+	learn progress		how far along you are
+	learn reset		start the curriculum over
+
+Inside a question: ? prints the reference, hint gives a nudge, skip
+shows the answer and moves on, quit leaves.
+
+busybox ships no man pages, so these entries are the manual. Every one
+is generated from the help text of the binary this image actually
+contains, so a flag documented here exists here.
+
+Progress is kept in $XDG_STATE_HOME/learn/progress. On a stick with no
+unlocked state partition that lives in RAM and resets at reboot.
