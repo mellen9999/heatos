@@ -7,11 +7,12 @@ set -uo pipefail
 cd "$(dirname "$0")"
 
 has() { local n; n=$(grep -c -- "$1" || true); [ "${n:-0}" -gt 0 ]; }
+SBGUID_T=11111111-2222-3333-4444-555555555555
 pass=0; fail=0; skip=0; sections=0
 # the gate runner already learned this: a run that dies partway through prints
 # a smaller number and looks exactly like a clean one. count the checks that
 # actually ran and refuse to report a result if any of them went missing.
-EXPECTED_SECTIONS=10
+EXPECTED_SECTIONS=11
 section() { sections=$((sections+1)); echo; echo "$1"; }
 
 # p2 (root) starts after the 1 MiB gap + the ESP. keep in step with build.sh
@@ -23,6 +24,8 @@ ROOT_OFF=$(( (1 + 64) * 1024 * 1024 ))
 # run and restore the production ones on the way out.
 # unlock once into RAM; every subsequent sign reuses it, and we wipe on exit.
 ./build.sh unlock || { echo "cannot unlock signing keys"; exit 1; }
+# uki rebuilds ovmf-vars.fd from the pristine OVMF template, so restore() also
+# discards the throwaway dbx entry A11 enrolls into firmware.
 HEATOS_TEST=1 ./build.sh verity >/dev/null && ./build.sh uki >/dev/null && ./build.sh stick >/dev/null
 restore() {
 	./build.sh verity >/dev/null 2>&1 && ./build.sh uki >/dev/null 2>&1 && ./build.sh stick >/dev/null 2>&1
@@ -180,6 +183,52 @@ else
 fi
 
 echo
+section "A11  a superseded but validly-signed image must be refused"
+# secure boot checks WHO signed an image, never WHEN. without revocation an old
+# release stays bootable forever: drop it on the ESP -- plain FAT, because
+# something has to boot -- and the firmware runs it, signature valid, every gate
+# green. this asserts dbx actually closes that.
+stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub
+R=$(./build.sh ramkeys)
+if [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
+	skipped "no stub or unlocked key -- A11 not evaluated"
+else
+	ukify build --linux=bzImage --cmdline="$(cat cmdline.txt) heatos.rel=old" \
+		--stub="$stub" --output=/tmp/heatos-a11.efi >/dev/null 2>&1
+	sbsign --key "$R/db.key" --cert keys/db.crt \
+		--output /tmp/heatos-a11-signed.efi /tmp/heatos-a11.efi >/dev/null 2>&1
+	if ! sbverify --cert keys/db.crt /tmp/heatos-a11-signed.efi >/dev/null 2>&1; then
+		bad "could not build a validly-signed superseded image to test with"
+	else
+		ok "the superseded image is validly signed by db"
+		h=$(python3 pehash.py --verify /tmp/heatos-a11-signed.efi) \
+			&& ok "authenticode digest agrees with its own signature" \
+			|| bad "pehash.py disagrees with the signature -- dbx would revoke nothing"
+		# revoke it in firmware only; the tracked `revoked` file is untouched.
+		virt-fw-vars --input ovmf-vars.fd --output ovmf-vars.fd \
+			--add-dbx-hash "$SBGUID_T" "$h" >/dev/null 2>&1 \
+			|| bad "could not enroll the test revocation into dbx"
+		# drop the revoked image into a copy of the stick's ESP and boot that
+		cp stick.img /tmp/heatos-a11.img
+		mcopy -o -i /tmp/heatos-a11.img@@1M /tmp/heatos-a11-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+		o11=$(boot_img /tmp/heatos-a11.img)
+		if grep -q HEATOS-TEST-BEGIN <<< "$o11"; then
+			bad "a revoked image still booted -- dbx is not being enforced"
+		else
+			has_denied=$(grep -ic 'access denied\|security violation' <<< "$o11" || true)
+			[ "${has_denied:-0}" -gt 0 ] \
+				&& ok "firmware refused the revoked image" \
+				|| bad "revoked image did not boot, but not visibly refused by dbx"
+		fi
+		# revocation must not have collaterally killed the good image
+		o11b=$(boot_img stick.img)
+		grep -q HEATOS-TEST-BEGIN <<< "$o11b" \
+			&& ok "the current image still boots with dbx enrolled" \
+			|| bad "dbx enrollment broke the image we actually ship"
+	fi
+	rm -f /tmp/heatos-a11.efi /tmp/heatos-a11-signed.efi /tmp/heatos-a11.img
+fi
+
 printf '  %d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
 if [ "$sections" -ne "$EXPECTED_SECTIONS" ]; then
 	printf '\033[1;31m  only %d of %d checks ran -- the harness was truncated\033[0m\n\n' \

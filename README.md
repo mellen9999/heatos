@@ -37,12 +37,16 @@ whether the stick enumerates as the first disk or the third.
 each link is checked by the one above it. one key at the top, complete
 coverage at the bottom.
 
+and one link pointing backwards: `dbx`, the revocation list, which is the only
+part of the chain that can say an image is *old*.
+
 ## build
 
-    ./build.sh all      # sources verified against pinned digests, then built
-    ./selftest.sh       # adversarial self-test: asserts every tamper attempt is refused
-    ./build.sh boot     # boots the real chain in qemu (dev only)
+    ./build.sh all            # sources verified against pinned digests, then built
+    ./selftest.sh             # adversarial self-test: asserts every tamper attempt is refused
+    ./build.sh boot           # boots the real chain in qemu (dev only)
     ./build.sh usb /dev/sdX   # write a real bootable stick
+    ./build.sh revoke IMG     # retire a superseded image so it can never boot again
 
 qemu is the development and test rig -- the self-test needs to byte-flip boot
 media, which you can't do to a machine you're running on. the stick is the
@@ -119,6 +123,8 @@ the build fails, loudly, on any of:
 - a stick whose partitions or embedded kernel don't match the built artifacts
 - an image whose bytes don't match `image.sha256` on the pinned toolchain
 - a plaintext private signing key sitting on disk
+- an image that is in `revoked` (you would be shipping a brick)
+- a revocation digest that disagrees with the signature it is meant to revoke
 
 a build that reports success while quietly dropping features is the failure
 mode this is built against. every claim above has a check that fails when it
@@ -147,6 +153,36 @@ on tmpfs and is gone at reboot.
 
 userland is compiled static-PIE with the stack protector and stack-clash
 protection, and linked with a non-executable stack.
+
+## revocation
+
+a signature says who signed an image. it never says when.
+
+so every image heatos has ever signed stays bootable forever. an old release --
+older kernel, older bugs, whatever CVE you rebuilt to escape -- can be dropped
+back onto the ESP, and the firmware runs it. the signature is valid, because it
+is valid. verity passes, because that old image has its own consistent root
+hash. every gate in this repo goes green. nothing above notices, because there
+was nothing above to notice: verified boot has no idea what "current" means.
+
+`revoked` is the answer. it lists the authenticode digest of every image that
+must never boot again; `./build.sh revoke IMAGE` appends one, and `dbx` enrolls
+the list into firmware alongside the db key. after that the firmware refuses
+the old image with `Access Denied`, at exactly the same place it refuses an
+unsigned one.
+
+two things guard the guard, because a revocation that silently matches nothing
+is indistinguishable from one that works:
+
+- the digest is the *authenticode* hash, not `sha256sum` of the file -- three
+  regions are excluded from it. G15 checks `pehash.py` against the digest
+  inside the image's own PKCS#7 signature, which sbsign already signed, so a
+  wrong hash function fails the build instead of quietly revoking nothing.
+- A7 boots a superseded-but-validly-signed image in a vm and fails unless the
+  firmware actually refuses it.
+
+entries are permanent. removing one un-revokes a known-bad image, which is the
+whole reason the file is tracked and the image is not.
 
 ## userland
 

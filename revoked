@@ -1,0 +1,20 @@
+# images that must never boot again, by authenticode sha-256.
+#
+# secure boot answers one question: was this signed by a key you hold. it has
+# no notion of WHEN. every image heatos has ever signed stays bootable forever,
+# so an old release -- old kernel, old CVEs, old bugs -- can be dropped back
+# onto the ESP and the firmware will run it with every signature checking out
+# and every build gate green. this file is the only part of the chain that can
+# say "not that one".
+#
+# add an entry with:  ./build.sh revoke path/to/old-signed.efi
+# it is enrolled into dbx by ./build.sh dbx, which ./build.sh uki runs for you.
+#
+# these hashes are NOT sha256sum of the file -- see pehash.py. G15 proves the
+# hash function agrees with the signatures it revokes, and A7 proves the
+# firmware actually refuses a revoked image, because a dbx entry that matches
+# nothing looks identical to one that works.
+#
+# entries are permanent. removing one un-revokes a known-bad image.
+#
+# format:  <64 hex chars>  <what it was, and why it is dead>

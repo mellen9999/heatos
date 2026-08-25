@@ -9,8 +9,10 @@ IIVER="${IIVER:-2.0}"
 BSSLVER="${BSSLVER:-0.6}"
 CMDCHAMP_SRC="${CMDCHAMP_SRC:-$HOME/projects/cmdchamp}"
 # plaintext private keys live ONLY here, only while unlocked. /dev/shm is
-# tmpfs, so nothing lands on disk.
-RAMKEYS="/dev/shm/heatos-keys-$(id -u)"
+# tmpfs, so nothing lands on disk. the path is scoped to THIS tree: /dev/shm is
+# shared across every checkout and worktree a user has open, so a bare per-uid
+# path let one tree's unlock silently satisfy another tree's.
+RAMKEYS="/dev/shm/heatos-keys-$(id -u)-$(printf %s "$PWD" | sha256sum | cut -c1-12)"
 JOBS="$(nproc)"
 IMAGE_MAX=8388608
 SALT=48454154534f530000000000000000000000000000000000000000000000000a
@@ -420,8 +422,22 @@ reseal() {
   echo "  passphrase changed."
 }
 
+# the unlocked key must be the one keys/db.crt attests to. unlock() used to
+# early-return on the mere EXISTENCE of $RAMKEYS/db.key, so a stale unlock from
+# a different keyset was reused without ever being checked against this tree's
+# certificate -- the build would then sign with one key and enroll another.
+keymatch() {
+  [ -f "$RAMKEYS/db.key" ] && [ -f keys/db.crt ] || return 1
+  local a b
+  a=$(openssl pkey -in "$RAMKEYS/db.key" -pubout 2>/dev/null) || return 1
+  b=$(openssl x509 -in keys/db.crt -noout -pubkey 2>/dev/null) || return 1
+  [ -n "$a" ] && [ "$a" = "$b" ]
+}
+
 unlock() {
-  [ -f "$RAMKEYS/db.key" ] && return 0
+  keymatch && return 0
+  # present but not ours: wipe it rather than sign with it.
+  [ -f "$RAMKEYS/db.key" ] && { echo "  cached key does not match keys/db.crt -- re-unlocking"; rm -rf "$RAMKEYS"; }
   [ -f keys/db.key.enc ] || { echo "FAIL: keys/db.key.enc missing -- run ./build.sh keys then seal" >&2; return 1; }
   local pass
   if [ -n "${HEATOS_KEYPASS:-}" ]; then pass="$HEATOS_KEYPASS"
@@ -437,8 +453,12 @@ unlock() {
   chmod 600 "$RAMKEYS"/*.key
   openssl rsa -in "$RAMKEYS/db.key" -noout 2>/dev/null \
     || { rm -rf "$RAMKEYS"; echo "FAIL: decrypted key is not a valid RSA key" >&2; return 1; }
+  keymatch \
+    || { rm -rf "$RAMKEYS"; echo "FAIL: unlocked db.key does not match keys/db.crt" >&2; return 1; }
   echo "  unlocked into RAM ($RAMKEYS)"
 }
+
+ramkeys() { echo "$RAMKEYS"; }
 
 lock() {
   rm -rf "$RAMKEYS"
@@ -465,11 +485,61 @@ uki() {
   cp heatos-signed.efi esp/EFI/BOOT/BOOTX64.EFI
 
   cp "$OVMF_VARS" ovmf-vars.fd
+  # errors here used to go to /dev/null with no status check: enrollment could
+  # fail and leave a firmware with NO keys, which does not enforce secure boot
+  # at all -- and the build still said it was done.
   virt-fw-vars --input ovmf-vars.fd --output ovmf-vars.fd \
     --set-pk  "$SBGUID" keys/PK.der \
     --add-kek "$SBGUID" keys/KEK.der \
-    --add-db  "$SBGUID" keys/db.der >/dev/null 2>&1
+    --add-db  "$SBGUID" keys/db.der >/dev/null 2>&1 \
+    || { echo "FAIL: could not enroll keys into ovmf-vars.fd" >&2; return 1; }
   printf '  signed UKI: %d bytes, keys enrolled into ovmf-vars.fd\n' "$(stat -c%s heatos-signed.efi)"
+  dbx || return 1
+}
+
+# a signature says who signed it, never when. an image signed a year ago
+# verifies exactly as well as today's, so an attacker who can write the ESP --
+# which is plain FAT, by design, because something has to boot -- can put back
+# a superseded image with its old kernel and old bugs. dbx is the one link in
+# the chain that can refuse it.
+dbx() {
+  [ -f ovmf-vars.fd ] || { echo "FAIL: no ovmf-vars.fd -- run ./build.sh uki first" >&2; return 1; }
+  [ -f revoked ] || { echo "FAIL: revoked missing -- it is tracked; do not delete it" >&2; return 1; }
+  local args=() h rest n=0
+  while read -r h rest; do
+    case "$h" in ''|'#'*) continue ;; esac
+    # a malformed line must stop the build. skipping it would silently drop a
+    # revocation, and nothing downstream can tell that apart from success.
+    [[ "$h" =~ ^[0-9a-f]{64}$ ]] \
+      || { echo "FAIL: revoked: not a sha256 hash: $h" >&2; return 1; }
+    args+=(--add-dbx-hash "$SBGUID" "$h"); n=$((n+1))
+  done < revoked
+  if [ "$n" -eq 0 ]; then
+    echo "  dbx: nothing revoked yet"
+    return 0
+  fi
+  virt-fw-vars --input ovmf-vars.fd --output ovmf-vars.fd "${args[@]}" >/dev/null 2>&1 \
+    || { echo "FAIL: could not enroll dbx into ovmf-vars.fd" >&2; return 1; }
+  printf '  dbx: %d image(s) revoked in firmware\n' "$n"
+}
+
+revoke() {
+  local img="${1:-}"
+  [ -n "$img" ] && [ -f "$img" ] || { echo "usage: ./build.sh revoke IMAGE.efi" >&2; return 1; }
+  local h; h=$(python3 pehash.py --verify "$img") \
+    || { echo "FAIL: refusing to revoke an image whose digest we cannot confirm" >&2; return 1; }
+  if [ "$(grep -c "^$h" revoked || true)" != 0 ]; then
+    echo "  already revoked: $h"; return 0
+  fi
+  # revoking the image you are about to ship bricks the next boot. G14 catches
+  # it at build time, but say it here too, while it is still one line to undo.
+  if [ -f heatos-signed.efi ] && [ "$h" = "$(python3 pehash.py heatos-signed.efi)" ]; then
+    echo "FAIL: that is the CURRENT signed image -- revoking it would refuse your own boot" >&2
+    return 1
+  fi
+  printf '%s  %s\n' "$h" "revoked $(date -u +%Y-%m-%d) -- $(basename "$img")" >> revoked
+  echo "  revoked $h"
+  echo "  run ./build.sh uki to re-enroll dbx"
 }
 
 # assemble the bootable stick image: GPT (fixed GUIDs) + FAT32 ESP carrying the
@@ -672,7 +742,7 @@ pin() {
 size() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=17
+  local EXPECTED_GATES=19   # origin 17 + G20/G21 (revocation)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -761,6 +831,25 @@ size() {
     g "G13 image digest pinned" FAIL
     printf '    no image.sha256 -- run ./build.sh pin\n' >&2
   fi
+
+  # G20 -- never ship an image we have revoked. one `revoke` on the wrong file
+  # and the next boot is refused by our own firmware, with a secure boot error
+  # that looks like an attack rather than a typo.
+  local cur="" rev=0
+  if [ -f heatos-signed.efi ]; then
+    cur=$(python3 pehash.py heatos-signed.efi 2>/dev/null || true)
+    [ -n "$cur" ] && rev=$(grep -c "^$cur" revoked || true)
+  fi
+  g "G20 shipped image is not revoked" \
+    "$([ -n "$cur" ] && [ "$rev" = 0 ] && echo ok || echo FAIL)"
+  [ -n "$cur" ] || printf '    no heatos-signed.efi to check -- run ./build.sh uki\n' >&2
+
+  # G21 -- the revocation hash function agrees with the signature it revokes.
+  # dbx matches an authenticode digest, not sha256sum of the file; if pehash.py
+  # computed the wrong number every dbx entry would match nothing, revoke
+  # nothing, and look exactly like revocation that works.
+  g "G21 revocation digest matches signature" \
+    "$([ -n "$cur" ] && python3 pehash.py --verify heatos-signed.efi >/dev/null 2>&1 && echo ok || echo FAIL)"
 
   g "G7 kernel has no module loader" "$(grep -q '^CONFIG_MODULES=y' "src/linux-$KVER/.config" && echo FAIL || echo ok)"
 
@@ -876,12 +965,12 @@ bootusb() {
 }
 
 case "${1:-all}" in
-  deps|fetch|kernel|headers|busybox|bash_|ii_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|stick|usb|pin|repin|size|boot|bootusb) "$@" ;;
+  deps|fetch|kernel|headers|busybox|bash_|ii_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|repin|size|boot|bootusb) "$@" ;;
   all)
     deps; fetch; kernel; headers; busybox; bash_; tls; ii_; rootfs; verity; keys
     # clean clone makes plaintext keys; seal them so uki's unlock has db.key.enc
     # and G11 stays green. a sealed tree short-circuits keys() and skips this.
     if [ -f keys/db.key ]; then seal; fi
     uki; stick; size ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|bash_|ii_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|stick|usb <dev>|pin|repin|size|boot|bootusb|all}"; exit 1 ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|bash_|ii_|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|dbx|revoke IMAGE|stick|usb <dev>|pin|repin|size|boot|bootusb|all}"; exit 1 ;;
 esac
