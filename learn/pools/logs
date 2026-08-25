@@ -1,4 +1,14 @@
 server.log
 app.log
+access.log
+error.log
+system.log
+auth.log
+kernel.log
+nginx.log
+daemon.log
+debug.log
 logs/access.log
 logs/error.log
+var/messages
+run.log

@@ -1,4 +1,14 @@
 eth0
-wlan0
+eth1
+eth2
 enp0s3
+enp0s25
+enp3s0
 ens33
+ens160
+wlan0
+wlp2s0
+usb0
+tun0
+wg0
+br0

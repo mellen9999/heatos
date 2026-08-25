@@ -2,3 +2,14 @@ init
 udhcpc
 ii
 tlstunnel
+dropbear
+sshd
+nginx
+httpd
+cron
+rsyslogd
+dbus
+agetty
+wg
+watchdog
+klogd

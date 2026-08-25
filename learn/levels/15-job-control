@@ -38,7 +38,7 @@ a: sleep 1 & wait $!
 ref: wait
 teach: wait
 ---
-q: list the jobs running in this shell
+q: %list% the jobs running in this shell
 a: jobs
 ref: sh
 teach: sh
@@ -95,7 +95,7 @@ a: abduco -r work
 ref: abduco
 teach: abduco -r
 ---
-q: list the sessions abduco is holding
+q: %list% the sessions abduco is holding
 a: abduco
 ref: abduco
 teach: abduco
@@ -105,7 +105,7 @@ a: abduco -e ^q -a work
 ref: abduco
 teach: abduco -e
 ---
-q: list the jobs in this shell with their process ids
+q: %list% the jobs in this shell with their process ids
 a: sleep 1 & jobs -l
 ref: jobs
 teach: jobs -l
@@ -115,13 +115,13 @@ a: kill -1 12345
 ref: kill
 teach: kill -1
 ---
-q: show every resource limit this shell is under
+q: %show% every resource limit this shell is under
 a: ulimit -a
 out: .
 ref: ulimit
 teach: ulimit -a
 ---
-q: show the maximum file size this shell may create
+q: %show% the maximum file size this shell may create
 a: ulimit -f
 out: .
 ref: ulimit

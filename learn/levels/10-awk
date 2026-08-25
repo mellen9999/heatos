@@ -12,58 +12,58 @@ brief:
 brief: Where cut takes columns, awk takes columns AND does arithmetic, keeps
 brief: counters, and holds a map. That is why it outlives cut in your fingers.
 ---
-q: print the third field of every line in @log@
+q: %show% the third field of every line in @log@
 a: awk '{print $3}' @log@
 out: ^INFO$
 ref: awk
 teach: awk
 ---
-q: print the last field of every line in @log@
+q: %show% the last field of every line in @log@
 a: awk '{print $NF}' @log@
 out: .
 ref: awk
 teach: awk
 hint: NF is the number of fields, so $NF is the last one
 ---
-q: print the first and third fields of @log@, separated by a space
+q: %show% the first and third fields of @log@, separated by a space
 a: awk '{print $1, $3}' @log@
 out: 2024-03-01 INFO
 ref: awk
 teach: awk
 ---
-q: print each line of @log@ with its line number in front
+q: %show% each line of @log@ with its line number in front
 a: awk '{print NR, $0}' @log@
 out: ^1 2024
 ref: awk
 teach: awk
 ---
-q: count the lines in @log@ using awk
+q: %count% the lines in @log@ using awk
 a: awk 'END {print NR}' @log@
 out: ^10$
 ref: awk
 teach: awk
 hint: END runs once, after the last line, and NR is still set
 ---
-q: print only the lines of @log@ that mention @sev@
+q: %show% only the lines of @log@ that mention @sev@
 a: awk '/@sev@/' @log@
 out: @sev@
 ref: awk
 teach: awk
 hint: a pattern with no action means "print the line"
 ---
-q: print the second field of the lines of @log@ mentioning @sev@
+q: %show% the second field of the lines of @log@ mentioning @sev@
 a: awk '/@sev@/ {print $2}' @log@
 out: [0-9]
 ref: awk
 teach: awk
 ---
-q: print the lines of @csv@ using a comma as the field separator, showing field 1
+q: %show% the lines of @csv@ using a comma as the field separator, showing field 1
 a: awk -F, '{print $1}' @csv@
 out: ^gateway$
 ref: awk
 teach: awk -F
 ---
-q: print field 1 of @csv@ skipping the header row
+q: %show% field 1 of @csv@ skipping the header row
 a: awk -F, 'NR > 1 {print $1}' @csv@
 out: ^gateway$
 ref: awk
@@ -76,39 +76,39 @@ out: ^75$
 ref: awk
 teach: awk -F
 ---
-q: print the largest value in the fourth column of @csv@
+q: %show% the largest value in the fourth column of @csv@
 a: awk -F, 'NR > 1 && $4 > m {m = $4} END {print m}' @csv@
 out: ^42$
 ref: awk
 teach: awk
 ---
-q: count how many times each @sev@ level appears in @log@
+q: %count% how many times each @sev@ level appears in @log@
 a: awk '{c[$3]++} END {for (k in c) print k, c[k]}' @log@
 out: [0-9]
 ref: awk
 teach: awk
 hint: awk arrays are maps -- c[$3]++ counts per distinct value
 ---
-q: print only the first occurrence of each third field in @log@
+q: %show% only the first occurrence of each third field in @log@
 a: awk '!seen[$3]++' @log@
 out: INFO
 ref: awk
 teach: awk
 hint: the counter is zero the first time, which is false, which prints
 ---
-q: print rows of @csv@ where the status field is up
+q: %show% rows of @csv@ where the status field is up
 a: awk -F, '$3 == "up"' @csv@
 out: gateway
 ref: awk
 teach: awk
 ---
-q: print rows of @csv@ whose count field is above 10
+q: %show% rows of @csv@ whose count field is above 10
 a: awk -F, 'NR > 1 && $4 > 10' @csv@
 out: 42
 ref: awk
 teach: awk
 ---
-q: print field 1 of @csv@ with a header line of your own printed first
+q: %show% field 1 of @csv@ with a header line of your own printed first
 a: awk -F, 'BEGIN {print "host"} {print $1}' @csv@
 out: ^host$
 ref: awk
@@ -121,14 +121,14 @@ out: @word@
 ref: awk
 teach: awk -v
 ---
-q: print field 3 of @csv@ with the output fields joined by a colon
+q: %show% field 3 of @csv@ with the output fields joined by a colon
 a: awk -F, -v OFS=: '{print $1, $3}' @csv@
 out: gateway:up
 ref: awk
 teach: awk -v
 hint: OFS is the output field separator
 ---
-q: print the number of fields on each line of @csv@
+q: %show% the number of fields on each line of @csv@
 a: awk -F, '{print NF}' @csv@
 out: ^4$
 ref: awk
@@ -141,7 +141,7 @@ ref: awk
 teach: awk -e
 
 ---
-q: list each @sev@ level in @log@ by how often it occurs, most frequent first
+q: %list% each @sev@ level in @log@ by how often it occurs, most frequent first
 a: awk '{print $3}' @log@ | sort | uniq -c | sort -rn
 out: [0-9]
 ref: uniq

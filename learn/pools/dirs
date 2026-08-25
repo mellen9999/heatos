@@ -2,3 +2,13 @@ src
 logs
 data
 backup
+lib
+bin
+etc
+share
+work
+build
+docs
+tmp
+cache
+assets

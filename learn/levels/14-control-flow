@@ -11,13 +11,13 @@ brief: for walks a list of words. while repeats until a command fails. The
 brief: read loop -- while read -r line -- is how you process a file line by
 brief: line without loading it all into memory.
 ---
-q: print exists if @txt@ is there, using if
+q: %show% exists if @txt@ is there, using if
 a: if [ -f @txt@ ]; then echo exists; fi
 out: ^exists$
 ref: sh
 teach: sh
 ---
-q: print yes if @log@ mentions @sev@, otherwise no, using if and else
+q: %show% yes if @log@ mentions @sev@, otherwise no, using if and else
 a: if grep -q @sev@ @log@; then echo yes; else echo no; fi
 out: ^yes$
 ref: grep
@@ -41,31 +41,31 @@ out: ^10$
 ref: wc
 teach: wc -l
 ---
-q: count from 1 to 5, one number per line, using seq and a for loop
+q: %count% from 1 to 5, one number per line, using seq and a for loop
 a: for i in $(seq 1 5); do echo $i; done
 out: ^3$
 ref: seq
 teach: seq
 ---
-q: print the numbers 1 to 5 with seq alone
+q: %show% the numbers 1 to 5 with seq alone
 a: seq 1 5
 out: ^5$
 ref: seq
 teach: seq
 ---
-q: print 1 to 10 counting by 3
+q: %show% 1 to 10 counting by 3
 a: seq 1 3 10
 out: ^10$
 ref: seq
 teach: seq
 ---
-q: print 1 to 5 separated by commas rather than newlines
+q: %show% 1 to 5 separated by commas rather than newlines
 a: seq -s, 1 5
 out: 1,2,3,4,5
 ref: seq
 teach: seq -s
 ---
-q: print 1 to 10 zero-padded to equal width
+q: %show% 1 to 10 zero-padded to equal width
 a: seq -w 1 10
 out: ^01$
 ref: seq

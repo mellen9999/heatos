@@ -9,32 +9,32 @@ brief: Always look before you extract. tar tf lists the contents without
 brief: writing anything, and an archive that expands into the current
 brief: directory instead of a subdirectory will scatter files everywhere.
 ---
-q: list what is inside @archive@ without extracting anything
+q: %list% what is inside @archive@ without extracting anything
 a: tar -tf @archive@
 out: .
 ref: tar
 teach: tar t
 teach: tar -f
 ---
-q: list the contents of @archive@ verbosely, with sizes and permissions
+q: %list% the contents of @archive@ verbosely, with sizes and permissions
 a: tar -tvf @archive@
 out: .
 ref: tar
 teach: tar -v
 ---
-q: create bundle.tar containing @dir@
+q: %make% bundle.tar containing @dir@
 a: tar -cf bundle.tar @dir@
 state: exists:bundle.tar
 ref: tar
 teach: tar c
 ---
-q: create a gzip-compressed bundle.tar.gz containing @dir@
+q: %make% a gzip-compressed bundle.tar.gz containing @dir@
 a: tar -czf bundle.tar.gz @dir@
 state: exists:bundle.tar.gz
 ref: tar
 teach: tar -z
 ---
-q: create a bzip2-compressed bundle.tar.bz2 containing @dir@
+q: %make% a bzip2-compressed bundle.tar.bz2 containing @dir@
 a: tar -cjf bundle.tar.bz2 @dir@
 state: exists:bundle.tar.bz2
 ref: tar
@@ -55,7 +55,7 @@ a: tar -xzOf @archive@ src/main.c
 ref: tar
 teach: tar -O
 ---
-q: create bundle.tar from @dir@ but leave out anything ending in .log
+q: %make% bundle.tar from @dir@ but leave out anything ending in .log
 a: tar -cf bundle.tar --exclude '*.log' @dir@
 state: exists:bundle.tar
 ref: tar
@@ -71,7 +71,7 @@ a: tar -xzf @archive@ --overwrite
 ref: tar
 teach: tar --overwrite
 ---
-q: create bundle.tar from the list of names held in @txt@
+q: %make% bundle.tar from the list of names held in @txt@
 a: tar -cf bundle.tar -T @txt@
 ref: tar
 teach: tar -T
@@ -169,7 +169,7 @@ a: unzip archive.zip
 ref: unzip
 teach: unzip
 ---
-q: list what is inside a zip without extracting it
+q: %list% what is inside a zip without extracting it
 a: unzip -l archive.zip
 ref: unzip
 teach: unzip -l
@@ -184,7 +184,7 @@ a: unzip -o archive.zip
 ref: unzip
 teach: unzip -o
 ---
-q: print one file out of a zip to stdout instead of writing it
+q: %show% one file out of a zip to stdout instead of writing it
 a: unzip -p archive.zip notes.txt
 ref: unzip
 teach: unzip -p

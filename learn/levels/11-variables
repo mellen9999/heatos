@@ -15,7 +15,7 @@ ref: sh
 teach: sh
 hint: no spaces around the equals sign
 ---
-q: print the value of @var@
+q: %show% the value of @var@
 a: @var@=@word@; echo $@var@
 out: @word@
 ref: echo
@@ -32,20 +32,20 @@ a: @cvar@=$(wc -l < @log@)
 ref: wc
 teach: wc -l
 ---
-q: print the length of the value in @var@
+q: %show% the length of the value in @var@
 a: @var@=@word@; echo ${#@var@}
 out: [0-9]
 ref: sh
 teach: sh
 hint: a hash inside the braces gives the length
 ---
-q: print @var@, or the word default if it is unset or empty
+q: %show% @var@, or the word default if it is unset or empty
 a: echo ${@var@:-default}
 out: default
 ref: sh
 teach: sh
 ---
-q: print the line count of @log@ inside a sentence reading "lines: N"
+q: %show% the line count of @log@ inside a sentence reading "lines: N"
 a: echo "lines: $(wc -l < @log@)"
 out: ^lines: 10$
 ref: echo
@@ -56,7 +56,7 @@ a: export @mvar@=@word@
 ref: export
 teach: export
 ---
-q: show every exported variable in the environment
+q: %show% every exported variable in the environment
 a: env
 out: =
 ref: env
@@ -80,7 +80,7 @@ out: gone
 ref: env
 teach: env -u
 ---
-q: print the environment with entries separated by NUL rather than newline
+q: %show% the environment with entries separated by NUL rather than newline
 a: env -0
 out: =
 ref: env
@@ -107,7 +107,7 @@ a: read -p "name: " @var@
 ref: read
 teach: read -p
 ---
-q: print the first field of @csv@, using a variable to hold the separator
+q: %show% the first field of @csv@, using a variable to hold the separator
 a: d=,; cut -d"$d" -f1 @csv@
 out: ^gateway$
 ref: cut
@@ -130,13 +130,13 @@ out: ls
 ref: command
 teach: command -V
 ---
-q: find ls using a safe default PATH rather than whatever yours happens to be
+q: %find% ls using a safe default PATH rather than whatever yours happens to be
 a: command -p ls @txt@
 out: @txt@
 ref: command
 teach: command -p
 ---
-q: show every place in your PATH that has a command called sh
+q: %show% every place in your PATH that has a command called sh
 a: which -a sh
 out: sh
 ref: which

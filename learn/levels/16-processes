@@ -9,19 +9,19 @@ brief: which asks politely and can be caught or ignored. KILL (9) cannot be
 brief: caught, which is why it is a last resort and not a first one -- a
 brief: program killed with 9 never gets to clean up after itself.
 ---
-q: list the processes running right now
+q: %list% the processes running right now
 a: ps
 out: PID
 ref: ps
 teach: ps
 ---
-q: list processes showing just the pid and the command name
+q: %list% processes showing just the pid and the command name
 a: ps -o pid,comm
 out: PID
 ref: ps
 teach: ps -o
 ---
-q: list processes including their threads
+q: %list% processes including their threads
 a: ps -T
 out: PID
 ref: ps
@@ -46,42 +46,42 @@ a: top -d 5
 ref: top
 teach: top -d
 ---
-q: find the process ids of anything called @proc@
+q: %find% the process ids of anything called @proc@
 a: pgrep @proc@
 ref: pgrep
 teach: pgrep
 ---
-q: find @proc@ matching against the whole command line, not just the name
+q: %find% @proc@ matching against the whole command line, not just the name
 a: pgrep -f @proc@
 ref: pgrep
 teach: pgrep -f
 ---
-q: list @proc@ processes showing the name beside each pid
+q: %list% @proc@ processes showing the name beside each pid
 a: pgrep -l @proc@
 ref: pgrep
 teach: pgrep -l
 ---
-q: find only the newest process called @proc@
+q: %find% only the newest process called @proc@
 a: pgrep -n @proc@
 ref: pgrep
 teach: pgrep -n
 ---
-q: find only the oldest process called @proc@
+q: %find% only the oldest process called @proc@
 a: pgrep -o @proc@
 ref: pgrep
 teach: pgrep -o
 ---
-q: find processes whose name is exactly @proc@ and not merely contains it
+q: %find% processes whose name is exactly @proc@ and not merely contains it
 a: pgrep -x @proc@
 ref: pgrep
 teach: pgrep -x
 ---
-q: find every process that is NOT called @proc@
+q: %find% every process that is NOT called @proc@
 a: pgrep -v @proc@
 ref: pgrep
 teach: pgrep -v
 ---
-q: find the children of process 1
+q: %find% the children of process 1
 a: pgrep -P 1
 out: [0-9]
 ref: pgrep
@@ -103,7 +103,7 @@ a: kill -15 12345
 ref: kill
 teach: kill -15
 ---
-q: list the signal names kill can send
+q: %list% the signal names kill can send
 a: kill -l
 out: KILL
 ref: kill
@@ -119,25 +119,25 @@ a: pkill -9 -f @proc@
 ref: pkill
 teach: pkill -f
 ---
-q: show how much memory this machine has, in a human readable form
+q: %show% how much memory this machine has, in a human readable form
 a: free -h
 out: Mem
 ref: free
 teach: free -h
 ---
-q: show memory in megabytes
+q: %show% memory in megabytes
 a: free -m
 out: Mem
 ref: free
 teach: free -m
 ---
-q: show memory in kilobytes
+q: %show% memory in kilobytes
 a: free -k
 out: Mem
 ref: free
 teach: free -k
 ---
-q: show memory in raw bytes
+q: %show% memory in raw bytes
 a: free -b
 out: Mem
 ref: free
@@ -155,63 +155,63 @@ out: ^[0-9]+$
 ref: nproc
 teach: nproc --all
 ---
-q: list @proc@ processes showing the full command line of each
+q: %list% @proc@ processes showing the full command line of each
 a: pgrep -a @proc@
 ref: pgrep
 teach: pgrep -a
 ---
-q: find the process id of @proc@ in one step
+q: %find% the process id of @proc@ in one step
 a: pidof @proc@
 ref: pidof
 teach: pidof
 ---
-q: find only a single pid for @proc@, not all of them
+q: %find% only a single pid for @proc@, not all of them
 a: pidof -s @proc@
 ref: pidof
 teach: pidof -s
 ---
-q: show the whole process tree, who started what
+q: %show% the whole process tree, who started what
 a: pstree
 ref: pstree
 teach: pstree
 ---
-q: show the process tree with each process's pid
+q: %show% the process tree with each process's pid
 a: pstree -p
 ref: pstree
 teach: pstree -p
 ---
-q: list every open file on the system
+q: %list% every open file on the system
 a: lsof
 ref: lsof
 teach: lsof
 hint: on unix almost everything is a file, so this shows almost everything
 ---
-q: find which processes have @log@ open
+q: %find% which processes have @log@ open
 a: fuser @log@
 ref: fuser
 teach: fuser
 ---
-q: find what is using the mount point @dir@
+q: %find% what is using the mount point @dir@
 a: fuser -m @dir@
 ref: fuser
 teach: fuser -m
 ---
-q: find and then kill whatever has @log@ open
+q: %find% and then kill whatever has @log@ open
 a: fuser -k @log@
 ref: fuser
 teach: fuser -k
 ---
-q: show the memory map of process 1
+q: %show% the memory map of process 1
 a: pmap 1
 ref: pmap
 teach: pmap
 ---
-q: show process 1's memory map with full per-mapping detail
+q: %show% process 1's memory map with full per-mapping detail
 a: pmap -x 1
 ref: pmap
 teach: pmap -x
 ---
-q: print the working directory of process 1
+q: %show% the working directory of process 1
 a: pwdx 1
 ref: pwdx
 teach: pwdx
@@ -221,7 +221,7 @@ a: killall @proc@
 ref: killall
 teach: killall
 ---
-q: list the signal names killall knows
+q: %list% the signal names killall knows
 a: killall -l
 out: KILL
 ref: killall

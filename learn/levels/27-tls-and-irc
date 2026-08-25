@@ -20,7 +20,7 @@ a: printf 'HEAD / HTTP/1.0\r\nHost: @host@\r\nConnection: close\r\n\r\n' | tlstu
 ref: tlstunnel
 teach: tlstunnel
 ---
-q: count the trust anchors compiled into the tunnel binary
+q: %count% the trust anchors compiled into the tunnel binary
 a: strings /bin/tlstunnel | grep -c 'Internet Security Research Group'
 out: ^[0-9]+$
 ref: strings
@@ -59,12 +59,12 @@ a: echo hello > $HOME/irc/@host@/#vos/in
 ref: ii
 teach: ii
 ---
-q: find every mention of your nick across every channel
+q: %find% every mention of your nick across every channel
 a: grep -r vos $HOME/irc
 ref: grep
 teach: grep -r
 ---
-q: list every channel ii has joined
+q: %list% every channel ii has joined
 a: find $HOME/irc -maxdepth 2 -type d -name '#*'
 ref: find
 teach: find -type
@@ -83,7 +83,7 @@ a: wg pubkey < private.key
 ref: wg
 teach: wg
 ---
-q: create a wireguard interface called wg0
+q: %make% a wireguard interface called wg0
 a: ip link add wg0 type wireguard
 ref: ip
 teach: ip
@@ -108,18 +108,18 @@ a: wg set wg0 peer PUBKEY endpoint titan.example:51820 allowed-ips 10.9.0.0/24
 ref: wg
 teach: wg
 ---
-q: show the state of every wireguard interface
+q: %show% the state of every wireguard interface
 a: wg show
 ref: wg
 teach: wg
 ---
-q: make an ed25519 ssh key at /state/id
+q: %make% an ed25519 ssh key at /state/id
 a: dropbearkey -t ed25519 -f /state/id
 ref: dropbearkey
 teach: dropbearkey -t
 teach: dropbearkey -f
 ---
-q: print the public half of /state/id, to hand to the other machine
+q: %show% the public half of /state/id, to hand to the other machine
 a: dropbearkey -y -f /state/id
 ref: dropbearkey
 teach: dropbearkey -y

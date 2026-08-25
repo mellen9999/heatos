@@ -8,25 +8,25 @@ brief:
 brief: ip has a shape: ip OBJECT COMMAND. ip addr, ip link, ip route, ip neigh.
 brief: Every one of them takes show, add and del.
 ---
-q: show every interface and its addresses
+q: %show% every interface and its addresses
 a: ip addr
 out: .
 ref: ip
 teach: ip
 ---
-q: show addresses one per line, in a form that is easy to cut up
+q: %show% addresses one per line, in a form that is easy to cut up
 a: ip -o addr
 out: .
 ref: ip
 teach: ip
 ---
-q: show only ipv4 addresses
+q: %show% only ipv4 addresses
 a: ip -4 addr
 out: .
 ref: ip
 teach: ip
 ---
-q: show the links, without their addresses
+q: %show% the links, without their addresses
 a: ip link
 out: .
 ref: ip
@@ -52,13 +52,13 @@ a: ip addr del @ip@/24 dev @iface@
 ref: ip
 teach: ip
 ---
-q: show the routing table
+q: %show% the routing table
 a: ip route
 out: .
 ref: ip
 teach: ip
 ---
-q: show only the default route
+q: %show% only the default route
 a: ip route show default
 ref: ip
 teach: ip
@@ -73,23 +73,23 @@ a: ip route del default
 ref: ip
 teach: ip
 ---
-q: show the arp neighbour table using ip
+q: %show% the arp neighbour table using ip
 a: ip neigh
 ref: ip
 teach: ip
 ---
-q: print just the interface names, one per line
+q: %show% just the interface names, one per line
 a: ip -o link | cut -d: -f2
 out: .
 ref: ip
 teach: ip
 ---
-q: show interfaces the old way
+q: %show% interfaces the old way
 a: ifconfig
 ref: ifconfig
 teach: ifconfig
 ---
-q: show @iface@ specifically, the old way
+q: %show% @iface@ specifically, the old way
 a: ifconfig @iface@
 ref: ifconfig
 teach: ifconfig
@@ -99,37 +99,37 @@ a: ifconfig @iface@ @ip@ up
 ref: ifconfig
 teach: ifconfig
 ---
-q: show the routing table the old way
+q: %show% the routing table the old way
 a: route
 ref: route
 teach: route
 ---
-q: show routes without resolving names to make it fast
+q: %show% routes without resolving names to make it fast
 a: route -n
 ref: route
 teach: route -n
 ---
-q: show route table entries with extended fields
+q: %show% route table entries with extended fields
 a: route -e
 ref: route
 teach: route -e
 ---
-q: show routes for a named address family
+q: %show% routes for a named address family
 a: route -A inet
 ref: route
 teach: route -A
 ---
-q: show the arp cache
+q: %show% the arp cache
 a: arp
 ref: arp
 teach: arp
 ---
-q: show the arp cache numerically, without resolving names
+q: %show% the arp cache numerically, without resolving names
 a: arp -n
 ref: arp
 teach: arp -n
 ---
-q: show all arp entries including incomplete ones
+q: %show% all arp entries including incomplete ones
 a: arp -a
 ref: arp
 teach: arp -a
@@ -144,17 +144,17 @@ a: arp -s @ip@ 00:11:22:33:44:55
 ref: arp
 teach: arp -s
 ---
-q: show arp entries for one interface only
+q: %show% arp entries for one interface only
 a: arp -i @iface@
 ref: arp
 teach: arp -i
 ---
-q: show the arp cache verbosely
+q: %show% the arp cache verbosely
 a: arp -v
 ref: arp
 teach: arp -v
 ---
-q: show arp entries of a given hardware type
+q: %show% arp entries of a given hardware type
 a: arp -H ether
 ref: arp
 teach: arp -H
@@ -225,22 +225,22 @@ a: ipcalc @ip@/24
 ref: ipcalc
 teach: ipcalc
 ---
-q: show just the broadcast address for @ip@/24
+q: %show% just the broadcast address for @ip@/24
 a: ipcalc -b @ip@/24
 ref: ipcalc
 teach: ipcalc -b
 ---
-q: show just the network address for @ip@/24
+q: %show% just the network address for @ip@/24
 a: ipcalc -n @ip@/24
 ref: ipcalc
 teach: ipcalc -n
 ---
-q: show just the netmask for a /24
+q: %show% just the netmask for a /24
 a: ipcalc -m @ip@/24
 ref: ipcalc
 teach: ipcalc -m
 ---
-q: show the prefix length for a given netmask
+q: %show% the prefix length for a given netmask
 a: ipcalc -p @ip@ 255.255.255.0
 ref: ipcalc
 teach: ipcalc -p

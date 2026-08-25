@@ -58,7 +58,7 @@ a: ping -A -c 3 @ip@
 ref: ping
 teach: ping -A
 ---
-q: show the path packets take to @ip@
+q: %show% the path packets take to @ip@
 a: traceroute @ip@
 ref: traceroute
 teach: traceroute
@@ -153,62 +153,62 @@ a: netstat
 ref: netstat
 teach: netstat
 ---
-q: show only listening sockets
+q: %show% only listening sockets
 a: netstat -l
 ref: netstat
 teach: netstat -l
 ---
-q: show every socket, listening or not
+q: %show% every socket, listening or not
 a: netstat -a
 ref: netstat
 teach: netstat -a
 ---
-q: show sockets numerically, without resolving names or ports
+q: %show% sockets numerically, without resolving names or ports
 a: netstat -n
 ref: netstat
 teach: netstat -n
 ---
-q: show only tcp sockets
+q: %show% only tcp sockets
 a: netstat -t
 ref: netstat
 teach: netstat -t
 ---
-q: show only udp sockets
+q: %show% only udp sockets
 a: netstat -u
 ref: netstat
 teach: netstat -u
 ---
-q: show which process owns each socket
+q: %show% which process owns each socket
 a: netstat -p
 ref: netstat
 teach: netstat -p
 ---
-q: show every listening tcp socket numerically, with its process
+q: %show% every listening tcp socket numerically, with its process
 a: netstat -tlnp
 ref: netstat
 teach: netstat -t
 ---
-q: show the routing table using netstat
+q: %show% the routing table using netstat
 a: netstat -r
 ref: netstat
 teach: netstat -r
 ---
-q: show unix domain sockets
+q: %show% unix domain sockets
 a: netstat -x
 ref: netstat
 teach: netstat -x
 ---
-q: show raw sockets
+q: %show% raw sockets
 a: netstat -w
 ref: netstat
 teach: netstat -w
 ---
-q: show netstat output with extended information
+q: %show% netstat output with extended information
 a: netstat -e
 ref: netstat
 teach: netstat -e
 ---
-q: show netstat with wide columns so long addresses are not truncated
+q: %show% netstat with wide columns so long addresses are not truncated
 a: netstat -W
 ref: netstat
 teach: netstat -W

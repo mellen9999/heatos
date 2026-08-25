@@ -12,7 +12,7 @@ brief: On vos everything runs as root and the root filesystem is read-only, so
 brief: these matter for what you write to tmpfs and to disks you mount -- not
 brief: for defending this machine from you.
 ---
-q: make @script@ executable
+q: %make% @script@ executable
 a: chmod +x @script@
 ref: chmod
 teach: chmod
@@ -47,7 +47,7 @@ a: chmod o= @txt@
 ref: chmod
 teach: chmod
 ---
-q: make every file under @dir@ readable by everyone, recursively
+q: %make% every file under @dir@ readable by everyone, recursively
 a: chmod -R a+r @dir@
 ref: chmod
 teach: chmod -R
@@ -58,43 +58,43 @@ out: ^[a-z_][a-z0-9_-]*$
 ref: whoami
 teach: whoami
 ---
-q: show your user id, group id and groups all at once
+q: %show% your user id, group id and groups all at once
 a: id
 out: uid=
 ref: id
 teach: id
 ---
-q: print just your numeric user id
+q: %show% just your numeric user id
 a: id -u
 out: ^[0-9]+$
 ref: id
 teach: id -u
 ---
-q: print just your user NAME rather than the number
+q: %show% just your user NAME rather than the number
 a: id -un
 out: ^[a-z_][a-z0-9_-]*$
 ref: id
 teach: id -n
 ---
-q: print just your numeric group id
+q: %show% just your numeric group id
 a: id -g
 out: ^[0-9]+$
 ref: id
 teach: id -g
 ---
-q: print every group you belong to, numerically
+q: %show% every group you belong to, numerically
 a: id -G
 out: [0-9]
 ref: id
 teach: id -G
 ---
-q: print your real user id rather than the effective one
+q: %show% your real user id rather than the effective one
 a: id -ur
 out: ^[0-9]+$
 ref: id
 teach: id -r
 ---
-q: show the default permission mask new files are created with
+q: %show% the default permission mask new files are created with
 a: umask
 out: [0-7]
 ref: umask
@@ -105,26 +105,26 @@ a: umask 077
 ref: umask
 teach: umask
 ---
-q: show everything the filesystem knows about @txt@
+q: %show% everything the filesystem knows about @txt@
 a: stat @txt@
 out: Size
 ref: stat
 teach: stat
 ---
-q: print just the size of @txt@ in bytes, nothing else
+q: %show% just the size of @txt@ in bytes, nothing else
 a: stat -c %s @txt@
 out: ^[0-9]+$
 ref: stat
 teach: stat -c
 hint: -c takes a format; %s is size, %n name, %a permission bits
 ---
-q: print the permission bits of @script@ as a number
+q: %show% the permission bits of @script@ as a number
 a: stat -c %a @script@
 out: ^[0-9]+$
 ref: stat
 teach: stat -c
 ---
-q: show filesystem information for @txt@ rather than the file itself
+q: %show% filesystem information for @txt@ rather than the file itself
 a: stat -f @txt@
 out: ID|Block
 ref: stat
@@ -136,7 +136,7 @@ out: Size
 ref: stat
 teach: stat -L
 ---
-q: print stat's output in terse single-line form
+q: %show% stat's output in terse single-line form
 a: stat -t @txt@
 out: [0-9]
 ref: stat

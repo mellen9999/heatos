@@ -9,38 +9,38 @@ brief:
 brief: dd names its arguments with = rather than flags: if= in, of= out, bs=
 brief: block size, count= how many blocks.
 ---
-q: show @bin@ as hex bytes with the printable characters beside them
+q: %show% @bin@ as hex bytes with the printable characters beside them
 a: hexdump -C @bin@
 out: \|
 ref: hexdump
 teach: hexdump -C
 hint: C is the canonical format, and the only one worth memorising
 ---
-q: show @bin@ as one-byte octal values
+q: %show% @bin@ as one-byte octal values
 a: hexdump -b @bin@
 out: [0-7]
 ref: hexdump
 teach: hexdump -b
 ---
-q: show @bin@ as characters, escaping the unprintable ones
+q: %show% @bin@ as characters, escaping the unprintable ones
 a: hexdump -c @bin@
 out: .
 ref: hexdump
 teach: hexdump -c
 ---
-q: show @bin@ as two-byte decimal values
+q: %show% @bin@ as two-byte decimal values
 a: hexdump -d @bin@
 out: [0-9]
 ref: hexdump
 teach: hexdump -d
 ---
-q: show @bin@ as two-byte hex values
+q: %show% @bin@ as two-byte hex values
 a: hexdump -x @bin@
 out: [0-9a-f]
 ref: hexdump
 teach: hexdump -x
 ---
-q: show @bin@ as two-byte octal values
+q: %show% @bin@ as two-byte octal values
 a: hexdump -o @bin@
 out: [0-7]
 ref: hexdump
@@ -99,13 +99,13 @@ out: .
 ref: dd
 teach: dd
 ---
-q: make a 1 kilobyte file of zero bytes
+q: %make% a 1 kilobyte file of zero bytes
 a: dd if=/dev/zero of=zero.bin bs=1k count=1
 state: exists:zero.bin
 ref: dd
 teach: dd
 ---
-q: make 32 bytes of random data
+q: %make% 32 bytes of random data
 a: dd if=/dev/urandom of=rand.bin bs=32 count=1
 state: exists:rand.bin
 ref: dd

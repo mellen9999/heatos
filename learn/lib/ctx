@@ -106,18 +106,49 @@ roll() {
 # render -- stdin through the rolled script, then collapse {a|b|c} alternations.
 # awk picks the branch; it is seeded per call so two renders of the same
 # template read differently, and so `learn daily` reproduces exactly.
+# PHRASES points at learn/phrases; loaded once, passed to render's awk.
+PHRASES="$ROOT/phrases"
+
 render() {
-	sed -f "$SUBST" | awk -v seed="$1" '
-		BEGIN { srand(seed) }
+	sed -f "$SUBST" | awk -v seed="$1" -v pf="$PHRASES" '
+		BEGIN {
+			srand(seed)
+			# load %macro% -> alternatives from the phrases file. a macro asked
+			# for but not defined is left as-is, which shows up loudly.
+			while ((getline l < pf) > 0) {
+				if (l ~ /^[ \t]*#/ || l !~ /=/) continue
+				name = l; sub(/=.*/, "", name); gsub(/[ \t%]/, "", name)
+				body = l; sub(/^[^=]*=/, "", body); gsub(/^[ \t]+|[ \t]+$/, "", body)
+				macro["%" name "%"] = body
+			}
+			close(pf)
+		}
+		# pick a random member of a pipe-separated list, trimming each
+		function pick(list,   n, a, i, r) {
+			n = split(list, a, "|")
+			r = a[int(rand() * n) + 1]
+			gsub(/^[ \t]+|[ \t]+$/, "", r)
+			return r
+		}
 		{
-			line = $0; out = ""
+			line = $0
+			# expand every %macro% first (longest names first is unnecessary --
+			# they are delimited by %). unknown macros are left untouched.
+			for (m in macro) {
+				while (index(line, m) > 0) {
+					p = index(line, m)
+					line = substr(line, 1, p - 1) pick(macro[m]) substr(line, p + length(m))
+				}
+			}
+			# then collapse inline {a|b|c} alternations
+			out = ""
 			while (match(line, /\{[^{}]*\|[^{}]*\}/)) {
-				out = out substr(line, 1, RSTART - 1)
-				body = substr(line, RSTART + 1, RLENGTH - 2)
-				n = split(body, alt, "|")
-				out = out alt[int(rand() * n) + 1]
+				out = out substr(line, 1, RSTART - 1) pick(substr(line, RSTART + 1, RLENGTH - 2))
 				line = substr(line, RSTART + RLENGTH)
 			}
-			print out line
+			# an empty macro member can leave a double space; tidy it
+			line = out line
+			gsub(/  +/, " ", line); sub(/^ +/, "", line)
+			print line
 		}'
 }

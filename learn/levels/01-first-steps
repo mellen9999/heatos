@@ -22,14 +22,14 @@ ref: ls
 teach: ls
 hint: two letters
 ---
-q: list the current directory, including names that start with a dot
+q: %list% the current directory, including names that start with a dot
 a: ls -a
 out: ^\.$|^\.\.$
 ref: ls
 teach: ls -a
 hint: the flag ls describes as "Include names starting with ."
 ---
-q: list @dir@ in long format, so you can see sizes and permissions
+q: %list% @dir@ in long format, so you can see sizes and permissions
 a: ls -l @dir@
 a: ls -l @dir@/
 out: ^total
@@ -37,7 +37,7 @@ ref: ls
 teach: ls -l
 hint: the long format flag, then the path
 ---
-q: list the current directory with sizes in K and M rather than raw bytes
+q: %list% the current directory with sizes in K and M rather than raw bytes
 a: ls -lh
 a: ls -hl
 out: ^total
@@ -45,7 +45,7 @@ ref: ls
 teach: ls -h
 hint: two flags -- long format, and the one ls calls "Human readable"
 ---
-q: list the current directory {newest first|sorted by modification time}
+q: %list% the current directory {newest first|sorted by modification time}
 a: ls -lt
 a: ls -t
 out: .
@@ -53,7 +53,7 @@ ref: ls
 teach: ls -t
 hint: sort by time
 ---
-q: list the current directory one name per line, nothing else
+q: %list% the current directory one name per line, nothing else
 a: ls -1
 out: ^server\.log$
 ref: ls
@@ -66,14 +66,14 @@ out: ^@word@$
 ref: echo
 teach: echo
 ---
-q: print @word@ with no trailing newline
+q: %show% @word@ with no trailing newline
 a: echo -n @word@
 out: @word@
 ref: echo
 teach: echo -n
 hint: n for newline -- the flag suppresses it
 ---
-q: print the value of your HOME directory using the HOME variable
+q: %show% the value of your HOME directory using the HOME variable
 a: echo $HOME
 a: echo "$HOME"
 a: echo ${HOME}
@@ -102,67 +102,67 @@ ref: cd
 teach: cd
 hint: cd with no argument already means home
 ---
-q: list the current directory showing hidden names but not . and ..
+q: %list% the current directory showing hidden names but not . and ..
 a: ls -A
 out: .
 ref: ls
 teach: ls -A
 ---
-q: list @dir@ itself rather than what is inside it
+q: %list% @dir@ itself rather than what is inside it
 a: ls -d @dir@
 out: ^@dir@$
 ref: ls
 teach: ls -d
 ---
-q: list the current directory marking directories with a slash and executables with a star
+q: %list% the current directory marking directories with a slash and executables with a star
 a: ls -F
 out: /
 ref: ls
 teach: ls -F
 ---
-q: list the current directory showing each file's inode number
+q: %list% the current directory showing each file's inode number
 a: ls -i
 out: ^[0-9]
 ref: ls
 teach: ls -i
 ---
-q: list in long format showing numeric user and group ids rather than names
+q: %list% in long format showing numeric user and group ids rather than names
 a: ls -ln
 out: ^total
 ref: ls
 teach: ls -n
 ---
-q: list marking only directories with a trailing slash
+q: %list% marking only directories with a trailing slash
 a: ls -p
 out: /
 ref: ls
 teach: ls -p
 ---
-q: list the current directory in reverse order
+q: %list% the current directory in reverse order
 a: ls -r
 out: .
 ref: ls
 teach: ls -r
 ---
-q: list everything under @dir@ recursively
+q: %list% everything under @dir@ recursively
 a: ls -R @dir@
 out: .
 ref: ls
 teach: ls -R
 ---
-q: list the current directory largest file first
+q: %list% the current directory largest file first
 a: ls -S
 out: .
 ref: ls
 teach: ls -S
 ---
-q: list showing the block size each file occupies
+q: %list% showing the block size each file occupies
 a: ls -s
 out: [0-9]
 ref: ls
 teach: ls -s
 ---
-q: list the current directory across the screen in columns
+q: %list% the current directory across the screen in columns
 a: ls -x
 out: .
 ref: ls

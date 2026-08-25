@@ -1,2 +1,8 @@
 data.csv
 users.csv
+hosts.csv
+inventory.csv
+report.csv
+sales.csv
+metrics.csv
+export.csv

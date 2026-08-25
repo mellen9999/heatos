@@ -4,3 +4,9 @@ conf
 sh
 csv
 bin
+json
+yaml
+ini
+tmp
+bak
+lst

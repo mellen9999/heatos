@@ -4,3 +4,9 @@ status
 user
 count
 value
+host
+port
+state
+role
+key
+label

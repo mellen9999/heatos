@@ -115,7 +115,7 @@ a: dmesg -s 4096
 ref: dmesg
 teach: dmesg -s
 ---
-q: find every line of the kernel log mentioning verity
+q: %find% every line of the kernel log mentioning verity
 a: dmesg | grep -i verity
 ref: dmesg
 teach: dmesg
@@ -225,7 +225,7 @@ a: reset
 ref: reset
 teach: reset
 ---
-q: show every terminal setting
+q: %show% every terminal setting
 a: stty -a
 ref: stty
 teach: stty -a
@@ -261,23 +261,23 @@ a: sleep 2
 ref: sleep
 teach: sleep
 ---
-q: list every pci device on this machine
+q: %list% every pci device on this machine
 a: lspci
 ref: lspci
 teach: lspci
 hint: this is how you find out what network and storage hardware a strange box has
 ---
-q: list pci devices showing which kernel driver is bound to each
+q: %list% pci devices showing which kernel driver is bound to each
 a: lspci -k
 ref: lspci
 teach: lspci -k
 ---
-q: list pci devices in a form easy to parse
+q: %list% pci devices in a form easy to parse
 a: lspci -m
 ref: lspci
 teach: lspci -m
 ---
-q: list every usb device
+q: %list% every usb device
 a: lsusb
 ref: lsusb
 teach: lsusb

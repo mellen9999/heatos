@@ -49,46 +49,46 @@ ref: ls
 teach: ls
 hint: redirect stdout first, then point stderr at wherever stdout now goes
 ---
-q: show @log@ on screen AND save a copy into copy.txt at the same time
+q: %show% @log@ on screen AND save a copy into copy.txt at the same time
 a: cat @log@ | tee copy.txt
 out: service started
 ref: tee
 teach: tee
 ---
-q: show @log@ on screen and APPEND a copy to copy.txt
+q: %show% @log@ on screen and APPEND a copy to copy.txt
 a: cat @log@ | tee -a copy.txt
 out: service started
 ref: tee
 teach: tee -a
 hint: without -a, tee truncates the file the way > does
 ---
-q: count the lines of @txt@ and write the number into @cvar@.txt
+q: %count% the lines of @txt@ and write the number into @cvar@.txt
 a: wc -l < @txt@ > @cvar@.txt
 a: wc -l @txt@ > @cvar@.txt
 state: exists:@cvar@.txt
 ref: wc
 teach: wc -l
 ---
-q: print @word@ with printf, which unlike echo does exactly what you tell it
+q: %show% @word@ with printf, which unlike echo does exactly what you tell it
 a: printf '%s\n' @word@
 out: ^@word@$
 ref: printf
 teach: printf
 hint: printf takes a format first, then the values to fill it with
 ---
-q: print @word@ with no trailing newline, using printf
+q: %show% @word@ with no trailing newline, using printf
 a: printf '%s' @word@
 out: @word@
 ref: printf
 teach: printf
 ---
-q: print two values on one line separated by a tab
+q: %show% two values on one line separated by a tab
 a: printf '%s\t%s\n' @word@ @term@
 out: @word@
 ref: printf
 teach: printf
 ---
-q: print the number @n@ padded to five digits with leading zeros
+q: %show% the number @n@ padded to five digits with leading zeros
 a: printf '%05d\n' @n@
 out: ^0*[0-9]+$
 ref: printf

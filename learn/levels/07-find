@@ -11,115 +11,115 @@ brief:
 brief: Quote your patterns. find . -name *.log lets the SHELL expand the glob
 brief: before find ever sees it, which does something else entirely.
 ---
-q: list every file and directory under the current directory
+q: %list% every file and directory under the current directory
 a: find .
 out: \.
 ref: find
 teach: find
 ---
-q: find every file under here whose name ends in .log
+q: %find% every file under here whose name ends in .log
 a: find . -name '*.log'
 out: \.log
 ref: find
 teach: find -name
 ---
-q: find every .LOG or .log under here, ignoring case in the name
+q: %find% every .LOG or .log under here, ignoring case in the name
 a: find . -iname '*.log'
 out: \.log
 ref: find
 teach: find -iname
 ---
-q: find only regular files under here, no directories
+q: %find% only regular files under here, no directories
 a: find . -type f
 out: .
 ref: find
 teach: find -type
 hint: f is a regular file, d a directory, l a symlink
 ---
-q: find only the directories under here
+q: %find% only the directories under here
 a: find . -type d
 out: \.
 ref: find
 teach: find -type
 ---
-q: find files under here but do not descend more than one level
+q: %find% files under here but do not descend more than one level
 a: find . -maxdepth 1
 out: \.
 ref: find
 teach: find -maxdepth
 ---
-q: find entries under here at least 2 levels deep
+q: %find% entries under here at least 2 levels deep
 a: find . -mindepth 2
 out: .
 ref: find
 teach: find -mindepth
 ---
-q: find files under here larger than 1 kilobyte
+q: %find% files under here larger than 1 kilobyte
 a: find . -type f -size +1k
 out: .
 ref: find
 teach: find -size
 hint: + means "more than", - means "less than", plain means "exactly"
 ---
-q: find empty files or directories under here
+q: %find% empty files or directories under here
 a: find . -empty
 out: .
 ref: find
 teach: find -empty
 ---
-q: find files under here modified in the last day
+q: %find% files under here modified in the last day
 a: find . -type f -mtime -1
 out: .
 ref: find
 teach: find -mtime
 hint: -1 means "less than one day ago"
 ---
-q: find files under here modified in the last 30 minutes
+q: %find% files under here modified in the last 30 minutes
 a: find . -type f -mmin -30
 out: .
 ref: find
 teach: find -mmin
 ---
-q: find files under here that are executable
+q: %find% files under here that are executable
 a: find . -type f -executable
 out: \.sh
 ref: find
 teach: find -executable
 ---
-q: find files under here with the exact permission mode 755
+q: %find% files under here with the exact permission mode 755
 a: find . -perm 755
 ref: find
 teach: find -perm
 ---
-q: find files under here owned by user @user@
+q: %find% files under here owned by user @user@
 a: find . -user @user@
 ref: find
 teach: find -user
 ---
-q: find files under here belonging to group @user@
+q: %find% files under here belonging to group @user@
 a: find . -group @user@
 ref: find
 teach: find -group
 ---
-q: find either .log or .txt files under here in one command
+q: %find% either .log or .txt files under here in one command
 a: find . -name '*.log' -o -name '*.txt'
 out: \.(log|txt)
 ref: find
 teach: find -o
 ---
-q: find files under here that are NOT .log files
+q: %find% files under here that are NOT .log files
 a: find . -type f ! -name '*.log'
 out: .
 ref: find
 teach: find -name
 ---
-q: find files whose path contains the word src
+q: %find% files whose path contains the word src
 a: find . -path '*src*'
 out: src
 ref: find
 teach: find -path
 ---
-q: find .log files under here but do not descend into the logs directory
+q: %find% .log files under here but do not descend into the logs directory
 a: find . -name logs -prune -o -name '*.log' -print
 out: \.log
 ref: find
@@ -131,39 +131,39 @@ a: find . -name '*.log' -quit
 ref: find
 teach: find -quit
 ---
-q: find every .log file and run wc -l on each one, one process per file
+q: %find% every .log file and run wc -l on each one, one process per file
 a: find . -name '*.log' -exec wc -l {} \;
 out: [0-9]
 ref: find
 teach: find -exec
 hint: {} is the filename, and the ; ends the command -- escape it from the shell
 ---
-q: find every .log file and pass them all to one wc -l instead of one each
+q: %find% every .log file and pass them all to one wc -l instead of one each
 a: find . -name '*.log' -exec wc -l {} +
 out: [0-9]
 ref: find
 teach: find -exec
 hint: ending with + batches the results; ending with \; forks per file
 ---
-q: find files under here without crossing into another filesystem
+q: %find% files under here without crossing into another filesystem
 a: find . -xdev
 out: \.
 ref: find
 teach: find -xdev
 ---
-q: find files under here following symlinks rather than listing them
+q: %find% files under here following symlinks rather than listing them
 a: find -L . -type f
 out: .
 ref: find
 teach: find -L
 ---
-q: list every file under here in depth-first order, contents before the directory
+q: %list% every file under here in depth-first order, contents before the directory
 a: find . -depth
 out: \.
 ref: find
 teach: find -depth
 ---
-q: find every .log file and print the names separated by NUL rather than newline
+q: %find% every .log file and print the names separated by NUL rather than newline
 a: find . -name '*.log' -print0
 out: .
 ref: find

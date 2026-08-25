@@ -45,7 +45,7 @@ ref: sha256sum
 teach: sha256sum
 hint: dm-0 is the device dm-verity hands you once it is checking every block
 ---
-q: print just that digest, with the device name cut off
+q: %show% just that digest, with the device name cut off
 a: sha256sum /dev/dm-0 | cut -d' ' -f1
 ref: cut
 teach: cut -d
@@ -88,13 +88,13 @@ ref: chmod
 teach: chmod
 hint: $HOME is on a tmpfs mounted noexec
 ---
-q: count how many trust anchors are compiled into the tls binary
+q: %count% how many trust anchors are compiled into the tls binary
 a: strings /bin/tlstunnel | grep -c 'Internet Security Research Group'
 out: ^[0-9]+$
 ref: strings
 teach: strings
 ---
-q: list every command this system documents, and count them
+q: %list% every command this system documents, and count them
 a: learn list | wc -l
 out: ^[0-9]+$
 ref: learn

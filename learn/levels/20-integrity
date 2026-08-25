@@ -23,7 +23,7 @@ out: ^[0-9a-f]{64}
 ref: sha256sum
 teach: sha256sum
 ---
-q: print only the hash of @txt@, with the filename cut away
+q: %show% only the hash of @txt@, with the filename cut away
 a: sha256sum @txt@ | awk '{print $1}'
 out: ^[0-9a-f]{64}$
 ref: sha256sum
@@ -113,7 +113,7 @@ a: cmp -s @txt@ @txt2@
 ref: cmp
 teach: cmp -s
 ---
-q: list every differing byte between two files, not just the first
+q: %list% every differing byte between two files, not just the first
 a: cmp -l @txt@ @txt2@
 ref: cmp
 teach: cmp -l
@@ -123,12 +123,12 @@ a: cmp -n 10 @txt@ @txt2@
 ref: cmp
 teach: cmp -n
 ---
-q: show the differences between @txt@ and @txt2@ line by line
+q: %show% the differences between @txt@ and @txt2@ line by line
 a: diff @txt@ @txt2@
 ref: diff
 teach: diff
 ---
-q: show the differences in the unified format patches use
+q: %show% the differences in the unified format patches use
 a: diff -U 3 @txt@ @txt2@
 ref: diff
 teach: diff -U

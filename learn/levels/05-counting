@@ -9,28 +9,28 @@ brief: sort orders, uniq collapses neighbours, wc counts. uniq only sees the
 brief: line before it, so it can only remove duplicates that are already
 brief: adjacent -- which is why sort comes first, every time.
 ---
-q: count the lines in @log@
+q: %count% the lines in @log@
 a: wc -l < @log@
 a: wc -l @log@
 out: 10
 ref: wc
 teach: wc -l
 ---
-q: count the words in @txt@
+q: %count% the words in @txt@
 a: wc -w < @txt@
 a: wc -w @txt@
 out: [0-9]
 ref: wc
 teach: wc -w
 ---
-q: count the bytes in @txt@
+q: %count% the bytes in @txt@
 a: wc -c < @txt@
 a: wc -c @txt@
 out: [0-9]
 ref: wc
 teach: wc -c
 ---
-q: count how many entries are in the current directory
+q: %count% how many entries are in the current directory
 a: ls | wc -l
 out: [0-9]
 ref: wc
@@ -48,32 +48,32 @@ out: ^verify the root hash
 ref: sort
 teach: sort -r
 ---
-q: print the lines of @txt@ with duplicates removed, using one command
+q: %show% the lines of @txt@ with duplicates removed, using one command
 a: sort -u @txt@
 out: ask why the fan
 ref: sort
 teach: sort -u
 ---
-q: print the lines of @txt@ with duplicates removed, using sort and uniq
+q: %show% the lines of @txt@ with duplicates removed, using sort and uniq
 a: sort @txt@ | uniq
 out: ask why the fan
 ref: uniq
 teach: uniq
 hint: uniq only collapses ADJACENT duplicates, so sort has to go first
 ---
-q: show each distinct line of @txt@ with a count of how many times it appears
+q: %show% each distinct line of @txt@ with a count of how many times it appears
 a: sort @txt@ | uniq -c
 out: 2 rotate the logs
 ref: uniq
 teach: uniq -c
 ---
-q: show only the lines of @txt@ that appear more than once
+q: %show% only the lines of @txt@ that appear more than once
 a: sort @txt@ | uniq -d
 out: rotate the logs
 ref: uniq
 teach: uniq -d
 ---
-q: show only the lines of @txt@ that appear exactly once
+q: %show% only the lines of @txt@ that appear exactly once
 a: sort @txt@ | uniq -u
 out: ask why the fan
 ref: uniq
@@ -141,7 +141,7 @@ out: .
 ref: uniq
 teach: uniq -w
 ---
-q: find the length of the longest line in @log@
+q: %find% the length of the longest line in @log@
 a: wc -L @log@
 out: [0-9]
 ref: wc

@@ -90,20 +90,20 @@ ref: rm
 teach: rm -f
 hint: f for force -- it also silences the "no such file" error
 ---
-q: create a directory called @word@
+q: %make% a directory called @word@
 a: mkdir @word@
 state: exists:@word@
 ref: mkdir
 teach: mkdir
 ---
-q: create @dir@/@word@/deep, making the missing parent directories too
+q: %make% @dir@/@word@/deep, making the missing parent directories too
 a: mkdir -p @dir@/@word@/deep
 state: exists:@dir@/@word@/deep
 ref: mkdir
 teach: mkdir -p
 hint: p for parents
 ---
-q: create a directory @word@ that only you can enter, using a numeric mode
+q: %make% a directory @word@ that only you can enter, using a numeric mode
 a: mkdir -m 700 @word@
 state: exists:@word@
 ref: mkdir
@@ -114,7 +114,7 @@ a: rmdir @word@
 ref: rmdir
 teach: rmdir
 ---
-q: create an empty file called @word@.txt
+q: %make% an empty file called @word@.txt
 a: touch @word@.txt
 a: > @word@.txt
 state: exists:@word@.txt
@@ -132,20 +132,20 @@ a: touch -c @txt@
 ref: touch
 teach: touch -c
 ---
-q: make a symbolic link called @word@-link pointing at @txt@
+q: %make% a symbolic link called @word@-link pointing at @txt@
 a: ln -s @txt@ @word@-link
 state: exists:@word@-link
 ref: ln
 teach: ln -s
 hint: s for symbolic; without it you get a hard link
 ---
-q: make a hard link called @word@-hard to @txt@
+q: %make% a hard link called @word@-hard to @txt@
 a: ln @txt@ @word@-hard
 state: exists:@word@-hard
 ref: ln
 teach: ln
 ---
-q: make a symlink @word@-link to @txt@, replacing it if it already exists
+q: %make% a symlink @word@-link to @txt@, replacing it if it already exists
 a: ln -sf @txt@ @word@-link
 a: ln -fs @txt@ @word@-link
 state: exists:@word@-link
@@ -184,37 +184,37 @@ a: mkdir -p @dir@/@word@/deep && rmdir -p @dir@/@word@/deep
 ref: rmdir
 teach: rmdir -p
 ---
-q: create a named pipe called @word@.fifo
+q: %make% a named pipe called @word@.fifo
 a: mkfifo @word@.fifo
 state: exists:@word@.fifo
 ref: mkfifo
 teach: mkfifo
 ---
-q: create a named pipe readable and writable only by you
+q: %make% a named pipe readable and writable only by you
 a: mkfifo -m 600 @word@.fifo
 state: exists:@word@.fifo
 ref: mkfifo
 teach: mkfifo -m
 ---
-q: make a temporary file with a name nothing else will collide with
+q: %make% a temporary file with a name nothing else will collide with
 a: mktemp
 out: ^/
 ref: mktemp
 teach: mktemp
 ---
-q: make a temporary directory rather than a file
+q: %make% a temporary directory rather than a file
 a: mktemp -d
 out: ^/
 ref: mktemp
 teach: mktemp -d
 ---
-q: make a temporary name without actually creating anything
+q: %make% a temporary name without actually creating anything
 a: mktemp -u
 out: ^/
 ref: mktemp
 teach: mktemp -u
 ---
-q: make a temporary file, staying silent if it cannot
+q: %make% a temporary file, staying silent if it cannot
 a: mktemp -q
 out: ^/
 ref: mktemp

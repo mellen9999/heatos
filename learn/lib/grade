@@ -131,10 +131,21 @@ correct() {
 	done
 	[ $? -eq 9 ] && return 0
 
-	# tier 2: it is not one we listed. run it and see if it is right anyway.
+	# tier 2: it is not one we listed. run it and see if it is right anyway --
+	# but do not accept an answer that produces the right output by a route that
+	# is not what the question teaches. `echo 10` prints 10, but it is not
+	# counting lines, so it must not pass a wc question. requiring the taught
+	# command kills that cheat while still accepting every honest form:
+	# `wc -l f`, `wc -l < f`, `cat f | wc -l` all use wc. grammar questions
+	# (Q_REF is the shell itself) have no single command to require, so they
+	# fall back to their listed forms.
 	[ -n "${Q_OUT:-}" ] || [ -n "${Q_STATE:-}" ] || return 1
 	[ "${SANDBOX_OK:-0}" = 1 ] || return 1
 	printf '%s\n' "$1" | unsafe && return 1
+	case "${Q_REF:-}" in
+		''|sh|ash) : ;;   # grammar/builtin question: no one command to demand
+		*) printf '%s\n' "$1" | answer_cmds | grep -qxF -- "$Q_REF" || return 1 ;;
+	esac
 
 	_got=$(run_answer "$1"); SANDBOX_DIRTY=1
 	[ -z "${Q_OUT:-}" ]   || printf '%s\n' "$_got" | grep -qE -- "$Q_OUT" || return 1

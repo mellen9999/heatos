@@ -1,0 +1,30 @@
+# phrase macros for question prompts: %name% expands to a random member at
+# render time, so the same skill is asked many different ways and you have to
+# think about what is wanted, not pattern-match the wording. every member of a
+# group must be grammatically interchangeable wherever the macro is used.
+#
+# format:  %name% = one | two | three
+#
+# keep them boringly interchangeable. cleverness that only fits one sentence
+# belongs inline as {a|b|c} in that one question, not here.
+
+# --- output a thing to the screen ---
+show = print | show | display | output | write out
+
+# --- enumerate directory-ish contents ---
+list = list | show | print out
+
+# --- locate something ---
+find = find | locate | hunt down | track down
+
+# --- produce a count ---
+count = count | tally | report the number of
+
+# --- create ---
+make = make | create
+
+# --- polite framings that can prefix an instruction ---
+give = give me | show me | get me | i want
+
+# --- softeners / openers (optional flavor) ---
+now = | right now | here | for me

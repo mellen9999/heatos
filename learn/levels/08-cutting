@@ -8,68 +8,68 @@ brief:
 brief: cut's default delimiter is TAB, not space. That surprises everyone once.
 brief: For anything space-separated, awk is the better tool, and it is next.
 ---
-q: print the first comma-separated field of every line in @csv@
+q: %show% the first comma-separated field of every line in @csv@
 a: cut -d, -f1 @csv@
 out: ^gateway$
 ref: cut
 teach: cut -d
 teach: cut -f
 ---
-q: print the third comma-separated field of @csv@
+q: %show% the third comma-separated field of @csv@
 a: cut -d, -f3 @csv@
 out: ^up$
 ref: cut
 teach: cut -f
 ---
-q: print fields 1 and 3 of @csv@
+q: %show% fields 1 and 3 of @csv@
 a: cut -d, -f1,3 @csv@
 out: gateway,up
 ref: cut
 teach: cut -f
 ---
-q: print fields 2 through 4 of @csv@
+q: %show% fields 2 through 4 of @csv@
 a: cut -d, -f2-4 @csv@
 out: 1,up,42
 ref: cut
 teach: cut -f
 ---
-q: print everything from field 3 to the end of each line in @csv@
+q: %show% everything from field 3 to the end of each line in @csv@
 a: cut -d, -f3- @csv@
 out: up,42
 ref: cut
 teach: cut -f
 ---
-q: print the first field of @csv@ treating any run of whitespace as the delimiter
+q: %show% the first field of @csv@ treating any run of whitespace as the delimiter
 a: cut -D -f1 @csv@
 ref: cut
 teach: cut -D
 ---
-q: print the first 10 characters of each line of @log@
+q: %show% the first 10 characters of each line of @log@
 a: cut -c1-10 @log@
 out: ^2024-03-01$
 ref: cut
 teach: cut -c
 ---
-q: print characters 12 onward of each line of @log@
+q: %show% characters 12 onward of each line of @log@
 a: cut -c12- @log@
 out: [0-9]
 ref: cut
 teach: cut -c
 ---
-q: print the first 8 bytes of each line of @log@
+q: %show% the first 8 bytes of each line of @log@
 a: cut -b1-8 @log@
 out: ^2024-03
 ref: cut
 teach: cut -b
 ---
-q: print field 1 of @csv@, skipping lines that have no comma in them at all
+q: %show% field 1 of @csv@, skipping lines that have no comma in them at all
 a: cut -d, -f1 -s @csv@
 out: ^gateway$
 ref: cut
 teach: cut -s
 hint: without -s, a line with no delimiter is printed whole
 ---
-q: print field 1 of @csv@ separating the output with a colon instead of a comma
+q: %show% field 1 of @csv@ separating the output with a colon instead of a comma
 a: cut -d, -f1,3 -O: @csv@
 ref: cut
 teach: cut -O

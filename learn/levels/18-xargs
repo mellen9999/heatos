@@ -9,7 +9,7 @@ brief: The classic trap is filenames with spaces. find -print0 emits names
 brief: separated by a NUL byte, which cannot occur in a filename, and xargs -0
 brief: reads them back. Use that pair by default and the problem never arises.
 ---
-q: find every .log file and count the lines of each, using xargs
+q: %find% every .log file and count the lines of each, using xargs
 a: find . -name '*.log' | xargs wc -l
 out: [0-9]
 ref: xargs
@@ -34,7 +34,7 @@ out: ^found .*\.log$
 ref: xargs
 teach: xargs -I
 ---
-q: show each command before running it
+q: %show% each command before running it
 a: ls | xargs -t echo
 out: .
 ref: xargs
@@ -99,7 +99,7 @@ out: .
 ref: basename
 teach: basename -a
 ---
-q: print the directory part of @dir@/@txt@
+q: %show% the directory part of @dir@/@txt@
 a: dirname @dir@/@txt@
 out: ^@dir@$
 ref: dirname

@@ -60,13 +60,13 @@ a: [ -n "$@var@" ]
 ref: [
 teach: [ -n
 ---
-q: print yes if @txt@ exists
+q: %show% yes if @txt@ exists
 a: [ -f @txt@ ] && echo yes
 out: ^yes$
 ref: [
 teach: [ -f
 ---
-q: print missing if @word@-nope.txt does not exist
+q: %show% missing if @word@-nope.txt does not exist
 a: [ -f @word@-nope.txt ] || echo missing
 out: ^missing$
 ref: [

@@ -11,7 +11,7 @@ brief:
 brief: The other specials: $$ this shell's pid, $! the last background pid,
 brief: $# how many arguments, $@ all of them, $0 the name it was invoked as.
 ---
-q: print the exit status of the command you just ran
+q: %show% the exit status of the command you just ran
 a: true; echo $?
 out: ^0$
 ref: sh
@@ -29,25 +29,25 @@ out: ^0$
 ref: true
 teach: true
 ---
-q: print @word@ only if @log@ contains @sev@
+q: %show% @word@ only if @log@ contains @sev@
 a: grep -q @sev@ @log@ && echo @word@
 out: @word@
 ref: grep
 teach: grep -q
 ---
-q: print "missing" only if @log@ does NOT contain the word nonexistent
+q: %show% "missing" only if @log@ does NOT contain the word nonexistent
 a: grep -q nonexistent @log@ || echo missing
 out: ^missing$
 ref: grep
 teach: grep -q
 ---
-q: print found if @sev@ is in @log@, and missing if it is not, in one line
+q: %show% found if @sev@ is in @log@, and missing if it is not, in one line
 a: grep -q @sev@ @log@ && echo found || echo missing
 out: ^found$
 ref: grep
 teach: grep -q
 ---
-q: print this shell's own process id
+q: %show% this shell's own process id
 a: echo $$
 out: ^[0-9]+$
 ref: sh
@@ -76,17 +76,17 @@ ref: grep
 teach: grep -q
 hint: a leading ! flips the status
 ---
-q: make the shell stop at the first command that fails
+q: %make% the shell stop at the first command that fails
 a: set -e
 ref: set
 teach: set -e
 ---
-q: make the shell treat an unset variable as an error rather than an empty string
+q: %make% the shell treat an unset variable as an error rather than an empty string
 a: set -u
 ref: set
 teach: set -u
 ---
-q: make the shell print each command before running it
+q: %make% the shell print each command before running it
 a: set -x
 ref: set
 teach: set -x
@@ -97,7 +97,7 @@ a: set +x
 ref: set
 teach: set
 ---
-q: show the shell's current option settings
+q: %show% the shell's current option settings
 a: set -o
 ref: set
 teach: set -o

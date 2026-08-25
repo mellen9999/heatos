@@ -1,2 +1,7 @@
 config.ini
 settings.conf
+app.conf
+server.conf
+daemon.ini
+options.conf
+defaults.conf
