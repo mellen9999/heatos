@@ -1,0 +1,127 @@
+# coach -- what a miss teaches.
+#
+# 'wrong -- <answer>' tells you the answer; it does not tell you where YOUR
+# command died. on the final miss of a question (learn mode only -- the boss
+# stays terse) this shows up to three rows:
+#
+#   yours/wanted   what your command actually printed vs what was wanted --
+#                  stderr included, so `grep: invalid option` is the first
+#                  thing you see
+#   stages         for a pipeline, the line count after every stage, so the
+#                  point where it died is visible
+#   closest        the listed answer nearest to what you typed, with the
+#                  tokens you were missing and the ones you added
+#
+# and one row on a correct answer: the shorter form, when yours was longer
+# than it had to be -- the process you saved is the lesson.
+#
+# none of this may ever crash a lesson: every path tolerates hostile input,
+# and selftest feeds it some.
+
+# _c_line OUTPUT -- "first line  (N lines)", or "(nothing)"
+_c_line() {
+	[ -n "$1" ] || { printf '(nothing)'; return; }
+	printf '%s' "$1" | awk 'NR == 1 { l = $0 } END {
+		if (length(l) > 48) l = substr(l, 1, 45) "..."
+		printf "%s  (%d line%s)", l, NR, NR == 1 ? "" : "s" }'
+}
+
+# _c_diff GIVEN ANSWER -- four lines: score, shared, missing, extra. token
+# multisets. score is how far apart they are; shared is how many tokens they
+# have in common (0 means a different approach entirely -- nothing to learn
+# from the comparison). four lines, not one delimited line: a tab-split in
+# sh drops empty fields, and "missing" is empty exactly when it matters.
+_c_diff() {
+	awk -v g="$1" -v a="$2" 'BEGIN {
+		ng = split(g, gt, /[ \t]+/); na = split(a, at, /[ \t]+/)
+		for (i = 1; i <= ng; i++) if (gt[i] != "|") G[gt[i]]++
+		for (i = 1; i <= na; i++) if (at[i] != "|") A[at[i]]++
+		miss = ""; extra = ""; shared = 0; score = 0
+		for (t in A) {
+			d = A[t] - G[t]
+			if (d > 0) { miss = miss " " t; score += d }
+			if (G[t] > 0) shared++
+		}
+		for (t in G) {
+			d = G[t] - A[t]
+			if (d > 0) { extra = extra " " t; score += d }
+		}
+		print score; print shared
+		print substr(miss, 2); print substr(extra, 2)
+	}'
+}
+
+# coach_miss INPUT -- the diagnosis rows. safe to call with anything.
+coach_miss() {
+	_ci=$1
+	_safe=1; printf '%s\n' "$_ci" | unsafe && _safe=0
+
+	# what yours printed vs what was wanted
+	if [ "$_safe" = 1 ] && { [ -n "${Q_OUT:-}" ] || [ "${Q_CMP:-}" = ref ]; }; then
+		_got=$(run_answer "$_ci"); SANDBOX_DIRTY=1
+		printf '  %syours %s %s\n' "$D" "$N" "$(_c_line "$_got")"
+		if [ "${Q_CMP:-}" = ref ]; then
+			_want=$(run_answer "$(printf '%s\n' "$Q_ANSWERS" | head -1)"); SANDBOX_DIRTY=1
+			printf '  %swanted%s %s\n' "$D" "$N" "$(_c_line "$_want")"
+		else
+			printf '  %swanted%s matching /%s/\n' "$D" "$N" "$Q_OUT"
+		fi
+	fi
+
+	# for a pipeline: the line count after every stage. quoting can hide a
+	# pipe from a naive split, so any quote means no stage row at all rather
+	# than a wrong one.
+	case "$_ci" in
+	*\|*)
+		case "$_ci" in *\'*|*\"*) ;; *)
+			if [ "$_safe" = 1 ]; then
+				_row=""; _pfx=""
+				printf '%s\n' "$_ci" | tr '|' '\n' > "$TMP/coach.st"
+				while IFS= read -r _st; do
+					[ -n "$(printf '%s' "$_st" | tr -d ' \t')" ] || continue
+					_pfx="${_pfx:+$_pfx | }$_st"
+					_n=$(run_answer "$_pfx" | grep -c .); SANDBOX_DIRTY=1
+					_cmd=$(printf '%s\n' "$_st" | awk '{ print $1 }')
+					_row="${_row:+$_row  }$_cmd:$_n"
+				done < "$TMP/coach.st"
+				rm -f "$TMP/coach.st"
+				[ -z "$_row" ] || printf '  %sstages%s %s%s%s\n' "$D" "$N" "$Y" "$_row" "$N"
+			fi ;;
+		esac ;;
+	esac
+
+	# the nearest listed answer, and the exact tokens between you and it
+	_giv=$(printf '%s\n' "$_ci" | norm)
+	_bs=999; _ba=""; _bm=""; _bx=""
+	printf '%s\n' "${Q_ANSWERS:-}" > "$TMP/coach.ans"
+	while IFS= read -r _a; do
+		[ -n "$_a" ] || continue
+		_c_diff "$_giv" "$(printf '%s\n' "$_a" | norm)" > "$TMP/coach.d"
+		_sc=$(sed -n 1p "$TMP/coach.d"); _sh=$(sed -n 2p "$TMP/coach.d")
+		_mi=$(sed -n 3p "$TMP/coach.d"); _ex=$(sed -n 4p "$TMP/coach.d")
+		[ "$_sh" -gt 0 ] 2>/dev/null || continue
+		if [ "$_sc" -lt "$_bs" ] 2>/dev/null; then
+			_bs=$_sc; _ba=$_a; _bm=$_mi; _bx=$_ex
+		fi
+	done < "$TMP/coach.ans"
+	rm -f "$TMP/coach.ans" "$TMP/coach.d"
+	if [ -n "$_ba" ] && [ "$_bs" -gt 0 ]; then
+		[ "$_ba" = "$(printf '%s\n' "$Q_ANSWERS" | head -1)" ] \
+			|| printf '  %sclosest%s %s\n' "$D" "$N" "$_ba"
+		[ -z "$_bm" ] || printf '  %smissing%s %s%s%s\n' "$D" "$N" "$R" "$_bm" "$N"
+		[ -z "$_bx" ] || printf '  %sextra  %s %s\n' "$D" "$N" "$_bx"
+	fi
+	return 0
+}
+
+# coach_right INPUT -- you got it; was there a shorter way? triggered by
+# character count, so `cat f | grep x` earns `grep x f`.
+coach_right() {
+	_short=$(printf '%s\n' "${Q_ANSWERS:-}" | awk 'NF { if (!l || length($0) < l) { l = length($0); s = $0 } } END { print s }')
+	[ -n "$_short" ] || return 0
+	_gn=$(printf '%s\n' "$1" | norm)
+	[ $(( ${#_gn} - ${#_short} )) -gt 3 ] 2>/dev/null || return 0
+	[ "$_gn" = "$_short" ] && return 0
+	note "shorter: $_short"
+	return 0
+}

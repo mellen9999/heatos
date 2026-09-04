@@ -29,7 +29,7 @@ die() { echo "learn: $*" >&2; exit 1; }
 mkdir -p "$TMP" 2>/dev/null || die "cannot create $TMP"
 trap 'rm -rf "$TMP" 2>/dev/null' EXIT INT TERM
 
-for _l in ui ctx grade fixtures cards edit; do
+for _l in ui ctx grade fixtures cards coach edit; do
 	[ -f "$ROOT/lib/$_l" ] || die "missing lib/$_l"
 	. "$ROOT/lib/$_l"
 done
@@ -168,6 +168,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			_stk=""
 			[ "$S_STREAK" -ge 3 ] && _stk="  ${Y}${S_STREAK} in a row${N}"
 			ok "right${tier:+  ${D}tier $tier${N}}$_stk"
+			[ "$MODE" = learn ] && coach_right "$input"
 			return 0
 		fi
 
@@ -175,6 +176,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 		card_grade "$key" 0
 		if [ "$tries" -ge 2 ] || [ "$MODE" != learn ]; then
 			S_WRONG=$((S_WRONG + 1)); S_STREAK=0
+			[ "$MODE" = learn ] && coach_miss "$input"
 			no "wrong -- $(printf '%s\n' "$Q_ANSWERS" | head -1)"
 			return 1
 		fi
@@ -669,6 +671,16 @@ selftest() {
 				     sed 's/^/  /' "$TMP/boss.$$" | tail -3 >&2; bad=$((bad+1)); }
 			rm -f "$TMP/boss.$$"
 		fi
+	done
+
+	# the coach turns arbitrary learner input into diagnosis rows; it must
+	# never be able to crash a lesson. feed it hostile shapes and require
+	# survival -- the subshell turns a fatal ash error into a caught failure.
+	q_load 06-grep 1 || :
+	for a in 'a || b' '| wc -l' 'grep' 'rm /x | wc -l' 'grep "x | wc' \
+	         "awk '{print \"|\"}' x" '..' '>>/etc/x' ''; do
+		( coach_miss "$a" >/dev/null 2>&1 ) \
+			|| { echo "FAIL coach: crashed on: $a" >&2; bad=$((bad+1)); }
 	done
 
 	printf 'learn: %d questions in %d levels, %d bad\n' \
