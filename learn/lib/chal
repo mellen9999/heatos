@@ -47,12 +47,17 @@ chal_ask() {
 }
 
 challenge() {
-	local nq i score=0 rc best left
+	local nq i score=0 rc best left id
 	[ -f "$CHAINS" ] || { echo "learn: no chains at $CHAINS" >&2; return 1; }
 
 	# the endgame unlocks the way an endgame should: when the last boss has
-	# fallen. until then it names exactly what still stands.
-	left=$(( $(level_ids | grep -c .) - $(awk 'END { print NR }' "$PASSED" 2>/dev/null || echo 0) ))
+	# fallen. until then it names exactly what still stands. counted by set
+	# membership against level_ids, not a raw line count of $PASSED -- a
+	# stale or renamed id sitting in that file must never make the count lie.
+	left=0
+	for id in $(level_ids); do
+		level_is_passed "$id" || left=$((left + 1))
+	done
 	if [ "$left" -gt 0 ]; then
 		no "locked. $left boss$([ "$left" = 1 ] || echo es) still stand$([ "$left" = 1 ] && echo s) between you and the gauntlet."
 		note "'learn' resumes the curriculum. come back when ROOT has fallen."
@@ -76,11 +81,15 @@ challenge() {
 	done
 	MODE=learn
 
+	# the chain's own end screen -- this is a timed one-life gauntlet, not a
+	# deck of SRS cards, so it is scored on stages cleared and where it ended,
+	# never the card-based session_summary (which has nothing to say here:
+	# chal never touches S_RIGHT/S_WRONG, so that summary would print empty).
 	rule
 	if [ "$score" -ge "$nq" ]; then
 		printf '  %sthe gauntlet falls.%s %s of %s.\n' "$G$B" "$N" "$score" "$nq"
 	else
-		printf '  %s of %s.\n' "$score" "$nq"
+		printf '  %s of %s -- fell at stage %s.\n' "$score" "$nq" "$i"
 	fi
 	best=$(awk -F'\t' 'NR == 1 { print $1 }' "$CHAL_BEST" 2>/dev/null)
 	if [ -z "$best" ] || [ "$score" -gt "$best" ] 2>/dev/null; then

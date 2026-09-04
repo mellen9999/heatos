@@ -33,6 +33,7 @@ setup: signed with keys you enrolled into the firmware yourself. So the hash
 setup: is anchored OUTSIDE the filesystem it describes.
 q: %show% the whole command line so you can see the hash sitting in it
 a: cat /proc/cmdline
+out: .
 ref: cat
 teach: cat
 hint: no filtering this time -- the whole line, hash included
@@ -59,6 +60,7 @@ setup: which you must have carried here from somewhere else. Reading it off
 setup: this disk would prove nothing at all.
 q: %show% the digest of the running filesystem beside the root hash it is checked against
 a: printf 'mounted %s\nroothash %s\n' "$(sha256sum /dev/dm-0 | cut -d' ' -f1)" "$(sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline)"
+cmp: ref
 ref: printf
 teach: printf
 hint: two command substitutions inside one printf
@@ -67,6 +69,7 @@ setup: A verified root is worth nothing if code can be added to the kernel
 setup: underneath it. Close that door and check it stayed closed.
 q: {in one line, report the module loader, /dev/mem and the lockdown state together|report the module loader, /dev/mem and lockdown state together, on one line|combine the module loader check, /dev/mem check and lockdown state into a single line}
 a: printf 'modules %s\ndevmem %s\nlockdown %s\n' "$([ -e /proc/modules ] && echo present || echo absent)" "$([ -e /dev/mem ] && echo present || echo absent)" "$(cat /sys/kernel/security/lockdown)"
+cmp: ref
 ref: printf
 teach: printf
 hint: three [ -e ] / cat checks, joined with $() inside one printf
@@ -92,6 +95,7 @@ setup: If this prints and the numbers are the ones you carried in, the system
 setup: running this command is the system you built.
 q: %show% the mounted digest, the anchored root hash, and whether they are being enforced
 a: printf '%s\n%s\n%s\n' "$(sha256sum /dev/dm-0 | cut -d' ' -f1)" "$(sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline)" "$(grep -o panic_on_corruption /proc/cmdline)"
+cmp: ref
 ref: printf
 teach: printf
 hint: three substitutions, one printf. you have used every piece of this before

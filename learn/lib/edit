@@ -17,7 +17,13 @@
 
 E_ESC=$(printf '\033'); E_DEL=$(printf '\177'); E_BS=$(printf '\010')
 E_TAB=$(printf '\011')
-EDIT_HIST="${EDIT_HIST:-$TMP/answers}"
+# history lives beside cards/passed -- persistent when $STATE is (p3 up),
+# tmpfs when it is not -- so the EXIT trap wiping $TMP never touches it.
+EDIT_HIST="${EDIT_HIST:-$STATE/answers}"
+# last deleted/yanked text, for p / P -- a global (not a read_line local) so a
+# yank survives across questions. must exist before the first p/P: under
+# set -u an unset read crashes the lesson mid-question.
+YANK=
 
 # redraw: reprint the line after the prompt, clear to end, park the cursor.
 _ed_draw() {   # $1 prompt  $2 L  $3 R
@@ -171,9 +177,16 @@ _ed_del_word_fwd() {
 	L="$start"             # cursor back where it was; that text is now gone
 }
 _ed_del_word_back() {
-	local end="$L$R" endlen=${#R}
-    _ed_word_back
-	YANK=$(printf '%s' "$L$R" | cut -c$(( ${#L} + 1 ))-$(( ${#end} - endlen )) 2>/dev/null)
+	local end="$L$R" endlen=${#R} oldl=${#L}
+	_ed_word_back
+	# oldl is where the cursor WAS; if word_back did not move it (cursor
+	# already at the start of the line), there is nothing behind it to yank --
+	# a no-op, not whatever an inverted cut -c range happens to do
+	if [ "${#L}" -lt "$oldl" ]; then
+		YANK=$(printf '%s' "$L$R" | cut -c$(( ${#L} + 1 ))-"$oldl" 2>/dev/null)
+	else
+		YANK=""
+	fi
 	R=$(printf '%s' "$end" | cut -c$(( ${#end} - endlen + 1 ))- 2>/dev/null)
 }
 

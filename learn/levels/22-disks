@@ -161,6 +161,7 @@ hint: -t names the filesystem type explicitly instead of letting mount guess
 ---
 q: {mount /dev/sdb1 at /mnt with nosuid, nodev and noexec|mount /dev/sdb1 at /mnt, disallowing setuid, device nodes and execution|attach /dev/sdb1 at /mnt with the nosuid, nodev and noexec options set}
 a: mount -o nosuid,nodev,noexec /dev/sdb1 /mnt
+a: mount -o noexec,nodev,nosuid /dev/sdb1 /mnt
 ref: mount
 teach: mount -o
 hint: -o takes a comma-separated list of mount options
@@ -288,6 +289,7 @@ setup: a reboot, and the only place a key can live. It is encrypted, and it is
 setup: also authenticated, which is a different property and the harder one.
 q: {write a new LUKS2 header on /dev/sda3, with authentication as well as encryption|format /dev/sda3 with a LUKS2 header that is both encrypted and authenticated|put a new LUKS2 header on /dev/sda3, adding integrity checking alongside the encryption}
 a: cryptsetup luksFormat --type luks2 --integrity hmac-sha256 /dev/sda3
+a: cryptsetup luksFormat --integrity hmac-sha256 --type luks2 /dev/sda3
 ref: cryptsetup
 teach: cryptsetup --type
 teach: cryptsetup --integrity
@@ -355,6 +357,7 @@ hint: --verbose narrates what cryptsetup is doing as it opens the device
 ---
 q: {mount the unlocked state device with nothing on it able to run|mount /dev/mapper/state so nothing on it can execute|attach the decrypted state device with execution disabled}
 a: mount -o nosuid,nodev,noexec /dev/mapper/state /state
+a: mount -o noexec,nodev,nosuid /dev/mapper/state /state
 ref: mount
 teach: mount -o
 hint: same nosuid,nodev,noexec trio, now applied to the decrypted volume
@@ -371,18 +374,21 @@ hint: no mount, no parser -- just the bytes. this is the forensically safe read
 ---
 q: {mount a fat32 usb stick read-only, with nothing on it able to run|mount a fat32 usb stick read-only, with execution disabled|attach a fat32 usb stick read-only and let nothing on it run}
 a: mount -t vfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
+a: mount -t vfat -o noexec,nodev,nosuid,ro /dev/sda1 /mnt
 ref: mount
 teach: mount -t
 hint: ro, and noexec, because you do not trust what is on it
 ---
 q: {mount an exfat sd card read-only and safely|safely mount an exfat sd card read-only|attach an exfat sd card read-only, locked down the same way}
 a: mount -t exfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
+a: mount -t exfat -o noexec,nodev,nosuid,ro /dev/sda1 /mnt
 ref: mount
 teach: mount -t
 hint: same ro,nosuid,nodev,noexec pattern, this time for exfat
 ---
 q: {mount a windows ntfs disk read-only|mount a windows ntfs disk allowing no writes|attach an ntfs disk in read-only mode}
 a: mount -t ntfs3 -o ro,nosuid,nodev,noexec /dev/sda2 /mnt
+a: mount -t ntfs3 -o noexec,nodev,nosuid,ro /dev/sda2 /mnt
 ref: mount
 teach: mount -t
 hint: read only -- xos will not write ntfs, by design

@@ -264,6 +264,7 @@ hint: reset reinitializes the terminal, further than clear goes
 ---
 q: %show% every terminal setting
 a: stty -a
+out: .
 ref: stty
 teach: stty -a
 hint: -a dumps every setting, not just the summary
@@ -277,6 +278,7 @@ hint: -g prints settings in a compact form meant to be fed back to stty
 ---
 q: {query the settings of a terminal other than your own|report the settings of a terminal that is not your controlling one|check another terminal device's settings, not your own}
 a: stty -F /dev/tty1 -a
+out: .
 ref: stty
 teach: stty -F
 hint: -F points stty at a device other than your own controlling terminal

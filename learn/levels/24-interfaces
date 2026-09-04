@@ -106,6 +106,7 @@ hint: ifconfig with no arguments lists every interface, the pre-ip tool
 ---
 q: %show% @iface@ specifically, the old way
 a: ifconfig @iface@
+out: .
 ref: ifconfig
 teach: ifconfig
 hint: name one interface and ifconfig shows only it
@@ -118,42 +119,49 @@ hint: ifconfig combines address and up into one command, unlike ip's two steps
 ---
 q: %show% the routing table the old way
 a: route
+out: .
 ref: route
 teach: route
 hint: route with no arguments is ifconfig's routing counterpart
 ---
 q: %show% routes without resolving names to make it fast
 a: route -n
+out: .
 ref: route
 teach: route -n
 hint: -n skips dns lookups on every address in the table
 ---
 q: %show% route table entries with extended fields
 a: route -e
+out: .
 ref: route
 teach: route -e
 hint: -e adds the extra fields netstat-style output shows
 ---
 q: %show% routes for a named address family
 a: route -A inet
+out: .
 ref: route
 teach: route -A
 hint: -A takes the address family name, inet for ipv4
 ---
 q: %show% the arp cache
 a: arp
+out: .
 ref: arp
 teach: arp
 hint: arp with no arguments lists the whole cache
 ---
 q: %show% the arp cache numerically, without resolving names
 a: arp -n
+out: .
 ref: arp
 teach: arp -n
 hint: -n skips resolving hostnames for each entry
 ---
 q: %show% all arp entries including incomplete ones
 a: arp -a
+out: .
 ref: arp
 teach: arp -a
 hint: -a includes entries still waiting to resolve
@@ -172,24 +180,28 @@ hint: -s pins an ip to a mac address by hand
 ---
 q: %show% arp entries for one interface only
 a: arp -i @iface@
+out: .
 ref: arp
 teach: arp -i
 hint: -i filters the cache down to one interface
 ---
 q: %show% the arp cache verbosely
 a: arp -v
+out: .
 ref: arp
 teach: arp -v
 hint: -v adds detail arp normally leaves out
 ---
 q: %show% arp entries of a given hardware type
 a: arp -H ether
+out: .
 ref: arp
 teach: arp -H
 hint: -H filters by hardware type, ether being the common case
 ---
 q: {use a named address family for arp|tell arp which address family to use|restrict arp to a named address family}
 a: arp -A inet
+out: .
 ref: arp
 teach: arp -A
 hint: -A picks the address family, same idea as route -A
@@ -262,36 +274,42 @@ hint: -A lets arping run without claiming a source address
 ---
 q: {work out the network settings for the address @ip@/24|derive the network settings for @ip@/24|break down @ip@/24 into its network settings}
 a: ipcalc @ip@/24
+cmp: ref
 ref: ipcalc
 teach: ipcalc
 hint: ipcalc with no flags prints the whole network breakdown
 ---
 q: %show% just the broadcast address for @ip@/24
 a: ipcalc -b @ip@/24
+cmp: ref
 ref: ipcalc
 teach: ipcalc -b
 hint: -b isolates just the broadcast address
 ---
 q: %show% just the network address for @ip@/24
 a: ipcalc -n @ip@/24
+cmp: ref
 ref: ipcalc
 teach: ipcalc -n
 hint: -n isolates just the network address
 ---
 q: %show% just the netmask for a /24
 a: ipcalc -m @ip@/24
+cmp: ref
 ref: ipcalc
 teach: ipcalc -m
 hint: -m isolates just the netmask
 ---
 q: %show% the prefix length for a given netmask
 a: ipcalc -p @ip@ 255.255.255.0
+cmp: ref
 ref: ipcalc
 teach: ipcalc -p
 hint: -p converts a dotted netmask into its prefix length
 ---
 q: {get ipcalc output without any resolved hostnames, for a script|run ipcalc without resolved hostnames, for scripting|strip ipcalc's output down to script-friendly form, no hostnames}
 a: ipcalc -s @ip@/24
+cmp: ref
 ref: ipcalc
 teach: ipcalc -s
 hint: -s silences ipcalc's extra explanatory output
