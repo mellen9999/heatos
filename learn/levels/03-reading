@@ -13,18 +13,21 @@ a: cat @txt@
 out: rotate the logs
 ref: cat
 teach: cat
+hint: no flags -- cat just dumps the whole file to the screen
 ---
 q: %show% @txt@ with every line numbered
 a: cat -n @txt@
 out: ^ *1
 ref: cat
 teach: cat -n
+hint: n numbers every line, including blanks
 ---
 q: %show% @txt@ numbering only the lines that are not blank
 a: cat -b @txt@
 out: ^ *1
 ref: cat
 teach: cat -b
+hint: like -n but skips numbering blank lines
 ---
 q: %show% @cfg@ with a $ marking the end of every line
 a: cat -e @cfg@
@@ -46,6 +49,7 @@ a: head -@n@ @log@
 out: service started
 ref: head
 teach: head -n
+hint: -n takes a count, or glue the number straight onto the dash
 ---
 q: %show% the first 20 bytes of @log@
 a: head -c 20 @log@
@@ -59,6 +63,7 @@ a: tail @log@
 out: out of memory
 ref: tail
 teach: tail
+hint: ten is what tail does with no arguments, same as head
 ---
 q: %show% the last @n3@ lines of @log@
 a: tail -n @n3@ @log@
@@ -66,6 +71,7 @@ a: tail -@n3@ @log@
 out: .
 ref: tail
 teach: tail -n
+hint: -n takes a count, same syntax as head -n
 ---
 q: %show% @log@ from line 5 onward -- not the last 5, the fifth to the end
 a: tail -n +5 @log@
@@ -74,7 +80,7 @@ ref: tail
 teach: tail -n
 hint: a plus sign in front of the number changes it from "last N" to "from N"
 ---
-q: watch @log@ and keep printing new lines as they are appended
+q: {watch @log@ and keep printing new lines as they are appended|follow @log@, printing each new line as it's appended|keep @log@ open and print new lines as they arrive}
 a: tail -f @log@
 ref: tail
 teach: tail -f
@@ -87,17 +93,19 @@ ref: tac
 teach: tac
 hint: it is cat backwards, which is also what it does
 ---
-q: pull the readable text out of @bin@, which is not a text file
+q: {pull the readable text out of @bin@, which is not a text file|extract the printable text from @bin@, a non-text file|pull the human-readable strings out of the binary @bin@}
 a: strings @bin@
 out: unlocked-by-strings
 ref: strings
 teach: strings
+hint: pulls sequences of printable characters out of any file, text or not
 ---
 q: %show% only strings in @bin@ that are at least 5 characters long
 a: strings -n 5 @bin@
 out: unlocked-by-strings
 ref: strings
 teach: strings -n
+hint: -n sets the minimum run length to count as a string
 ---
 q: %show% the strings in @bin@ with the byte offset each one was found at
 a: strings -t d @bin@
@@ -107,34 +115,38 @@ ref: strings
 teach: strings -t
 hint: t takes a radix -- d decimal, x hex, o octal
 ---
-q: open @log@ in the pager
+q: {open @log@ in the pager|page through @log@|view @log@ a screen at a time}
 a: less @log@
 ref: less
 teach: less
 hint: q leaves, /pattern searches, g and G jump to the ends
 ---
-q: open @log@ in the pager with line numbers shown
+q: {open @log@ in the pager with line numbers shown|page through @log@ with line numbers displayed|view @log@ in the pager, showing a line number for each line}
 a: less -N @log@
 ref: less
 teach: less -N
+hint: N turns on line numbers in the margin
 ---
-q: open @log@ in the pager without wrapping long lines
+q: {open @log@ in the pager without wrapping long lines|page through @log@ without wrapping its long lines|view @log@ in the pager, letting long lines run off the screen instead of wrapping}
 a: less -S @log@
 ref: less
 teach: less -S
+hint: S stops wrapping -- long lines scroll sideways instead
 ---
-q: open @log@ in the pager, searching case-insensitively
+q: {open @log@ in the pager, searching case-insensitively|page through @log@ with case-insensitive search|view @log@ in the pager, so searches ignore case}
 a: less -I @log@
 ref: less
 teach: less -I
+hint: capital I makes searches ignore case
 ---
 q: %show% the last 20 bytes of @log@ rather than the last lines
 a: tail -c 20 @log@
 out: .
 ref: tail
 teach: tail -c
+hint: c for characters/bytes, same idea as head -c
 ---
-q: follow @log@ by name, so it keeps working if the file is rotated and replaced
+q: {follow @log@ by name, so it keeps working if the file is rotated and replaced|follow @log@ by its name rather than its handle, surviving rotation|watch @log@ in a way that keeps working if the file is rotated and replaced}
 a: tail -F @log@
 ref: tail
 teach: tail -F
@@ -145,3 +157,4 @@ a: strings -o @bin@
 out: [0-9]
 ref: strings
 teach: strings -o
+hint: o prints the offset before every string found

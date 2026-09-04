@@ -16,107 +16,124 @@ a: if [ -f @txt@ ]; then echo exists; fi
 out: ^exists$
 ref: sh
 teach: sh
+hint: if runs the command after it and branches on that command's exit status
 ---
 q: %show% yes if @log@ mentions @sev@, otherwise no, using if and else
 a: if grep -q @sev@ @log@; then echo yes; else echo no; fi
 out: ^yes$
 ref: grep
 teach: grep -q
+hint: else covers exactly the case the if branch didn't take
 ---
-q: loop over the words a b c printing each on its own line
+q: {loop over the words a b c printing each on its own line|use for to print a, b and c each on their own line|iterate over a b c, echoing one per line}
 a: for x in a b c; do echo $x; done
 out: ^a$
 ref: sh
 teach: sh
+hint: for walks a literal list of words, one iteration per word
 ---
-q: loop over every .log file here and print its name
+q: {loop over every .log file here and print its name|use for with a *.log glob to print each matching filename|iterate over the .log files here, echoing each name}
 a: for f in *.log; do echo $f; done
 out: \.log
 ref: sh
 teach: sh
+hint: *.log expands to the matching filenames before the loop ever runs
 ---
-q: loop over every .log file here printing its line count
+q: {loop over every .log file here printing its line count|use for over *.log, printing the line count of each file|iterate over the .log files here, running wc -l on each}
 a: for f in *.log; do wc -l < $f; done
 out: ^[0-9]+$
 cmp: ref
 ref: wc
 teach: wc -l
+hint: $f holds one filename per iteration, ready to feed to wc
 ---
 q: %count% from 1 to 5, one number per line, using seq and a for loop
 a: for i in $(seq 1 5); do echo $i; done
 out: ^3$
 ref: seq
 teach: seq
+hint: seq 1 5 generates the words a for loop then iterates over
 ---
 q: %show% the numbers 1 to 5 with seq alone
 a: seq 1 5
 out: ^5$
 ref: seq
 teach: seq
+hint: seq alone needs no loop -- it prints the whole range itself
 ---
 q: %show% 1 to 10 counting by 3
 a: seq 1 3 10
 out: ^10$
 ref: seq
 teach: seq
+hint: a middle argument to seq is the step, not just start and end
 ---
 q: %show% 1 to 5 separated by commas rather than newlines
 a: seq -s, 1 5
 out: 1,2,3,4,5
 ref: seq
 teach: seq -s
+hint: -s sets the separator seq prints between numbers
 ---
 q: %show% 1 to 10 zero-padded to equal width
 a: seq -w 1 10
 out: ^01$
 ref: seq
 teach: seq -w
+hint: -w pads every number to the same width using leading zeros
 ---
-q: read @txt@ line by line, printing each line as you go
+q: {read @txt@ line by line, printing each line as you go|use a while read loop to print every line of @txt@|iterate over @txt@ one line at a time, echoing each}
 a: while read -r line; do echo "$line"; done < @txt@
 out: rotate the logs
 ref: read
 teach: read -r
 hint: the redirect goes on the done, feeding the whole loop
 ---
-q: read @csv@ line by line splitting each into fields on commas
+q: {read @csv@ line by line splitting each into fields on commas|use while read with IFS=, to split each line of @csv@ into fields|iterate over @csv@, splitting every line on commas into separate variables}
 a: while IFS=, read -r a b c d; do echo "$a"; done < @csv@
 out: ^gateway$
 ref: read
 teach: read -r
+hint: IFS set just for the read splits the line into the named fields
 ---
-q: loop while a counter is under 3, printing it and incrementing
+q: {loop while a counter is under 3, printing it and incrementing|use while with a counter, printing and incrementing it until it reaches 3|count up from 0 to 2, printing and incrementing each time through}
 a: i=0; while [ $i -lt 3 ]; do echo $i; i=$((i + 1)); done
 out: ^2$
 ref: sh
 teach: sh
+hint: $((...)) does the arithmetic; there's no ++ in POSIX sh
 ---
-q: branch on the value of @var@ using case, printing hit for @word@
+q: {branch on the value of @var@ using case, printing hit for @word@|use case to match @var@ against @word@, printing hit on a match|test @var@ with case, printing hit when it equals @word@}
 a: @var@=@word@; case $@var@ in @word@) echo hit ;; *) echo miss ;; esac
 out: ^hit$
 ref: sh
 teach: sh
+hint: each pattern ends with ) and each branch ends with ;;
 ---
-q: use case to print log when a filename ends in .log
+q: {use case to print log when a filename ends in .log|match a filename against *.log with case, printing log|use a case pattern to detect a .log suffix, printing log}
 a: f=app.log; case $f in *.log) echo log ;; *) echo other ;; esac
 out: ^log$
 ref: sh
 teach: sh
+hint: * inside a case pattern globs just like it does on the command line
 ---
-q: loop over the numbers 1 to 5 but stop as soon as you reach 3
+q: {loop over the numbers 1 to 5 but stop as soon as you reach 3|use for and break to stop the moment i reaches 3|iterate 1 to 5, breaking out as soon as you hit 3}
 a: for i in $(seq 1 5); do [ $i -eq 3 ] && break; echo $i; done
 out: ^2$
 ref: break
 teach: break
+hint: break exits the loop immediately, skipping any remaining iterations
 ---
-q: loop over 1 to 5 printing all but 3
+q: {loop over 1 to 5 printing all but 3|use for and continue to skip printing when i is 3|iterate 1 to 5, skipping the print step only for 3}
 a: for i in $(seq 1 5); do [ $i -eq 3 ] && continue; echo $i; done
 out: ^4$
 ref: continue
 teach: continue
+hint: continue skips the rest of this iteration and moves to the next
 ---
-q: repeat until a condition holds -- count up to 3 with until
+q: {repeat until a condition holds -- count up to 3 with until|use until instead of while to count from 0 to 2|loop with until, counting up until the counter reaches 3}
 a: i=0; until [ $i -ge 3 ]; do echo $i; i=$((i + 1)); done
 out: ^2$
 ref: sh
 teach: sh
+hint: until is while's mirror -- it loops as long as the test still fails

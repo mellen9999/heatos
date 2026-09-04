@@ -9,192 +9,228 @@ brief:
 brief: This build of nc can connect out but cannot listen -- server mode is
 brief: compiled out on purpose. xos opens no doors it was not asked to.
 ---
-q: download a url to a file named after it
+q: {download a url to a file named after it|download a url, saving it under a name taken from the url itself|fetch a url and save it under its own basename}
 a: wget http://@host@/file.txt
 ref: wget
 teach: wget
+hint: wget with no -O saves the file under the url's own basename
 ---
-q: download a url and save it under a name you choose
+q: {download a url and save it under a name you choose|download a url, saving it under a filename you pick|fetch a url into a file named however you like}
 a: wget -O out.txt http://@host@/file.txt
 ref: wget
 teach: wget -O
+hint: -O picks the output filename yourself, instead of using the url's
 ---
-q: download quietly, printing nothing
+q: {download quietly, printing nothing|download a url with no progress output at all|fetch a url silently}
 a: wget -q http://@host@/file.txt
 ref: wget
 teach: wget -q
+hint: -q silences wget's normal progress output
 ---
-q: resume an interrupted download rather than starting again
+q: {resume an interrupted download rather than starting again|pick an interrupted download back up instead of restarting it|continue a partial download instead of starting over}
 a: wget -c http://@host@/file.txt
 ref: wget
 teach: wget -c
+hint: -c picks up a partial download where it left off
 ---
-q: check whether a url exists without downloading the body
+q: {check whether a url exists without downloading the body|ask whether a url exists without fetching its body|test a url's existence without downloading it}
 a: wget --spider http://@host@/file.txt
 ref: wget
 teach: wget --spider
+hint: --spider checks the url without saving anything
 ---
-q: download showing the server's response headers
+q: {download showing the server's response headers|download a url while printing the server's response headers|fetch a url and show the headers the server sent back}
 a: wget -S http://@host@/file.txt
 ref: wget
 teach: wget -S
+hint: -S prints the server's response headers as they arrive
 ---
-q: send an extra header with the request
+q: {send an extra header with the request|add a custom header to the download request|attach an extra header when fetching a url}
 a: wget --header 'X-Token: abc' http://@host@/file.txt
 ref: wget
 teach: wget --header
+hint: --header adds one arbitrary header line to the request
 ---
-q: post some data rather than fetching
+q: {post some data rather than fetching|send a POST request with data instead of downloading|POST data to a url instead of fetching it}
 a: wget --post-data 'a=1' http://@host@/submit
 ref: wget
 teach: wget --post-data
+hint: --post-data sends the string as the request body over POST
 ---
-q: post the contents of a file
+q: {post the contents of a file|POST a file's contents as the request body|send a file's contents in a POST request}
 a: wget --post-file @txt@ http://@host@/submit
 ref: wget
 teach: wget --post-file
+hint: --post-file reads the POST body from a file instead of a literal string
 ---
-q: download into a chosen directory
+q: {download into a chosen directory|save a download into a directory you choose|fetch a url into a specific directory}
 a: wget -P @dir@ http://@host@/file.txt
 ref: wget
 teach: wget -P
+hint: -P sets the directory the download is saved into
 ---
-q: download claiming to be a particular user agent
+q: {download claiming to be a particular user agent|fetch a url while claiming a particular user agent|download a url, spoofing the user agent string}
 a: wget -U xos http://@host@/file.txt
 ref: wget
 teach: wget -U
+hint: -U overrides the user-agent string wget sends
 ---
-q: give up if the server has not answered in 10 seconds
+q: {give up if the server has not answered in 10 seconds|abandon the download if the server stays silent for 10 seconds|cap the wait for a server response at 10 seconds}
 a: wget -T 10 http://@host@/file.txt
 ref: wget
 teach: wget -T
+hint: -T caps how long wget waits for the server before giving up
 ---
-q: write the download log to a file instead of the screen
+q: {write the download log to a file instead of the screen|redirect the download log to a file rather than the screen|log the download to a file instead of printing it}
 a: wget -o wget.log http://@host@/file.txt
 ref: wget
 teach: wget -o
+hint: -o redirects wget's log messages into a file
 ---
-q: download from https without checking the certificate -- and know why that is bad
+q: {download from https without checking the certificate -- and know why that is bad|fetch over https with certificate checking disabled -- and know why that is dangerous|skip certificate verification on an https download -- and understand the cost}
 a: wget --no-check-certificate https://@host@/file.txt
 ref: wget
 teach: wget --no-check-certificate
 hint: this turns off the only thing proving you are talking to who you think
 ---
-q: open a raw tcp connection to @host@ on port @port@
+q: {open a raw tcp connection to @host@ on port @port@|connect directly over tcp to @host@ on port @port@|use nc to open a raw connection to @host@:@port@}
 a: nc @host@ @port@
 ref: nc
 teach: nc
+hint: nc with just a host and port opens a raw tcp connection
 ---
-q: speak http by hand -- send a HEAD request through nc
+q: {speak http by hand -- send a HEAD request through nc|hand-craft a HEAD request and send it through nc|talk http directly by piping a HEAD request into nc}
 a: printf 'HEAD / HTTP/1.0\r\n\r\n' | nc @host@ 80
 ref: nc
 teach: nc
+hint: pipe a raw request into nc and read the raw response back
 ---
-q: connect to a telnet service
+q: {connect to a telnet service|open a telnet session to a host and port|use telnet to connect to a service}
 a: telnet @host@ @port@
 ref: telnet
 teach: telnet
+hint: telnet HOST PORT opens a plain tcp session to that port
 ---
-q: telnet passing a chosen login name
+q: {telnet passing a chosen login name|telnet in, supplying a login name up front|connect with telnet and supply a login name}
 a: telnet -l @user@ @host@
 ref: telnet
 teach: telnet -l
+hint: -l sends a login name as soon as the connection opens
 ---
-q: telnet setting the escape character
+q: {telnet in, logging in automatically as the current user|connect with telnet and let it send your username for you|telnet with automatic login}
 a: telnet -a @host@
 ref: telnet
 teach: telnet -a
+hint: -a hands the server $USER as the login name, no prompt
 ---
-q: fetch a file over tftp
+q: {fetch a file over tftp|download a file using tftp|use tftp to fetch a file}
 a: tftp -g -r file.txt @host@
 ref: tftp
 teach: tftp -g
 teach: tftp -r
+hint: -g gets a file, -r names which one
 ---
-q: upload a file over tftp
+q: {upload a file over tftp|send a file up over tftp|use tftp to upload a file}
 a: tftp -p -l @txt@ @host@
 ref: tftp
 teach: tftp -p
 teach: tftp -l
+hint: -p puts a file, -l names the local file to send
 ---
-q: fetch over tftp using a chosen block size
+q: {fetch over tftp using a chosen block size|tftp a file using a block size you choose|fetch over tftp, setting the transfer block size}
 a: tftp -b 1024 -g -r file.txt @host@
 ref: tftp
 teach: tftp -b
+hint: -b sets the block size used for the transfer
 ---
-q: fetch a file from an ftp server
+q: {fetch a file from an ftp server|download a file from an ftp server|use ftpget to pull a file from an ftp server}
 a: ftpget @host@ local.txt remote.txt
 ref: ftpget
 teach: ftpget
+hint: ftpget takes the local name then the remote name, in that order
 ---
-q: fetch from ftp with a username and password
+q: {fetch from ftp with a username and password|download from ftp, authenticating with a username and password|use ftpget with credentials to fetch a file}
 a: ftpget -u @user@ -p secret @host@ local.txt remote.txt
 ref: ftpget
 teach: ftpget -u
 teach: ftpget -p
+hint: -u sets the username, -p the password
 ---
-q: fetch from ftp on a non-standard port
+q: {fetch from ftp on a non-standard port|download from an ftp server listening on a non-standard port|use ftpget against a non-default ftp port}
 a: ftpget -P @port@ @host@ local.txt remote.txt
 ref: ftpget
 teach: ftpget -P
+hint: -P picks the port instead of ftp's default 21
 ---
-q: continue an interrupted ftp download
+q: {continue an interrupted ftp download|resume an ftp download that got interrupted|pick an interrupted ftp download back up}
 a: ftpget -c @host@ local.txt remote.txt
 ref: ftpget
 teach: ftpget -c
+hint: -c continues a download from where it stopped
 ---
-q: upload a file to an ftp server
+q: {upload a file to an ftp server|send a file up to an ftp server|use ftpput to upload a file}
 a: ftpput @host@ remote.txt @txt@
 ref: ftpput
 teach: ftpput
+hint: ftpput takes the remote name then the local name, in that order
 ---
-q: upload to ftp with credentials
+q: {upload to ftp with credentials|upload to an ftp server, authenticating with credentials|use ftpput with a username and password}
 a: ftpput -u @user@ -p secret @host@ remote.txt @txt@
 ref: ftpput
 teach: ftpput -u
 teach: ftpput -p
+hint: -u sets the username, -p the password, same as ftpget
 ---
-q: upload to ftp on a non-standard port
+q: {upload to ftp on a non-standard port|upload to an ftp server listening on a non-standard port|use ftpput against a non-default ftp port}
 a: ftpput -P @port@ @host@ remote.txt @txt@
 ref: ftpput
 teach: ftpput -P
+hint: -P picks the port instead of ftp's default 21
 ---
-q: ask for a dhcp lease on @iface@
+q: {ask for a dhcp lease on @iface@|request a dhcp lease on @iface@|use udhcpc to get a lease on @iface@}
 a: udhcpc -i @iface@
 ref: udhcpc
 teach: udhcpc -i
+hint: -i names which interface to request a lease on
 ---
-q: get a lease and exit rather than staying resident
+q: {get a lease and exit rather than staying resident|grab a dhcp lease then quit, instead of staying resident|request a lease and exit immediately, no daemon}
 a: udhcpc -i @iface@ -q
 ref: udhcpc
 teach: udhcpc -q
+hint: -q exits once a lease is obtained instead of staying resident
 ---
-q: try three times before giving up
+q: {try three times before giving up|make three attempts at a lease before giving up|retry the dhcp request three times, then stop}
 a: udhcpc -i @iface@ -t 3
 ref: udhcpc
 teach: udhcpc -t
+hint: -t sets how many times to retry before giving up
 ---
-q: wait one second between attempts
+q: {wait one second between attempts|space dhcp retry attempts one second apart|pause one second between each retry}
 a: udhcpc -i @iface@ -T 1
 ref: udhcpc
 teach: udhcpc -T
+hint: -T sets the pause between retry attempts, in seconds
 ---
-q: run in the foreground rather than backgrounding itself
+q: {run in the foreground rather than backgrounding itself|keep udhcpc in the foreground instead of letting it daemonize|run the dhcp client in the foreground}
 a: udhcpc -i @iface@ -f
 ref: udhcpc
 teach: udhcpc -f
+hint: -f keeps udhcpc in the foreground instead of daemonizing
 ---
-q: exit rather than keep retrying if no lease arrives
+q: {exit rather than keep retrying if no lease arrives|give up and exit if no lease ever arrives|stop instead of retrying forever when no lease shows up}
 a: udhcpc -i @iface@ -n
 ref: udhcpc
 teach: udhcpc -n
+hint: -n exits immediately if no lease shows up, rather than retrying forever
 ---
-q: run a chosen script when the lease is obtained
+q: {run a chosen script when the lease is obtained|fire a script of your choosing once the lease arrives|have udhcpc run a script when it gets a lease}
 a: udhcpc -i @iface@ -s /usr/share/udhcpc/default.script
 ref: udhcpc
 teach: udhcpc -s
+hint: -s names a script to run once the lease is obtained
 ---
-q: release the current lease on exit
+q: {release the current lease on exit|hand the lease back to the server on exit|release the dhcp lease when udhcpc quits}
 a: udhcpc -i @iface@ -R
 ref: udhcpc
 teach: udhcpc -R
+hint: -R releases the lease back to the server when udhcpc exits

@@ -9,7 +9,7 @@ brief: Quote your expansions. "$x" is one word even when the value has spaces;
 brief: $x is however many words the value happens to split into. Nearly every
 brief: shell script bug that survives review is a missing pair of quotes.
 ---
-q: store the word @word@ in a variable called @var@
+q: {store the word @word@ in a variable called @var@|put @word@ into a variable named @var@|make a variable called @var@ hold the word @word@}
 a: @var@=@word@
 ref: sh
 teach: sh
@@ -20,17 +20,19 @@ a: @var@=@word@; echo $@var@
 out: @word@
 ref: echo
 teach: echo
+hint: $name (or ${name}) is how you read a variable back
 ---
-q: store the output of the date command in a variable called @tvar@
+q: {store the output of the date command in a variable called @tvar@|capture what date prints into a variable named @tvar@|put the result of running date into @tvar@}
 a: @tvar@=$(date)
 ref: sh
 teach: sh
 hint: $( ) runs a command and becomes its output
 ---
-q: store the number of lines in @log@ in a variable called @cvar@
+q: {store the number of lines in @log@ in a variable called @cvar@|capture how many lines @log@ has into a variable named @cvar@|put @log@'s line count into a variable called @cvar@}
 a: @cvar@=$(wc -l < @log@)
 ref: wc
 teach: wc -l
+hint: command substitution feeds wc's count straight into the assignment
 ---
 q: %show% the length of the value in @var@
 a: @var@=@word@; echo ${#@var@}
@@ -44,100 +46,117 @@ a: echo ${@var@:-default}
 out: default
 ref: sh
 teach: sh
+hint: :- substitutes default only when the variable is unset or empty
 ---
 q: %show% the line count of @log@ inside a sentence reading "lines: N"
 a: echo "lines: $(wc -l < @log@)"
 out: ^lines: [0-9]+$
 ref: echo
 teach: echo
+hint: $( ) expands fine inside double quotes, right beside literal text
 ---
-q: export @mvar@ with the value @word@ so child processes inherit it
+q: {export @mvar@ with the value @word@ so child processes inherit it|set @mvar@ to @word@ and export it so children see it|make @mvar@=@word@ part of the environment, not just this shell}
 a: export @mvar@=@word@
 ref: export
 teach: export
+hint: export is what makes a variable visible to child processes
 ---
 q: %show% every exported variable in the environment
 a: env
 out: =
 ref: env
 teach: env
+hint: env with no arguments dumps the whole environment
 ---
-q: run one command with @mvar@ set to @word@, without changing your own shell
+q: {run one command with @mvar@ set to @word@, without changing your own shell|run a single command that sees @mvar@=@word@ while your shell stays untouched|give just one command @mvar@=@word@ without exporting it yourself}
 a: env @mvar@=@word@ sh -c 'echo $@mvar@'
 out: @word@
 ref: env
 teach: env
+hint: VAR=value cmd sets it for that command alone, not your shell
 ---
-q: run a command with the environment completely emptied first
+q: {run a command with the environment completely emptied first|run a command that starts with no inherited environment at all|strip the environment down to nothing before running a command}
 a: env -i sh -c 'echo empty'
 out: empty
 ref: env
 teach: env
+hint: -i drops the entire inherited environment before running the command
 ---
-q: run a command with @mvar@ removed from the environment
+q: {run a command with @mvar@ removed from the environment|run a command that cannot see @mvar@|hide @mvar@ from a single command without touching your own shell}
 a: env -u @mvar@ sh -c 'echo gone'
 out: gone
 ref: env
 teach: env -u
+hint: -u strips one variable out of the environment for that command only
 ---
 q: %show% the environment with entries separated by NUL rather than newline
 a: env -0
 out: =
 ref: env
 teach: env -0
+hint: -0 separates entries with NUL instead of a newline
 ---
-q: remove the variable @var@ from your shell entirely
+q: {remove the variable @var@ from your shell entirely|delete @var@ so it is no longer set at all|make @var@ fully unset, not just empty}
 a: unset @var@
 ref: unset
 teach: unset
+hint: unset removes the variable entirely, unlike setting it to an empty string
 ---
-q: read a line from standard input into a variable called @var@
+q: {read a line from standard input into a variable called @var@|take one line of input and store it in @var@|capture the next line typed into a variable named @var@}
 a: read @var@
 ref: read
 teach: read
+hint: read takes one line from stdin and stores it in the named variable
 ---
-q: read a line into @var@ without letting backslashes escape anything
+q: {read a line into @var@ without letting backslashes escape anything|read one line into @var@ while leaving backslashes literal|take a line of input into @var@, raw, with no backslash escaping}
 a: read -r @var@
 ref: read
 teach: read -r
 hint: -r is what you want essentially always; without it a backslash vanishes
 ---
-q: prompt with "name: " and read the reply into @var@
+q: {prompt with "name: " and read the reply into @var@|show "name: " then read what comes back into @var@|ask "name: " and store the answer in @var@}
 a: read -p "name: " @var@
 ref: read
 teach: read -p
+hint: -p prints its argument as a prompt before reading
 ---
 q: %show% the first field of @csv@, using a variable to hold the separator
 a: d=,; cut -d"$d" -f1 @csv@
 out: ^gateway$
 ref: cut
 teach: cut -d
+hint: the variable holding the separator still needs quoting when it's used
 ---
-q: run a single command in a child shell using the -c flag
+q: {run a single command in a child shell using the -c flag|use sh -c to run one command in a fresh child shell|spawn a child shell just to execute one command with -c}
 a: sh -c 'echo @word@'
 out: ^@word@$
 ref: sh
 teach: sh -c
+hint: -c takes the command to run as its next argument
 ---
-q: remove every alias at once
+q: {remove every alias at once|clear out all aliases in one command|wipe every alias you have defined}
 a: unalias -a
 ref: unalias
 teach: unalias -a
+hint: -a clears every alias in one shot
 ---
-q: describe what ls is, in a full sentence rather than just a path
+q: {describe what ls is, in a full sentence rather than just a path|explain in words what ls resolves to|ask command for a plain-english description of ls}
 a: command -V ls
 out: ls
 ref: command
 teach: command -V
+hint: -V gives a full descriptive sentence rather than just a path
 ---
 q: %find% ls using a safe default PATH rather than whatever yours happens to be
 a: command -p ls @txt@
 out: @txt@
 ref: command
 teach: command -p
+hint: -p ignores your PATH and uses the system's standard one instead
 ---
 q: %show% every place in your PATH that has a command called sh
 a: which -a sh
 out: sh
 ref: which
 teach: which -a
+hint: -a lists every match in PATH, not just the first one found

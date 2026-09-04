@@ -10,15 +10,17 @@ brief: ii is irc as a directory tree. Each channel is a folder with an `out`
 brief: file you read and an `in` fifo you write to. No client, no ui -- which
 brief: means tail, grep and echo are the client.
 ---
-q: open a tls connection to @host@ on port 443 and hand it to stdin and stdout
+q: {open a tls connection to @host@ on port 443 and hand it to stdin and stdout|wrap a tls connection to @host@:443 around stdin and stdout|open a tls tunnel to @host@ on port 443, piped through stdin and stdout}
 a: tlstunnel - @host@ 443
 ref: tlstunnel
 teach: tlstunnel
+hint: tlstunnel takes - for stdin/stdout, then the host and port to wrap
 ---
-q: fetch a page over https by speaking http into a tls tunnel
+q: {fetch a page over https by speaking http into a tls tunnel|speak http by hand through a tls tunnel to fetch a page over https|hand-craft an http request and send it through a tls tunnel to @host@}
 a: printf 'HEAD / HTTP/1.0\r\nHost: @host@\r\nConnection: close\r\n\r\n' | tlstunnel - @host@ 443
 ref: tlstunnel
 teach: tlstunnel
+hint: pipe a raw http request into tlstunnel the same way you would into nc
 ---
 q: %count% the trust anchors compiled into the tunnel binary
 a: strings /bin/tlstunnel | grep -c 'Internet Security Research Group'
@@ -27,132 +29,155 @@ ref: strings
 teach: strings
 hint: they are in the binary, not in a file -- there is nothing on disk to edit
 ---
-q: start ii against @host@ on the standard tls-free irc port, as nick xos
+q: {start ii against @host@ on the standard tls-free irc port, as nick xos|connect ii to @host@ on the plain irc port, using the nick xos|start ii, joining @host@ on the standard irc port as xos}
 a: ii -s @host@ -p 6667 -n xos -i $HOME/irc
 ref: ii
 teach: ii -s
 teach: ii -p
 teach: ii -n
+hint: -s is the server, -p the port, -n the nick, -i where ii keeps its files
 ---
-q: start ii with a chosen real name
+q: {start ii with a chosen real name|start ii, setting a real name of your choosing|connect with ii while supplying a real name}
 a: ii -s @host@ -f xos -n xos -i $HOME/irc
 ref: ii
 teach: ii -f
+hint: -f sets the real name shown alongside the nick
 ---
-q: start ii putting its directory tree somewhere you choose
+q: {start ii putting its directory tree somewhere you choose|start ii with its directory tree rooted somewhere you pick|connect with ii, choosing where its directory tree lives}
 a: ii -s @host@ -n xos -i /tmp/irc
 ref: ii
 teach: ii -i
+hint: -i points ii at a directory of your choosing instead of the default
 ---
-q: join the channel #xos by writing to the server's in fifo
+q: {join the channel #xos by writing to the server's in fifo|write a /j command into the server's in fifo to join #xos|join #xos by echoing the join command into ii's in fifo}
 a: echo '/j #xos' > $HOME/irc/@host@/in
 ref: ii
 teach: ii
+hint: ii turns each server command into a line written to that server's in fifo
 ---
-q: read what is happening in a channel, live
+q: {read what is happening in a channel, live|follow a channel's out file live|watch a channel's activity as it happens}
 a: tail -f $HOME/irc/@host@/#xos/out
 ref: tail
 teach: tail -f
+hint: -f keeps tail running, printing new lines as they arrive
 ---
-q: say hello in the channel
+q: {say hello in the channel|echo hello into the channel's in fifo|send the message hello to the channel}
 a: echo hello > $HOME/irc/@host@/#xos/in
 ref: ii
 teach: ii
+hint: whatever you echo into a channel's in fifo, ii sends as a message
 ---
 q: %find% every mention of your nick across every channel
 a: grep -r xos $HOME/irc
 ref: grep
 teach: grep -r
+hint: -r walks every channel directory recursively
 ---
 q: %list% every channel ii has joined
 a: find $HOME/irc -maxdepth 2 -type d -name '#*'
 ref: find
 teach: find -type
+hint: -maxdepth 2 stops find from wandering past the channel folders
 ---
 setup: Remote access on xos works by dialing OUT to a machine you control over
 setup: wireguard, so xos never listens on the network it is plugged into. These
 setup: are the pieces. None can run in this practice sandbox, so they are graded
 setup: on what you type.
-q: generate a new wireguard private key and save it to private.key
+q: {generate a new wireguard private key and save it to private.key|make a new wireguard private key and save it as private.key|create a wireguard private key, writing it to private.key}
 a: wg genkey > private.key
 ref: wg
 teach: wg
+hint: genkey writes a fresh private key to stdout
 ---
-q: derive the public key from private.key
+q: {derive the public key from private.key|derive the matching public key from private.key|compute the public key that goes with private.key}
 a: wg pubkey < private.key
 ref: wg
 teach: wg
+hint: pubkey reads a private key on stdin and writes the matching public key
 ---
 q: %make% a wireguard interface called wg0
 a: ip link add wg0 type wireguard
 ref: ip
 teach: ip
+hint: ip link add type wireguard creates the interface itself, before any config
 ---
-q: give wg0 the address 10.9.0.2 in a /24
+q: {give wg0 the address 10.9.0.2 in a /24|assign wg0 the address 10.9.0.2 with a /24 netmask|add the address 10.9.0.2/24 to wg0}
 a: ip addr add 10.9.0.2/24 dev wg0
 ref: ip
 teach: ip
+hint: same ip addr add you already know, now on a wireguard interface
 ---
-q: bring wg0 up
+q: {bring wg0 up|bring the wg0 interface up|set wg0 up}
 a: ip link set wg0 up
 ref: ip
 teach: ip
+hint: same ip link set ... up you already know
 ---
-q: set wg0's private key from private.key
+q: {set wg0's private key from private.key|load wg0's private key from private.key|configure wg0 to use the key in private.key}
 a: wg set wg0 private-key private.key
 ref: wg
 teach: wg
+hint: wg set applies configuration to an existing interface, private-key here
 ---
-q: add a peer to wg0 by its public key, endpoint and allowed ips
+q: {add a peer to wg0 by its public key, endpoint and allowed ips|configure a peer on wg0 with its public key, endpoint and allowed ips|add a peer to wg0, specifying its public key, endpoint and allowed ips}
 a: wg set wg0 peer PUBKEY endpoint titan.example:51820 allowed-ips 10.9.0.0/24
 ref: wg
 teach: wg
+hint: peer, endpoint and allowed-ips are all set together in one wg set call
 ---
 q: %show% the state of every wireguard interface
 a: wg show
 ref: wg
 teach: wg
+hint: wg show with no name reports on every interface
 ---
 q: %make% an ed25519 ssh key at /state/id
 a: dropbearkey -t ed25519 -f /state/id
 ref: dropbearkey
 teach: dropbearkey -t
 teach: dropbearkey -f
+hint: -t picks the key type, -f where to write it
 ---
 q: %show% the public half of /state/id, to hand to the other machine
 a: dropbearkey -y -f /state/id
 ref: dropbearkey
 teach: dropbearkey -y
+hint: -y prints the public key for an existing private key file
 ---
-q: run the ssh server with an ed25519 host key, bound only to the wireguard address
+q: {run the ssh server with an ed25519 host key, bound only to the wireguard address|start the ssh server using an ed25519 host key, listening only on the wireguard address|run dropbear with an ed25519 host key, bound to the wireguard interface only}
 a: dropbear -r /state/host_key -p 10.9.0.1:22
 ref: dropbear
 teach: dropbear -r
 teach: dropbear -p
+hint: -r names the host key, -p the address and port to bind
 ---
-q: run the ssh server in the foreground, logging to stderr
+q: {run the ssh server in the foreground, logging to stderr|run dropbear in the foreground with logging sent to stderr|start the ssh server in the foreground, logs going to stderr}
 a: dropbear -r /state/host_key -F -E
 ref: dropbear
 teach: dropbear -F
 teach: dropbear -E
+hint: -F keeps dropbear in the foreground, -E sends logging to stderr
 ---
-q: ssh out to root at 10.9.0.1 using the key /state/id
+q: {ssh out to root at 10.9.0.1 using the key /state/id|ssh to root at 10.9.0.1, authenticating with /state/id|use dbclient to ssh to root at 10.9.0.1 with the key /state/id}
 a: dbclient -i /state/id root@10.9.0.1
 ref: dbclient
 teach: dbclient -i
+hint: -i points dbclient at the private key to authenticate with
 ---
-q: ssh in and attach to a running abduco session in one command
+q: {ssh in and attach to a running abduco session in one command|ssh in, immediately attaching to a running abduco session|combine ssh and abduco attach into a single command}
 a: dbclient -i /state/id root@10.9.0.1 'abduco -a work'
 ref: dbclient
 teach: dbclient
 hint: the whole point -- reconnect straight into the work that survived the drop
 ---
-q: ssh to a host on a non-standard port
+q: {ssh to a host on a non-standard port|ssh to a host, connecting on a non-standard port|use dbclient to reach a host on a non-default port}
 a: dbclient -p 2222 root@10.9.0.1
 ref: dbclient
 teach: dbclient -p
+hint: -p picks the port dbclient connects to
 ---
-q: forward local port 8080 to a service on the far side, over ssh
+q: {forward local port 8080 to a service on the far side, over ssh|tunnel local port 8080 to a remote service over ssh|set up ssh local port forwarding from 8080 to a far-side service}
 a: dbclient -L 8080:localhost:80 root@10.9.0.1
 ref: dbclient
 teach: dbclient -L
+hint: -L sets up local port forwarding, local port first then the far side

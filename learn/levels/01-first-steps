@@ -65,6 +65,7 @@ a: echo @word@
 out: ^@word@$
 ref: echo
 teach: echo
+hint: it prints the word plus a trailing newline
 ---
 q: %show% @word@ with no trailing newline
 a: echo -n @word@
@@ -82,21 +83,22 @@ ref: echo
 teach: echo
 hint: a dollar sign in front of the name
 ---
-q: change into @dir@
+q: {change into @dir@|move your working directory to @dir@|make @dir@ the directory you're standing in}
 a: cd @dir@
 a: cd @dir@/
 a: cd ./@dir@
 ref: cd
 teach: cd
+hint: just the command and the target -- no flags needed
 ---
-q: go up one directory
+q: {go up one directory|move to the parent directory|step out one level up}
 a: cd ..
 a: cd ../
 ref: cd
 teach: cd
 hint: two dots mean "the parent"
 ---
-q: go back to your home directory, in the shortest way possible
+q: {go back to your home directory, in the shortest way possible|return home using the fewest keystrokes possible|jump back to your home directory without typing its path}
 a: cd
 ref: cd
 teach: cd
@@ -107,63 +109,74 @@ a: ls -A
 out: .
 ref: ls
 teach: ls -A
+hint: like -a, but leaves out . and ..
 ---
 q: %list% @dir@ itself rather than what is inside it
 a: ls -d @dir@
 out: ^@dir@$
 ref: ls
 teach: ls -d
+hint: stops ls from descending into the directory
 ---
 q: %list% the current directory marking directories with a slash and executables with a star
 a: ls -F
 out: /
 ref: ls
 teach: ls -F
+hint: appends a symbol showing each entry's type
 ---
 q: %list% the current directory showing each file's inode number
 a: ls -i
 out: ^[0-9]
 ref: ls
 teach: ls -i
+hint: the number a file is known by at the filesystem level, not its name
 ---
 q: %list% in long format showing numeric user and group ids rather than names
 a: ls -ln
 out: ^total
 ref: ls
 teach: ls -n
+hint: n modifies -l to print ids as numbers instead of names
 ---
 q: %list% marking only directories with a trailing slash
 a: ls -p
 out: /
 ref: ls
 teach: ls -p
+hint: like -F but only marks directories, nothing else
 ---
 q: %list% the current directory in reverse order
 a: ls -r
 out: .
 ref: ls
 teach: ls -r
+hint: reverses whatever order ls would otherwise use
 ---
 q: %list% everything under @dir@ recursively
 a: ls -R @dir@
 out: .
 ref: ls
 teach: ls -R
+hint: capital R -- lowercase r reverses order instead
 ---
 q: %list% the current directory largest file first
 a: ls -S
 out: .
 ref: ls
 teach: ls -S
+hint: sorts by size instead of name
 ---
 q: %list% showing the block size each file occupies
 a: ls -s
 out: [0-9]
 ref: ls
 teach: ls -s
+hint: shows size in blocks, not bytes -- pair with -h for human units
 ---
 q: %list% the current directory across the screen in columns
 a: ls -x
 out: .
 ref: ls
 teach: ls -x
+hint: same columns as default, but fills across a row before dropping down

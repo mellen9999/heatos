@@ -16,61 +16,70 @@ a: true; echo $?
 out: ^0$
 ref: sh
 teach: sh
+hint: $? holds the exit status of the immediately preceding command
 ---
-q: run false and then show its exit status
+q: {run false and then show its exit status|run the false command and check what $? becomes|execute false, then print its exit code}
 a: false; echo $?
 out: ^1$
 ref: false
 teach: false
+hint: false always exits 1; it has no other job
 ---
-q: run true and confirm its exit status is zero
+q: {run true and confirm its exit status is zero|run true and verify $? comes back 0|execute true, then check its exit code is zero}
 a: true; echo $?
 out: ^0$
 ref: true
 teach: true
+hint: true always exits 0, no matter what
 ---
 q: %show% @word@ only if @log@ contains @sev@
 a: grep -q @sev@ @log@ && echo @word@
 out: @word@
 ref: grep
 teach: grep -q
+hint: -q silences grep's output, leaving only its exit status for &&
 ---
 q: %show% "missing" only if @log@ does NOT contain the word nonexistent
 a: grep -q nonexistent @log@ || echo missing
 out: ^missing$
 ref: grep
 teach: grep -q
+hint: || runs its right side only when the left side fails
 ---
 q: %show% found if @sev@ is in @log@, and missing if it is not, in one line
 a: grep -q @sev@ @log@ && echo found || echo missing
 out: ^found$
 ref: grep
 teach: grep -q
+hint: chain && and || together to cover both outcomes in one line
 ---
 q: %show% this shell's own process id
 a: echo $$
 out: ^[0-9]+$
 ref: sh
 teach: sh
+hint: $$ is this shell's own pid, fixed for its whole lifetime
 ---
-q: start sleep 1 in the background and print the pid it was given
+q: {start sleep 1 in the background and print the pid it was given|background sleep 1, then print its pid|run sleep 1 as a background job and show what pid it got}
 a: sleep 1 & echo $!
 out: ^[0-9]+$
 ref: sleep
 teach: sleep
+hint: an ampersand backgrounds; $! holds the pid it was just given
 ---
-q: exit the shell with status 0
+q: {exit the shell with status 0|end the shell with exit status 0|leave the shell, setting its exit status to 0}
 a: exit 0
 ref: exit
 teach: exit
+hint: exit takes the status as its argument; with none it reuses $?
 ---
-q: exit the shell with status 3
+q: {exit the shell with status 3|end the shell with exit status 3|leave the shell, setting its exit status to 3}
 a: exit 3
 ref: exit
 teach: exit
 hint: any number 0-255; zero means success and everything else is yours to define
 ---
-q: invert an exit status -- succeed when grep finds nothing in @log@
+q: {invert an exit status -- succeed when grep finds nothing in @log@|flip a status so grep finding nothing counts as success in @log@|make "no match in @log@" read as success rather than failure}
 a: ! grep -q nonexistent @log@
 ref: grep
 teach: grep -q
@@ -80,11 +89,13 @@ q: %make% the shell stop at the first command that fails
 a: set -e
 ref: set
 teach: set -e
+hint: -e makes any failing command end the script immediately
 ---
 q: %make% the shell treat an unset variable as an error rather than an empty string
 a: set -u
 ref: set
 teach: set -u
+hint: -u turns a reference to an unset variable into a hard error
 ---
 q: %make% the shell print each command before running it
 a: set -x
@@ -96,8 +107,10 @@ q: %turn% command tracing back off
 a: set +x
 ref: set
 teach: set
+hint: + turns an option off, the mirror of - turning it on
 ---
 q: %show% the shell's current option settings
 a: set -o
 ref: set
 teach: set -o
+hint: -o with no name lists every option and whether it's on or off

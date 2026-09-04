@@ -12,78 +12,90 @@ brief:
 brief: The one you must know: press Escape, then type :q! and Enter. That
 brief: leaves without saving, from any state you have got yourself into.
 ---
-q: open @txt@ in the editor
+q: {open @txt@ in the editor|open @txt@ in vi|start editing @txt@ in vi}
 a: vi @txt@
 ref: vi
 teach: vi
+hint: vi with just a filename opens it for editing, ready in normal mode
 ---
-q: open @txt@ read-only, so you cannot damage it by accident
+q: {open @txt@ read-only, so you cannot damage it by accident|open @txt@ in vi read-only, so a stray edit cannot land|view @txt@ in vi without being able to save changes}
 a: vi -R @txt@
 ref: vi
 teach: vi -R
+hint: -R opens the file but blocks writes until you override it
 ---
-q: leave vi without saving, from normal mode
+q: {leave vi without saving, from normal mode|quit vi from normal mode, discarding any changes|exit vi without saving, from normal mode}
 a: :q!
 ref: vi
 teach: vi
 hint: escape first, then colon
 ---
-q: save and leave vi
+q: {save and leave vi|write the file and quit vi|save your changes and exit vi}
 a: :wq
 a: :x
 ref: vi
 teach: vi
+hint: :wq and :x both save and quit; :x only writes if something changed
 ---
-q: save without leaving
+q: {save without leaving|save the file without quitting vi|write the file but stay in vi}
 a: :w
 ref: vi
 teach: vi
+hint: :w writes the file without leaving normal mode
 ---
-q: jump to line 20 inside vi
+q: {jump to line 20 inside vi|move the cursor to line 20 in vi|go straight to line 20 in vi}
 a: :20
 ref: vi
 teach: vi
+hint: a bare :N in command mode jumps straight to line N
 ---
-q: search forward for @term@ inside vi
+q: {search forward for @term@ inside vi|search forward in vi for @term@|from vi, search forward for @term@}
 a: /@term@
 ref: vi
 teach: vi
+hint: / starts a forward search, just like less and man
 ---
-q: replace every occurrence of @old@ with @new@ in the whole file, in vi
+q: {replace every occurrence of @old@ with @new@ in the whole file, in vi|in vi, replace every occurrence of @old@ with @new@ across the whole file|from vi, swap every @old@ for @new@ everywhere in the file}
 a: :%s/@old@/@new@/g
 ref: vi
 teach: vi
 hint: the same s/// you already know from sed
 ---
-q: delete the current line in vi
+q: {delete the current line in vi|remove the current line in vi|delete the line the cursor is on, in vi}
 a: dd
 ref: vi
 teach: vi
+hint: dd in vi deletes (and yanks) the whole current line
 ---
-q: undo the last change in vi
+q: {undo the last change in vi|undo your last edit in vi|step back one change in vi}
 a: u
 ref: vi
 teach: vi
+hint: u undoes one change at a time, like most editors
 ---
-q: page through @log@ with the pager rather than the editor
+q: {page through @log@ with the pager rather than the editor|view @log@ a page at a time using less, not vi|open @log@ in less instead of the editor}
 a: less @log@
 ref: less
 teach: less
+hint: less pages through a file without letting you edit it
 ---
-q: inside less, search for @term@
+q: {inside less, search for @term@|from within less, search for @term@|while paging with less, search for @term@}
 a: /@term@
 ref: less
 teach: less
+hint: less shares vi's / search binding
 ---
-q: inside less, jump to the end of the file
+q: {inside less, jump to the end of the file|from within less, jump straight to the end of the file|while in less, go to the end of the file}
 a: G
 ref: less
 teach: less
+hint: G jumps to the very end, the same key vi uses for the last line
 ---
-q: follow a growing file from inside less, the way tail -f does
+q: {follow a growing file from inside less, the way tail -f does|from within less, follow a growing file the way tail -f does|switch less into tail -f style follow mode}
 a: F
 ref: less
 teach: less
+hint: F switches less into a live-follow mode, same idea as tail -f
 ---
 setup: The shell itself has a vi mode. Turn it on and the command line you type
 setup: at the prompt uses the same keys you just learned in the editor: Escape
@@ -92,3 +104,4 @@ q: %turn% on vi keybindings at the shell prompt
 a: set -o vi
 ref: set
 teach: set -o
+hint: set -o vi swaps the shell's line editor to vi keys

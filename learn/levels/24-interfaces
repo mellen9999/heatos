@@ -13,239 +13,285 @@ a: ip addr
 out: .
 ref: ip
 teach: ip
+hint: ip addr with no filter lists every interface and its addresses
 ---
 q: %show% addresses one per line, in a form that is easy to cut up
 a: ip -o addr
 out: .
 ref: ip
 teach: ip
+hint: -o (oneline) puts each address on its own line for easy parsing
 ---
 q: %show% only ipv4 addresses
 a: ip -4 addr
 out: .
 ref: ip
 teach: ip
+hint: -4 filters ip's output down to ipv4 only
 ---
 q: %show% the links, without their addresses
 a: ip link
 out: .
 ref: ip
 teach: ip
+hint: ip link shows interfaces themselves, not the addresses on them
 ---
-q: bring the interface @iface@ up
+q: {bring the interface @iface@ up|bring @iface@ up|set @iface@ up}
 a: ip link set @iface@ up
 ref: ip
 teach: ip
+hint: ip link set IFACE up/down toggles an interface's state
 ---
-q: bring @iface@ back down
+q: {bring @iface@ back down|bring @iface@ down|set @iface@ down}
 a: ip link set @iface@ down
 ref: ip
 teach: ip
+hint: down is the mirror of up
 ---
-q: give @iface@ the address @ip@ with a 24 bit netmask
+q: {give @iface@ the address @ip@ with a 24 bit netmask|assign @iface@ the address @ip@ with a /24 netmask|add the address @ip@/24 to @iface@}
 a: ip addr add @ip@/24 dev @iface@
 ref: ip
 teach: ip
+hint: addr add takes address/prefixlen, and dev to say where
 ---
-q: take that address off @iface@ again
+q: {take that address off @iface@ again|remove that address from @iface@|delete the address you just added from @iface@}
 a: ip addr del @ip@/24 dev @iface@
 ref: ip
 teach: ip
+hint: addr del is the mirror of addr add
 ---
 q: %show% the routing table
 a: ip route
 out: .
 ref: ip
 teach: ip
+hint: ip route with no filter lists the whole table
 ---
 q: %show% only the default route
 a: ip route show default
 ref: ip
 teach: ip
+hint: show default filters the route table to just the default route
 ---
-q: add a default route via @ip@
+q: {add a default route via @ip@|set @ip@ as the default route|make @ip@ the gateway for the default route}
 a: ip route add default via @ip@
 ref: ip
 teach: ip
+hint: route add default via sets where traffic with no other match goes
 ---
-q: delete the default route
+q: {delete the default route|remove the default route|take the default route out}
 a: ip route del default
 ref: ip
 teach: ip
+hint: route del default is the mirror of add
 ---
 q: %show% the arp neighbour table using ip
 a: ip neigh
 ref: ip
 teach: ip
+hint: ip neigh is ip's own view of the arp table
 ---
 q: %show% just the interface names, one per line
 a: ip -o link | cut -d: -f2
 out: .
 ref: ip
 teach: ip
+hint: -o lines them up so cut can grab just the name field
 ---
 q: %show% interfaces the old way
 a: ifconfig
 ref: ifconfig
 teach: ifconfig
+hint: ifconfig with no arguments lists every interface, the pre-ip tool
 ---
 q: %show% @iface@ specifically, the old way
 a: ifconfig @iface@
 ref: ifconfig
 teach: ifconfig
+hint: name one interface and ifconfig shows only it
 ---
-q: set @iface@ up with an address, the old way
+q: {set @iface@ up with an address, the old way|bring @iface@ up with an address, the old way|the old-way command to set @iface@'s address and bring it up}
 a: ifconfig @iface@ @ip@ up
 ref: ifconfig
 teach: ifconfig
+hint: ifconfig combines address and up into one command, unlike ip's two steps
 ---
 q: %show% the routing table the old way
 a: route
 ref: route
 teach: route
+hint: route with no arguments is ifconfig's routing counterpart
 ---
 q: %show% routes without resolving names to make it fast
 a: route -n
 ref: route
 teach: route -n
+hint: -n skips dns lookups on every address in the table
 ---
 q: %show% route table entries with extended fields
 a: route -e
 ref: route
 teach: route -e
+hint: -e adds the extra fields netstat-style output shows
 ---
 q: %show% routes for a named address family
 a: route -A inet
 ref: route
 teach: route -A
+hint: -A takes the address family name, inet for ipv4
 ---
 q: %show% the arp cache
 a: arp
 ref: arp
 teach: arp
+hint: arp with no arguments lists the whole cache
 ---
 q: %show% the arp cache numerically, without resolving names
 a: arp -n
 ref: arp
 teach: arp -n
+hint: -n skips resolving hostnames for each entry
 ---
 q: %show% all arp entries including incomplete ones
 a: arp -a
 ref: arp
 teach: arp -a
+hint: -a includes entries still waiting to resolve
 ---
-q: delete the arp entry for @ip@
+q: {delete the arp entry for @ip@|remove the arp entry for @ip@|drop @ip@ from the arp cache}
 a: arp -d @ip@
 ref: arp
 teach: arp -d
+hint: -d removes one entry from the cache
 ---
-q: add a permanent arp entry
+q: {add a permanent arp entry|pin a permanent arp entry|add a static entry to the arp cache}
 a: arp -s @ip@ 00:11:22:33:44:55
 ref: arp
 teach: arp -s
+hint: -s pins an ip to a mac address by hand
 ---
 q: %show% arp entries for one interface only
 a: arp -i @iface@
 ref: arp
 teach: arp -i
+hint: -i filters the cache down to one interface
 ---
 q: %show% the arp cache verbosely
 a: arp -v
 ref: arp
 teach: arp -v
+hint: -v adds detail arp normally leaves out
 ---
 q: %show% arp entries of a given hardware type
 a: arp -H ether
 ref: arp
 teach: arp -H
+hint: -H filters by hardware type, ether being the common case
 ---
-q: use a named address family for arp
+q: {use a named address family for arp|tell arp which address family to use|restrict arp to a named address family}
 a: arp -A inet
 ref: arp
 teach: arp -A
+hint: -A picks the address family, same idea as route -A
 ---
-q: publish an arp entry on behalf of another host
+q: {publish an arp entry on behalf of another host|answer arp requests for another host's address|publish a proxy arp entry for another host}
 a: arp -D @iface@ -s @ip@
 ref: arp
 teach: arp -D
+hint: -D answers arp requests for an address on another host's behalf
 ---
-q: is anyone already using the address @ip@ -- ask at the link layer
+q: {is anyone already using the address @ip@ -- ask at the link layer|check at the link layer whether @ip@ is already in use|find out, below ip, whether @ip@ already has an owner}
 a: arping -c 3 @ip@
 ref: arping
 teach: arping -c
 hint: arp works below ip, so this finds hosts that will not answer a ping
 ---
-q: send the arp probe out of a specific interface
+q: {send the arp probe out of a specific interface|send the arp probe through a chosen interface|pick which interface the arp probe goes out of}
 a: arping -I @iface@ -c 3 @ip@
 ref: arping
 teach: arping -I
+hint: -I picks which interface the probe goes out of
 ---
-q: arping quietly, reporting only the exit status
+q: {arping quietly, reporting only the exit status|run arping silently, leaving only the exit status to check|arping with no output, just the exit status}
 a: arping -q -c 1 @ip@
 ref: arping
 teach: arping -q
+hint: -q silences output, leaving just the exit status to check
 ---
-q: send a duplicate-address-detection probe
+q: {send a duplicate-address-detection probe|probe for whether an address is a duplicate|send a duplicate-address-detection check}
 a: arping -D -c 1 @ip@
 ref: arping
 teach: arping -D
+hint: -D checks whether an address is already claimed before you use it
 ---
-q: send an unsolicited arp announcement of your own address
+q: {send an unsolicited arp announcement of your own address|announce your own address unsolicited|broadcast an unsolicited arp announcement of your address}
 a: arping -U -c 1 @ip@
 ref: arping
 teach: arping -U
+hint: -U announces your address without being asked
 ---
-q: arping using a chosen source address
+q: {arping using a chosen source address|arping with a source address you choose|set the source address arping probes from}
 a: arping -s @ip2@ -c 1 @ip@
 ref: arping
 teach: arping -s
+hint: -s sets the source address the probe claims to be from
 ---
-q: stop arping after 5 seconds whatever happens
+q: {stop arping after 5 seconds whatever happens|cap arping at 5 seconds no matter what|make arping give up after 5 seconds}
 a: arping -w 5 @ip@
 ref: arping
 teach: arping -w
+hint: -w caps the total time arping will run
 ---
-q: keep arping until a reply arrives, then stop
+q: {keep arping until a reply arrives, then stop|arping until the first reply, then stop|stop arping as soon as a reply comes back}
 a: arping -f @ip@
 ref: arping
 teach: arping -f
+hint: -f stops at the first reply instead of sending a fixed count
 ---
-q: send broadcast arp probes
+q: {send broadcast arp probes|send the arp probes to the broadcast address|broadcast the arp probes instead of unicasting them}
 a: arping -b -c 1 @ip@
 ref: arping
 teach: arping -b
+hint: -b sends to the broadcast address instead of a unicast one
 ---
-q: arping in a mode that does not require a source address
+q: {arping in a mode that does not require a source address|arping without claiming any source address|run arping so it needs no source address}
 a: arping -A -c 1 @ip@
 ref: arping
 teach: arping -A
+hint: -A lets arping run without claiming a source address
 ---
-q: work out the network settings for the address @ip@/24
+q: {work out the network settings for the address @ip@/24|derive the network settings for @ip@/24|break down @ip@/24 into its network settings}
 a: ipcalc @ip@/24
 ref: ipcalc
 teach: ipcalc
+hint: ipcalc with no flags prints the whole network breakdown
 ---
 q: %show% just the broadcast address for @ip@/24
 a: ipcalc -b @ip@/24
 ref: ipcalc
 teach: ipcalc -b
+hint: -b isolates just the broadcast address
 ---
 q: %show% just the network address for @ip@/24
 a: ipcalc -n @ip@/24
 ref: ipcalc
 teach: ipcalc -n
+hint: -n isolates just the network address
 ---
 q: %show% just the netmask for a /24
 a: ipcalc -m @ip@/24
 ref: ipcalc
 teach: ipcalc -m
+hint: -m isolates just the netmask
 ---
 q: %show% the prefix length for a given netmask
 a: ipcalc -p @ip@ 255.255.255.0
 ref: ipcalc
 teach: ipcalc -p
+hint: -p converts a dotted netmask into its prefix length
 ---
-q: get ipcalc output without any resolved hostnames, for a script
+q: {get ipcalc output without any resolved hostnames, for a script|run ipcalc without resolved hostnames, for scripting|strip ipcalc's output down to script-friendly form, no hostnames}
 a: ipcalc -s @ip@/24
 ref: ipcalc
 teach: ipcalc -s
+hint: -s silences ipcalc's extra explanatory output

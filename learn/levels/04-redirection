@@ -11,39 +11,41 @@ brief:
 brief: 2> catches errors only. > file 2>&1 catches both, in that order --
 brief: 2>&1 > file does not, because the duplication happens before the move.
 ---
-q: write the word @word@ into @word@.txt, replacing anything already there
+q: {write the word @word@ into @word@.txt, replacing anything already there|write @word@ into @word@.txt, overwriting whatever was there before|save the word @word@ to @word@.txt, wiping out any previous contents}
 a: echo @word@ > @word@.txt
 state: match:@word@.txt:@word@
 ref: echo
 teach: echo
+hint: > creates or truncates the file, then writes
 ---
-q: append the word @word@ to the end of @txt@ without destroying it
+q: {append the word @word@ to the end of @txt@ without destroying it|add the word @word@ onto the end of @txt@, leaving the rest intact|tack the word @word@ onto @txt@ without wiping out what's already there}
 a: echo @word@ >> @txt@
 state: match:@txt@:rotate
 ref: echo
 teach: echo
 hint: two angle brackets, not one
 ---
-q: feed @txt@ into sort on its standard input, using a redirect rather than a filename
+q: {feed @txt@ into sort on its standard input, using a redirect rather than a filename|run sort with @txt@ connected to its standard input via a redirect, not as an argument|pipe @txt@ into sort's stdin using < instead of passing it as a filename}
 a: sort < @txt@
 out: ask why the fan
 ref: sort
 teach: sort
+hint: < connects the file to stdin -- sort never sees a filename argument
 ---
-q: run "ls @word@-missing" and send only its error message to errors.txt
+q: {run "ls @word@-missing" and send only its error message to errors.txt|run "ls @word@-missing", capturing just the error message in errors.txt|run "ls @word@-missing" so only the error text lands in errors.txt}
 a: ls @word@-missing 2> errors.txt
 state: exists:errors.txt
 ref: ls
 teach: ls
 hint: the error channel is number 2
 ---
-q: run "ls @word@-missing" and throw its error message away entirely
+q: {run "ls @word@-missing" and throw its error message away entirely|run "ls @word@-missing", discarding its error message completely|run "ls @word@-missing" so its error message vanishes entirely}
 a: ls @word@-missing 2> /dev/null
 ref: ls
 teach: ls
 hint: /dev/null is the bit bucket -- everything written to it is discarded
 ---
-q: run "ls @dir@ @word@-missing" sending both output and errors into all.txt
+q: {run "ls @dir@ @word@-missing" sending both output and errors into all.txt|run "ls @dir@ @word@-missing", capturing both its output and errors in all.txt|run "ls @dir@ @word@-missing" so output and errors both land in all.txt}
 a: ls @dir@ @word@-missing > all.txt 2>&1
 ref: ls
 teach: ls
@@ -54,6 +56,7 @@ a: cat @log@ | tee copy.txt
 out: service started
 ref: tee
 teach: tee
+hint: tee writes to the file and passes the same data through to stdout
 ---
 q: %show% @log@ on screen and APPEND a copy to copy.txt
 a: cat @log@ | tee -a copy.txt
@@ -68,6 +71,7 @@ a: wc -l @txt@ > @cvar@.txt
 state: exists:@cvar@.txt
 ref: wc
 teach: wc -l
+hint: redirecting in with < keeps the filename out of wc's output
 ---
 q: %show% @word@ with printf, which unlike echo does exactly what you tell it
 a: printf '%s\n' @word@
@@ -81,15 +85,18 @@ a: printf '%s' @word@
 out: @word@
 ref: printf
 teach: printf
+hint: printf only outputs what's in the format string -- no automatic newline
 ---
 q: %show% two values on one line separated by a tab
 a: printf '%s\t%s\n' @word@ @term@
 out: @word@
 ref: printf
 teach: printf
+hint: \t in the format string is a literal tab
 ---
 q: %show% the number @n@ padded to five digits with leading zeros
 a: printf '%05d\n' @n@
 out: ^0*[0-9]+$
 ref: printf
 teach: printf
+hint: the 0 before the 5 means zero-pad instead of space-pad

@@ -11,118 +11,138 @@ brief: then collects them.
 brief:
 brief: All of this dies when the terminal does -- which is what abduco is for.
 ---
-q: run "sleep 2" in the background
+q: {run "sleep 2" in the background|background a sleep 2 command|start sleep 2 without blocking your prompt}
 a: sleep 2 &
 ref: sleep
 teach: sleep
 hint: an ampersand at the end
 ---
-q: run "sleep 2" in the background and print the pid it was given
+q: {run "sleep 2" in the background and print the pid it was given|background sleep 2, then print the pid it got|start sleep 2 in the background and show its pid}
 a: sleep 2 & echo $!
 out: ^[0-9]+$
 ref: sleep
 teach: sleep
+hint: $! holds the pid of whatever you just backgrounded
 ---
-q: start "sleep 1" in the background and then wait for it to finish
+q: {start "sleep 1" in the background and then wait for it to finish|background sleep 1, then wait for it to complete|run sleep 1 in the background and block until it's done}
 a: sleep 1 & wait
 ref: wait
 teach: wait
+hint: wait with no argument blocks until every background job finishes
 ---
-q: start two sleeps at once and wait for both
+q: {start two sleeps at once and wait for both|background two sleep 1 commands, then wait for both to finish|run two sleeps concurrently and block until they're both done}
 a: sleep 1 & sleep 1 & wait
 ref: wait
 teach: wait
+hint: wait with no argument waits for all backgrounded jobs, not just one
 ---
-q: wait for one specific background job by its pid
+q: {wait for one specific background job by its pid|background sleep 1, then wait on just its pid|use wait with a pid to block on one particular job}
 a: sleep 1 & wait $!
 ref: wait
 teach: wait
+hint: passing $! to wait waits for that one job specifically
 ---
 q: %list% the jobs running in this shell
 a: jobs
 ref: sh
 teach: sh
+hint: jobs lists what this shell has running or stopped, not the whole system
 ---
-q: run @script@ so it keeps running after the terminal goes away
+q: {run @script@ so it keeps running after the terminal goes away|use nohup so @script@ survives the terminal closing|start @script@ immune to the hangup signal your terminal would send}
 a: nohup ./@script@ &
 ref: nohup
 teach: nohup
 hint: nohup makes the process ignore the hangup signal
 ---
-q: run @script@ in a brand new session, fully detached from this terminal
+q: {run @script@ in a brand new session, fully detached from this terminal|use setsid to start @script@ with no controlling terminal|start @script@ in its own session, cut off from this one}
 a: setsid ./@script@
 ref: setsid
 teach: setsid
+hint: setsid starts the process in a new session with no controlling terminal at all
 ---
-q: give @script@ at most 5 seconds to finish, then kill it
+q: {give @script@ at most 5 seconds to finish, then kill it|run @script@ under a 5 second timeout|use timeout to cap @script@ at 5 seconds}
 a: timeout 5 ./@script@
 out: running
 ref: timeout
 teach: timeout
+hint: timeout runs the command and sends TERM if it's still going after the limit
 ---
-q: give sleep 10 two seconds, then send it KILL rather than TERM
+q: {give sleep 10 two seconds, then send it KILL rather than TERM|run sleep 10 under a 2 second timeout that sends KILL instead of TERM|use timeout -s KILL to cap sleep 10 at 2 seconds}
 a: timeout -s KILL 2 sleep 10
 ref: timeout
 teach: timeout -s
+hint: -s picks which signal timeout sends when the limit is hit
 ---
-q: run sleep 10 with a 1 second limit, sending KILL if it ignores the first signal
+q: {run sleep 10 with a 1 second limit, sending KILL if it ignores the first signal|use timeout -k to cap sleep 10 at 1 second with a KILL fallback|run sleep 10 under a 1 second timeout that escalates to KILL}
 a: timeout -k 1 1 sleep 10
 ref: timeout
 teach: timeout -k
+hint: -k gives a grace period, then escalates to KILL if the first signal didn't work
 ---
-q: start a detached session called work running a shell, so it survives a drop
+q: {start a detached session called work running a shell, so it survives a drop|use abduco -n to create a detached session called work running a shell|create the session work with abduco, detached, so a dropped connection won't kill it}
 a: abduco -n work /bin/sh
 ref: abduco
 teach: abduco -n
+hint: -n creates the session detached, without attaching to it
 ---
-q: start a session called work and attach to it now
+q: {start a session called work and attach to it now|use abduco -c to create work and attach immediately|create the session work with abduco, attaching right away}
 a: abduco -c work /bin/sh
 ref: abduco
 teach: abduco -c
+hint: -c creates the session and attaches to it in one step
 ---
-q: reattach to the session called work
+q: {reattach to the session called work|use abduco -a to reattach to work|attach back into the existing work session}
 a: abduco -a work
 ref: abduco
 teach: abduco -a
+hint: -a attaches to a session that already exists
 ---
-q: attach to work if it exists, create it if it does not
+q: {attach to work if it exists, create it if it does not|use abduco -A so work is created only if it's missing|attach to work, letting abduco create it when needed}
 a: abduco -A work /bin/sh
 ref: abduco
 teach: abduco -A
+hint: -A attaches if the session exists, or creates it if it doesn't
 ---
-q: watch the session work without being able to type into it
+q: {watch the session work without being able to type into it|use abduco -r to observe work without sending it input|attach to work in read-only mode}
 a: abduco -r work
 ref: abduco
 teach: abduco -r
+hint: -r attaches read-only, so your input never reaches the session
 ---
 q: %list% the sessions abduco is holding
 a: abduco
 ref: abduco
 teach: abduco
+hint: abduco with no session name lists what it's holding
 ---
-q: attach to work using a different detach key, ctrl-q
+q: {attach to work using a different detach key, ctrl-q|use abduco -e to attach to work with ctrl-q as the detach key|attach to work, rebinding the detach key to ctrl-q}
 a: abduco -e ^q -a work
 ref: abduco
 teach: abduco -e
+hint: -e sets the key sequence that detaches you, default is ctrl-\
 ---
 q: %list% the jobs in this shell with their process ids
 a: sleep 1 & jobs -l
 ref: jobs
 teach: jobs -l
+hint: -l adds the pid alongside each job's normal listing
 ---
-q: send a hangup signal to process 12345 by number
+q: {send a hangup signal to process 12345 by number|use kill -1 to send process 12345 a hangup signal|send signal number 1, HUP, to process 12345}
 a: kill -1 12345
 ref: kill
 teach: kill -1
+hint: -1 is the signal number for HUP, same as -HUP
 ---
 q: %show% every resource limit this shell is under
 a: ulimit -a
 out: .
 ref: ulimit
 teach: ulimit -a
+hint: -a prints every limit at once instead of just one
 ---
 q: %show% the maximum file size this shell may create
 a: ulimit -f
 out: .
 ref: ulimit
 teach: ulimit -f
+hint: -f reports the max file size a process may write, in blocks

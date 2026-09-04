@@ -10,366 +10,427 @@ brief: and the host's own drives are deliberately invisible -- there are no
 brief: NVMe or SATA drivers compiled in. What you can see is the stick you
 brief: booted from and anything on USB.
 ---
-q: how much space is free on the mounted filesystems
+q: {show how much space is free on the mounted filesystems|how much free space is left on the mounted filesystems|report the free space on every mounted filesystem}
 a: df
 out: [0-9]
 ref: df
 teach: df
+hint: df alone reports every mounted filesystem, one line each
 ---
 q: %show% free space in a human readable form
 a: df -h
 out: [0-9]
 ref: df
 teach: df -h
+hint: -h scales the numbers to k/m/g instead of raw block counts
 ---
 q: %show% free space in megabytes
 a: df -m
 out: [0-9]
 ref: df
 teach: df -m
+hint: -m forces megabytes specifically, no auto-scaling
 ---
 q: %show% inode usage rather than block usage
 a: df -i
 out: [0-9]
 ref: df
 teach: df -i
+hint: -i swaps the space columns for inode counts and percent-used
 ---
 q: %show% free space including pseudo-filesystems normally hidden
 a: df -a
 out: [0-9]
 ref: df
 teach: df -a
+hint: -a includes filesystems df otherwise skips, like proc and tmpfs
 ---
 q: %show% free space with the filesystem type in a column
 a: df -T
 out: [0-9]
 ref: df
 teach: df -T
+hint: -T adds a column naming each filesystem's type
 ---
 q: %show% free space only for filesystems of type squashfs
 a: df -t squashfs
 ref: df
 teach: df -t
+hint: -t filters the listing down to one filesystem type
 ---
 q: %show% free space in units of 1024 bytes, chosen explicitly
 a: df -B 1024
 out: [0-9]
 ref: df
 teach: df -B
+hint: -B takes a size -- here 1024 -- to fix the unit df reports in
 ---
-q: how much space does @dir@ use in total
+q: {how much space does @dir@ use in total|what is the total space used by @dir@|report the total size of @dir@}
 a: du -s @dir@
 out: [0-9]
 ref: du
 teach: du -s
+hint: -s collapses the whole tree into one summary line
 ---
-q: how much space does @dir@ use, in a human readable form
+q: {how much space does @dir@ use, in a human readable form|what does @dir@ use, scaled to something readable|report the size of @dir@ in human readable units}
 a: du -sh @dir@
 out: [0-9]
 ref: du
 teach: du -h
+hint: -h scales the summary size to k/m/g
 ---
 q: %show% the size of every file under @dir@, not just the directories
 a: du -a @dir@
 out: [0-9]
 ref: du
 teach: du -a
+hint: -a walks down to individual files, not just directories
 ---
 q: %show% sizes in bytes rather than blocks
 a: du -b @dir@
 out: [0-9]
 ref: du
 teach: du -b
+hint: -b reports raw bytes instead of filesystem blocks
 ---
 q: %show% @dir@ only one level deep
 a: du -d 1 @dir@
 out: [0-9]
 ref: du
 teach: du -d
+hint: -d takes a depth -- 1 stops descending after the first level
 ---
 q: %show% a grand total at the end
 a: du -c @dir@
 out: total
 ref: du
 teach: du -c
+hint: -c appends one extra 'total' line summing everything above it
 ---
 q: %show% sizes in megabytes
 a: du -m @dir@
 out: [0-9]
 ref: du
 teach: du -m
+hint: -m forces megabytes
 ---
 q: %show% sizes in kilobytes explicitly
 a: du -k @dir@
 out: [0-9]
 ref: du
 teach: du -k
+hint: -k forces kilobytes, explicit rather than du's default
 ---
-q: measure @dir@ without crossing onto another filesystem
+q: {measure @dir@ without crossing onto another filesystem|measure @dir@ but stay on its own filesystem|report the size of @dir@ without descending into other mounts}
 a: du -x @dir@
 out: [0-9]
 ref: du
 teach: du -x
+hint: -x stops du from following mounts onto other filesystems
 ---
 q: %find% the ten largest things under here
 a: du -a . | sort -rn | head -10
 out: [0-9]
 ref: du
 teach: du -a
+hint: du -a lists everything with a size; sort -rn and head -10 do the ranking
 ---
 q: %list% the block devices this machine can see, with their filesystem labels
 a: blkid
 ref: blkid
 teach: blkid
+hint: blkid reads filesystem superblocks for uuid, label and type -- no mount needed
 ---
 q: %find% which device holds the filesystem labelled XOS-ROOT
 a: findfs LABEL=XOS-ROOT
 ref: findfs
 teach: findfs
+hint: findfs takes a LABEL= or UUID= and prints the matching device node
 ---
-q: mount /dev/sdb1 read-only at /mnt
+q: {mount /dev/sdb1 read-only at /mnt|mount /dev/sdb1 at /mnt, allowing no writes|attach /dev/sdb1 at /mnt without write access}
 a: mount -r /dev/sdb1 /mnt
 ref: mount
 teach: mount -r
 hint: on a machine you do not trust, read-only is the default you want
 ---
-q: mount /dev/sdb1 at /mnt naming the filesystem type explicitly
+q: {mount /dev/sdb1 at /mnt naming the filesystem type explicitly|mount /dev/sdb1 at /mnt, telling mount the filesystem type instead of letting it guess|explicitly name the filesystem type while mounting /dev/sdb1 at /mnt}
 a: mount -t ext4 /dev/sdb1 /mnt
 ref: mount
 teach: mount -t
+hint: -t names the filesystem type explicitly instead of letting mount guess
 ---
-q: mount /dev/sdb1 at /mnt with nosuid, nodev and noexec
+q: {mount /dev/sdb1 at /mnt with nosuid, nodev and noexec|mount /dev/sdb1 at /mnt, disallowing setuid, device nodes and execution|attach /dev/sdb1 at /mnt with the nosuid, nodev and noexec options set}
 a: mount -o nosuid,nodev,noexec /dev/sdb1 /mnt
 ref: mount
 teach: mount -o
+hint: -o takes a comma-separated list of mount options
 ---
 q: %show% what is currently mounted
 a: mount
 out: /
 ref: mount
 teach: mount
+hint: mount with no arguments lists what is currently mounted
 ---
-q: unmount /mnt
+q: {unmount /mnt|detach whatever is mounted at /mnt|take /mnt out of the mounted tree}
 a: umount /mnt
 ref: umount
 teach: umount
+hint: umount takes the mountpoint, or the device, and detaches it
 ---
-q: unmount /mnt even though something is still using it, detaching it lazily
+q: {unmount /mnt even though something is still using it, detaching it lazily|detach /mnt lazily, even with something still using it|unmount /mnt now but let the detach finish once it is no longer busy}
 a: umount -l /mnt
 ref: umount
 teach: umount -l
+hint: -l detaches it now and cleans up once nothing is using it
 ---
-q: force an unmount of /mnt
+q: {force an unmount of /mnt|force /mnt to unmount|make /mnt unmount even if it resists}
 a: umount -f /mnt
 ref: umount
 teach: umount -f
+hint: -f forces the unmount even if the filesystem is unresponsive
 ---
-q: unmount everything that can be unmounted
+q: {unmount everything that can be unmounted|detach every filesystem that will allow it|unmount as much as possible in one go}
 a: umount -a
 ref: umount
 teach: umount -a
+hint: -a unmounts everything listed in /proc/mounts it can
 ---
-q: attach the file disk.img to a loop device so it can be mounted
+q: {attach the file disk.img to a loop device so it can be mounted|make disk.img mountable by attaching it to a loop device|wire disk.img up to a loop device so it behaves like a block device}
 a: losetup -f disk.img
 ref: losetup
 teach: losetup -f
+hint: -f finds the next free loop device and attaches to it in one step
 ---
-q: attach disk.img read-only to a loop device
+q: {attach disk.img read-only to a loop device|loop-attach disk.img without allowing writes|attach disk.img to a loop device in read-only mode}
 a: losetup -r -f disk.img
 ref: losetup
 teach: losetup -r
+hint: -r attaches the loop device read-only
 ---
-q: attach disk.img starting at an offset of 1 megabyte
+q: {attach disk.img starting at an offset of 1 megabyte|loop-attach disk.img, skipping the first megabyte|attach disk.img to a loop device, starting 1 megabyte into the file}
 a: losetup -o 1048576 -f disk.img
 ref: losetup
 teach: losetup -o
+hint: -o takes a byte offset into the image to start the mapping at
 ---
-q: attach disk.img and scan it for partitions
+q: {attach disk.img and scan it for partitions|loop-attach disk.img and have it scanned for partitions|attach disk.img, exposing any partitions it contains}
 a: losetup -P -f disk.img
 ref: losetup
 teach: losetup -P
+hint: -P scans the attached image for a partition table
 ---
 q: %list% the partition table of /dev/sda
 a: fdisk -l /dev/sda
 ref: fdisk
 teach: fdisk -l
+hint: -l just lists the partition table, no interactive prompt
 ---
-q: report the block size of /dev/sda
+q: {report the block size of /dev/sda|what is the block size of /dev/sda|find the block size of /dev/sda}
 a: blockdev --getbsz /dev/sda
 ref: blockdev
 teach: blockdev --getbsz
+hint: --getbsz reports the block size
 ---
-q: report the size of /dev/sda in bytes
+q: {report the size of /dev/sda in bytes|what is the size of /dev/sda, in bytes|find the exact byte size of /dev/sda}
 a: blockdev --getsize64 /dev/sda
 ref: blockdev
 teach: blockdev --getsize64
+hint: --getsize64 reports the size in bytes, not sectors
 ---
-q: mark /dev/sda read-only at the block layer
+q: {mark /dev/sda read-only at the block layer|flip /dev/sda to read-only below the filesystem layer|set the block-level read-only flag on /dev/sda}
 a: blockdev --setro /dev/sda
 ref: blockdev
 teach: blockdev --setro
+hint: --setro flips the read-only flag at the block layer, below any filesystem
 ---
-q: ask whether /dev/sda is currently read-only
+q: {ask whether /dev/sda is currently read-only|check whether /dev/sda's read-only flag is set|is /dev/sda currently read-only at the block layer}
 a: blockdev --getro /dev/sda
 ref: blockdev
 teach: blockdev --getro
+hint: --getro reads that same read-only flag back
 ---
-q: flush everything buffered in memory out to disk
+q: {flush everything buffered in memory out to disk|force every dirty buffer out to disk right now|write all pending buffered data to disk}
 a: sync
 ref: sync
 teach: sync
+hint: sync with no arguments flushes every dirty buffer on the system
 ---
-q: flush only the data for @txt@, not the whole system
+q: {flush only the data for @txt@, not the whole system|flush just @txt@'s buffered data, leaving the rest alone|write out only @txt@'s pending data, not every buffer on the system}
 a: sync -d @txt@
 ref: sync
 teach: sync -d
+hint: -d limits the flush to the file you name
 ---
-q: run a command holding an exclusive lock on lock.file, so two copies cannot overlap
+q: {run a command holding an exclusive lock on lock.file, so two copies cannot overlap|hold an exclusive lock on lock.file while a command runs, so it cannot overlap another copy|use lock.file as an exclusive lock around a command so two copies never run together}
 a: flock -x lock.file echo held
 out: held
 ref: flock
 teach: flock -x
+hint: -x is flock's default, an exclusive lock -- named here for clarity
 ---
-q: take the lock but give up immediately if someone else holds it
+q: {take the lock but give up immediately if someone else holds it|try the lock and bail out at once if it is already held|attempt lock.file's lock, failing instantly rather than waiting}
 a: flock -n lock.file echo held
 out: held
 ref: flock
 teach: flock -n
+hint: -n makes flock fail instead of waiting when the lock is held
 ---
-q: take a shared lock rather than an exclusive one
+q: {take a shared lock rather than an exclusive one|take lock.file's lock as shared, not exclusive|hold a shared lock instead of an exclusive one}
 a: flock -s lock.file echo held
 out: held
 ref: flock
 teach: flock -s
+hint: -s takes a shared lock, which can coexist with other shared locks
 ---
 setup: p3 is the state partition -- the only thing on this stick that survives
 setup: a reboot, and the only place a key can live. It is encrypted, and it is
 setup: also authenticated, which is a different property and the harder one.
-q: write a new LUKS2 header on /dev/sda3, with authentication as well as encryption
+q: {write a new LUKS2 header on /dev/sda3, with authentication as well as encryption|format /dev/sda3 with a LUKS2 header that is both encrypted and authenticated|put a new LUKS2 header on /dev/sda3, adding integrity checking alongside the encryption}
 a: cryptsetup luksFormat --type luks2 --integrity hmac-sha256 /dev/sda3
 ref: cryptsetup
 teach: cryptsetup --type
 teach: cryptsetup --integrity
 hint: encryption stops them reading it; integrity stops them changing it
 ---
-q: unlock /dev/sda3 and expose it as /dev/mapper/state
+q: {unlock /dev/sda3 and expose it as /dev/mapper/state|open /dev/sda3 and map it as /dev/mapper/state|decrypt /dev/sda3, exposing it under /dev/mapper as state}
 a: cryptsetup open /dev/sda3 state
 ref: cryptsetup
 teach: cryptsetup
+hint: open maps the decrypted device under /dev/mapper by the name you give
 ---
-q: unlock it without allowing any writes
+q: {unlock it without allowing any writes|open /dev/sda3 read-only, allowing no writes through it|decrypt /dev/sda3 without permitting any writes}
 a: cryptsetup open --readonly /dev/sda3 state
 ref: cryptsetup
 teach: cryptsetup --readonly
+hint: --readonly maps the device without allowing writes through it
 ---
-q: lock it again and remove the mapping
+q: {lock it again and remove the mapping|close the state mapping and re-lock the device|tear down /dev/mapper/state and lock /dev/sda3 again}
 a: cryptsetup close state
 ref: cryptsetup
 teach: cryptsetup
+hint: close tears down the /dev/mapper entry and re-locks the device
 ---
-q: is state currently open, and with what cipher
+q: {is state currently open, and with what cipher|check whether state is open, and which cipher it is using|report state's current status and cipher}
 a: cryptsetup status state
 ref: cryptsetup
 teach: cryptsetup
+hint: status reports whether it's active and which cipher it's using
 ---
 q: %show% the LUKS header of /dev/sda3 -- cipher, key slots and kdf
 a: cryptsetup luksDump /dev/sda3
 ref: cryptsetup
 teach: cryptsetup
+hint: luksDump reads the header itself -- it never touches the encrypted data
 ---
-q: format /dev/sda3 choosing the cipher explicitly
+q: {format /dev/sda3 choosing the cipher explicitly|format /dev/sda3, naming the cipher instead of taking the default|choose the cipher yourself while formatting /dev/sda3}
 a: cryptsetup luksFormat --cipher aes-xts-plain64 /dev/sda3
 ref: cryptsetup
 teach: cryptsetup --cipher
+hint: --cipher names the cipher instead of taking cryptsetup's default
 ---
-q: format with a 512 bit key
+q: {format with a 512 bit key|format /dev/sda3 using a 512 bit key|choose a 512 bit key while formatting /dev/sda3}
 a: cryptsetup luksFormat --key-size 512 /dev/sda3
 ref: cryptsetup
 teach: cryptsetup --key-size
+hint: --key-size is in bits, and must match what the cipher supports
 ---
-q: format choosing pbkdf2 rather than the argon2id default
+q: {format choosing pbkdf2 rather than the argon2id default|format /dev/sda3 with pbkdf2 instead of the argon2id default|swap the key derivation function to pbkdf2 while formatting}
 a: cryptsetup luksFormat --pbkdf pbkdf2 /dev/sda3
 ref: cryptsetup
 teach: cryptsetup --pbkdf
+hint: --pbkdf picks the key derivation function used to slow down password guessing
 ---
-q: format without any prompt or confirmation, for a script
+q: {format without any prompt or confirmation, for a script|format /dev/sda3 with no confirmation prompt, suitable for a script|skip the are-you-sure prompt while formatting, for scripted use}
 a: cryptsetup luksFormat --batch-mode /dev/sda3
 ref: cryptsetup
 teach: cryptsetup --batch-mode
+hint: --batch-mode skips the are-you-sure prompt, for scripting
 ---
-q: open a device saying out loud what is happening
+q: {open a device saying out loud what is happening|open /dev/sda3 while narrating what cryptsetup is doing|unlock the device with verbose output describing each step}
 a: cryptsetup open --verbose /dev/sda3 state
 ref: cryptsetup
 teach: cryptsetup --verbose
+hint: --verbose narrates what cryptsetup is doing as it opens the device
 ---
-q: mount the unlocked state device with nothing on it able to run
+q: {mount the unlocked state device with nothing on it able to run|mount /dev/mapper/state so nothing on it can execute|attach the decrypted state device with execution disabled}
 a: mount -o nosuid,nodev,noexec /dev/mapper/state /state
 ref: mount
 teach: mount -o
+hint: same nosuid,nodev,noexec trio, now applied to the decrypted volume
 ---
 setup: A disk someone hands you is untrusted input, and a filesystem driver is
 setup: a parser that runs it in your kernel. The safest read of a disk you do
 setup: not trust is dd at the block level, where no parser runs at all.
-q: image the whole removable disk /dev/sda to a file, reading raw bytes with no filesystem
+q: {image the whole removable disk /dev/sda to a file, reading raw bytes with no filesystem|make a raw byte-for-byte image of the removable disk /dev/sda, with no filesystem involved|read /dev/sda straight into a file, bypassing any filesystem parser}
 a: dd if=@txt@ of=disk.img
 state: exists:disk.img
 ref: dd
 teach: dd
 hint: no mount, no parser -- just the bytes. this is the forensically safe read
 ---
-q: mount a fat32 usb stick read-only, with nothing on it able to run
+q: {mount a fat32 usb stick read-only, with nothing on it able to run|mount a fat32 usb stick read-only, with execution disabled|attach a fat32 usb stick read-only and let nothing on it run}
 a: mount -t vfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
 ref: mount
 teach: mount -t
 hint: ro, and noexec, because you do not trust what is on it
 ---
-q: mount an exfat sd card read-only and safely
+q: {mount an exfat sd card read-only and safely|safely mount an exfat sd card read-only|attach an exfat sd card read-only, locked down the same way}
 a: mount -t exfat -o ro,nosuid,nodev,noexec /dev/sda1 /mnt
 ref: mount
 teach: mount -t
+hint: same ro,nosuid,nodev,noexec pattern, this time for exfat
 ---
-q: mount a windows ntfs disk read-only
+q: {mount a windows ntfs disk read-only|mount a windows ntfs disk allowing no writes|attach an ntfs disk in read-only mode}
 a: mount -t ntfs3 -o ro,nosuid,nodev,noexec /dev/sda2 /mnt
 ref: mount
 teach: mount -t
 hint: read only -- xos will not write ntfs, by design
 ---
-q: loop-mount an iso image read-only without burning it
+q: {loop-mount an iso image read-only without burning it|mount an iso image read-only through a loop device, no burning required|attach an iso image as a read-only loop mount}
 a: mount -t iso9660 -o ro,loop image.iso /mnt
 ref: mount
 teach: mount -t
+hint: -o ro,loop reads the iso straight off the image file, no burn needed
 ---
-q: attach disk.img to a loop device first, then you can mount or examine it
+q: {attach disk.img to a loop device first, then you can mount or examine it|before mounting or examining disk.img, attach it to a loop device|loop-attach disk.img so it can be mounted or examined afterward}
 a: losetup -f disk.img
 ref: losetup
 teach: losetup -f
+hint: the same -f as before -- find a free loop device and attach here
 ---
 q: %make% an ext filesystem on the unlocked state device
 a: mke2fs /dev/mapper/state
 ref: mke2fs
 teach: mke2fs
+hint: mke2fs with no flags builds an ext2 filesystem by default
 ---
 q: %make% an ext filesystem without being asked to confirm
 a: mke2fs -F /dev/mapper/state
 ref: mke2fs
 teach: mke2fs -F
+hint: -F skips the confirmation prompt, useful for scripting
 ---
 q: %make% an ext filesystem giving it a label
 a: mke2fs -L data /dev/mapper/state
 ref: mke2fs
 teach: mke2fs -L
+hint: -L sets the filesystem's volume label
 ---
-q: reserve no blocks for admin, so all space is usable, when making the filesystem
+q: {reserve no blocks for admin, so all space is usable, when making the filesystem|when making the filesystem, reserve zero blocks for admin use|build the filesystem with no space reserved for the superuser}
 a: mke2fs -m 0 /dev/mapper/state
 ref: mke2fs
 teach: mke2fs -m
+hint: -m sets the percent reserved for root; 0 reserves nothing
 ---
-q: format a usb stick partition as fat32
+q: {format a usb stick partition as fat32|make a fat32 filesystem on a usb stick partition|turn a usb stick partition into fat32}
 a: mkdosfs /dev/sda1
 ref: mkdosfs
 teach: mkdosfs
+hint: mkdosfs with no flags builds fat32 (or fat16, sized by the partition)
 ---
-q: format a fat filesystem with a volume label
+q: {format a fat filesystem with a volume label|make a fat filesystem, giving it a volume label|format a fat filesystem and label it while you're at it}
 a: mkdosfs -n BACKUP /dev/sda1
 ref: mkdosfs
 teach: mkdosfs -n
+hint: -n sets the volume label

@@ -10,118 +10,139 @@ brief:
 brief: Quote your variables. [ -n $x ] with x empty becomes [ -n ], which is
 brief: true, which is the opposite of what you asked. [ -n "$x" ] is correct.
 ---
-q: test whether @txt@ exists
+q: {test whether @txt@ exists|check that @txt@ is there|confirm @txt@ exists on disk}
 a: [ -e @txt@ ]
 ref: [
 teach: [ -e
+hint: -e is true for any kind of existing thing, file or directory
 ---
-q: test whether @txt@ is a regular file
+q: {test whether @txt@ is a regular file|check that @txt@ is an ordinary file|confirm @txt@ is a regular file rather than a directory}
 a: [ -f @txt@ ]
 ref: [
 teach: [ -f
+hint: -f is true only for a regular file, not a directory or link
 ---
-q: test whether @dir@ is a directory
+q: {test whether @dir@ is a directory|check that @dir@ is actually a directory|confirm @dir@ names a directory}
 a: [ -d @dir@ ]
 ref: [
 teach: [ -d
+hint: -d is true only when the path is a directory
 ---
-q: test whether @txt@ exists and is not empty
+q: {test whether @txt@ exists and is not empty|check that @txt@ is there and has content|confirm @txt@ both exists and isn't zero bytes}
 a: [ -s @txt@ ]
 ref: [
 teach: [ -s
+hint: -s checks existence AND that the size is greater than zero
 ---
-q: test whether @txt@ is readable
+q: {test whether @txt@ is readable|check that you have read permission on @txt@|confirm @txt@ can be read}
 a: [ -r @txt@ ]
 ref: [
 teach: [ -r
+hint: -r checks the read permission bit, not just that the file exists
 ---
-q: test whether @script@ is writable
+q: {test whether @script@ is writable|check that you can write to @script@|confirm write permission on @script@}
 a: [ -w @script@ ]
 ref: [
 teach: [ -w
+hint: -w checks the write permission bit
 ---
-q: test whether @script@ is executable
+q: {test whether @script@ is executable|check that @script@ has the execute bit set|confirm @script@ can be run}
 a: [ -x @script@ ]
 ref: [
 teach: [ -x
+hint: -x checks the execute permission bit
 ---
-q: test whether @txt@ is a symbolic link
+q: {test whether @txt@ is a symbolic link|check that @txt@ is a symlink rather than a real file|confirm @txt@ is a link, not the file itself}
 a: [ -L @txt@ ]
 ref: [
 teach: [ -L
+hint: -L is true for a symlink even if what it points to is missing
 ---
-q: test whether the variable @var@ is empty
+q: {test whether the variable @var@ is empty|check that @var@ holds nothing|confirm @var@ is empty}
 a: [ -z "$@var@" ]
 ref: [
 teach: [ -z
+hint: -z is true when the string's length is zero
 ---
-q: test whether the variable @var@ is NOT empty
+q: {test whether the variable @var@ is NOT empty|check that @var@ actually holds something|confirm @var@ is set to a nonempty value}
 a: [ -n "$@var@" ]
 ref: [
 teach: [ -n
+hint: -n is true when the string's length is nonzero
 ---
 q: %show% yes if @txt@ exists
 a: [ -f @txt@ ] && echo yes
 out: ^yes$
 ref: [
 teach: [ -f
+hint: -f is true only for a regular file
 ---
 q: %show% missing if @word@-nope.txt does not exist
 a: [ -f @word@-nope.txt ] || echo missing
 out: ^missing$
 ref: [
 teach: [ -f
+hint: || only runs echo when the test in front of it fails
 ---
-q: use test rather than brackets to check that @dir@ is a directory, printing ok
+q: {use test rather than brackets to check that @dir@ is a directory, printing ok|check @dir@ is a directory with the test command instead of [ ], printing ok|run test -d on @dir@, printing ok, without using square brackets}
 a: test -d @dir@ && echo ok
 out: ^ok$
 ref: test
 teach: test -d
+hint: test and [ are the same command; test just skips the closing bracket
 ---
-q: compare two strings for equality, printing same when they match
+q: {compare two strings for equality, printing same when they match|use = to test that two strings match, printing same|check whether two copies of @word@ are equal as strings, printing same}
 a: [ @word@ = @word@ ] && echo same
 out: ^same$
 ref: [
 teach: [
+hint: = compares strings; use -eq for numbers instead
 ---
-q: check two strings differ, printing differ when they do
+q: {check two strings differ, printing differ when they do|use != to confirm two strings aren't equal, printing differ|test that two strings are different, printing differ}
 a: [ @word@ != other ] && echo differ
 out: ^differ$
 ref: [
 teach: [
+hint: != is the string inequality operator, the opposite of =
 ---
-q: check that the line count of @cfg@ equals 7, printing seven
+q: {check that the line count of @cfg@ equals 7, printing seven|test whether @cfg@ has exactly 7 lines, printing seven|confirm the line count of @cfg@ is 7, printing seven}
 a: [ "$(wc -l < @cfg@)" -eq 7 ] && echo seven
 out: ^seven$
 ref: [
 teach: [ -eq
+hint: -eq is numeric equality; use = for strings instead
 ---
-q: check the line count of @log@ is greater than 5, printing more
+q: {check the line count of @log@ is greater than 5, printing more|test whether @log@ has more than 5 lines, printing more|confirm @log@'s line count exceeds 5, printing more}
 a: [ "$(wc -l < @log@)" -gt 5 ] && echo more
 out: ^more$
 ref: [
 teach: [ -gt
+hint: -gt is numeric greater-than
 ---
-q: check the line count of @log@ is less than 100, printing fewer
+q: {check the line count of @log@ is less than 100, printing fewer|test whether @log@ has fewer than 100 lines, printing fewer|confirm @log@'s line count is under 100, printing fewer}
 a: [ "$(wc -l < @log@)" -lt 100 ] && echo fewer
 out: ^fewer$
 ref: [
 teach: [ -lt
+hint: -lt is numeric less-than
 ---
-q: negate a test -- print gone when @word@-nope.txt does NOT exist
+q: {negate a test -- print gone when @word@-nope.txt does NOT exist|use ! to invert a test, printing gone when @word@-nope.txt is missing|print gone only when @word@-nope.txt does NOT exist, negating the test}
 a: [ ! -f @word@-nope.txt ] && echo gone
 out: ^gone$
 ref: [
 teach: [
+hint: ! in front of a test negates its result
 ---
-q: require both that @txt@ exists and @dir@ is a directory, printing both
+q: {require both that @txt@ exists and @dir@ is a directory, printing both|test that @txt@ exists AND @dir@ is a directory, printing both|combine two conditions with -a, printing both when @txt@ exists and @dir@ is a directory}
 a: [ -f @txt@ -a -d @dir@ ] && echo both
 out: ^both$
 ref: [
 teach: [ -a
+hint: -a inside [ ] means logical AND between two conditions
 ---
-q: accept either @txt@ existing or @word@-nope.txt existing, printing either
+q: {accept either @txt@ existing or @word@-nope.txt existing, printing either|test that @txt@ exists OR @word@-nope.txt exists, printing either|combine two conditions with -o, printing either when one of the files exists}
 a: [ -f @txt@ -o -f @word@-nope.txt ] && echo either
 out: ^either$
 ref: [
 teach: [ -o
+hint: -o inside [ ] means logical OR between two conditions

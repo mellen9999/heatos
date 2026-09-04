@@ -14,26 +14,29 @@ a: ps
 out: PID
 ref: ps
 teach: ps
+hint: ps alone shows just this terminal's processes, not the whole system
 ---
 q: %list% processes showing just the pid and the command name
 a: ps -o pid,comm
 out: PID
 ref: ps
 teach: ps -o
+hint: -o picks exactly which columns to show
 ---
 q: %list% processes including their threads
 a: ps -T
 out: PID
 ref: ps
 teach: ps -T
+hint: -T adds a row for every thread, not just every process
 ---
-q: watch processes live, updating as they change
+q: {watch processes live, updating as they change|open top to watch processes update in real time|run top so you can watch processes live}
 a: top
 ref: top
 teach: top
 hint: q leaves it
 ---
-q: take a single snapshot of top rather than an interactive display
+q: {take a single snapshot of top rather than an interactive display|run top just once and print plain text, no live display|use top's batch mode to capture one snapshot}
 a: top -b -n 1
 out: PID|Mem
 ref: top
@@ -41,144 +44,169 @@ teach: top -b
 teach: top -n
 hint: b for batch mode -- plain text, no cursor tricks
 ---
-q: run top updating every 5 seconds instead of the default
+q: {run top updating every 5 seconds instead of the default|use top -d 5 to slow the refresh rate to 5 seconds|watch top refreshing once every 5 seconds}
 a: top -d 5
 ref: top
 teach: top -d
+hint: -d sets the refresh interval in seconds
 ---
 q: %find% the process ids of anything called @proc@
 a: pgrep @proc@
 ref: pgrep
 teach: pgrep
+hint: pgrep prints matching pids and nothing else
 ---
 q: %find% @proc@ matching against the whole command line, not just the name
 a: pgrep -f @proc@
 ref: pgrep
 teach: pgrep -f
+hint: -f matches against the full command line, not just the process name
 ---
 q: %list% @proc@ processes showing the name beside each pid
 a: pgrep -l @proc@
 ref: pgrep
 teach: pgrep -l
+hint: -l adds the process name next to each pid
 ---
 q: %find% only the newest process called @proc@
 a: pgrep -n @proc@
 ref: pgrep
 teach: pgrep -n
+hint: -n keeps only the most recently started match
 ---
 q: %find% only the oldest process called @proc@
 a: pgrep -o @proc@
 ref: pgrep
 teach: pgrep -o
+hint: -o keeps only the oldest match
 ---
 q: %find% processes whose name is exactly @proc@ and not merely contains it
 a: pgrep -x @proc@
 ref: pgrep
 teach: pgrep -x
+hint: -x requires an exact name match, not a substring
 ---
 q: %find% every process that is NOT called @proc@
 a: pgrep -v @proc@
 ref: pgrep
 teach: pgrep -v
+hint: -v inverts the match, like grep -v
 ---
 q: %find% the children of process 1
 a: pgrep -P 1
 out: [0-9]
 ref: pgrep
 teach: pgrep -P
+hint: -P filters by parent pid
 ---
-q: politely ask process 12345 to exit
+q: {politely ask process 12345 to exit|send process 12345 the default signal, asking it to exit|ask process 12345 to terminate, with no explicit signal}
 a: kill 12345
 ref: kill
 teach: kill
 hint: no flag means TERM, which the program may catch
 ---
-q: force process 12345 to die immediately, uncatchably
+q: {force process 12345 to die immediately, uncatchably|use kill -9 to end process 12345 with no chance to clean up|send process 12345 the KILL signal, which it cannot ignore}
 a: kill -9 12345
 ref: kill
 teach: kill -9
+hint: 9 is KILL, the one signal a process cannot catch or ignore
 ---
-q: send process 12345 the TERM signal by number
+q: {send process 12345 the TERM signal by number|use kill -15 on process 12345 rather than the bare command|send signal 15, TERM, to process 12345 explicitly}
 a: kill -15 12345
 ref: kill
 teach: kill -15
+hint: 15 is TERM by number, same as the default
 ---
 q: %list% the signal names kill can send
 a: kill -l
 out: KILL
 ref: kill
 teach: kill -l
+hint: -l lists every signal name kill understands
 ---
-q: kill every process called @proc@ by name
+q: {kill every process called @proc@ by name|use pkill to end every process named @proc@|send the default signal to every process called @proc@}
 a: pkill @proc@
 ref: pkill
 teach: pkill
+hint: pkill matches by name and sends the signal itself, no pgrep needed first
 ---
-q: force-kill every process whose full command line mentions @proc@
+q: {force-kill every process whose full command line mentions @proc@|use pkill -9 -f to kill by command line rather than name|send KILL to every process whose command line contains @proc@}
 a: pkill -9 -f @proc@
 ref: pkill
 teach: pkill -f
+hint: -f matches the whole command line, and -9 makes it unignorable
 ---
 q: %show% how much memory this machine has, in a human readable form
 a: free -h
 out: Mem
 ref: free
 teach: free -h
+hint: -h scales the numbers to whichever unit reads best
 ---
 q: %show% memory in megabytes
 a: free -m
 out: Mem
 ref: free
 teach: free -m
+hint: -m reports every figure in megabytes
 ---
 q: %show% memory in kilobytes
 a: free -k
 out: Mem
 ref: free
 teach: free -k
+hint: -k reports every figure in kilobytes
 ---
 q: %show% memory in raw bytes
 a: free -b
 out: Mem
 ref: free
 teach: free -b
+hint: -b reports every figure in raw bytes
 ---
-q: how many processors does this machine have
+q: {how many processors does this machine have|ask nproc how many processors are available|find out how many CPUs you have to work with}
 a: nproc
 out: ^[0-9]+$
 ref: nproc
 teach: nproc
+hint: nproc reports how many CPUs are available to you, not the machine total
 ---
-q: how many processors exist, including ones not available to you
+q: {how many processors exist, including ones not available to you|ask nproc for the machine's total CPU count, not just your share|find the full processor count, ignoring any restriction on you}
 a: nproc --all
 out: ^[0-9]+$
 ref: nproc
 teach: nproc --all
+hint: --all counts every CPU, even ones your process can't use
 ---
 q: %list% @proc@ processes showing the full command line of each
 a: pgrep -a @proc@
 ref: pgrep
 teach: pgrep -a
+hint: -a shows the full command line beside each match
 ---
 q: %find% the process id of @proc@ in one step
 a: pidof @proc@
 ref: pidof
 teach: pidof
+hint: pidof looks up pids by name in one step, like pgrep without the flags
 ---
 q: %find% only a single pid for @proc@, not all of them
 a: pidof -s @proc@
 ref: pidof
 teach: pidof -s
+hint: -s returns only one pid even if several match
 ---
 q: %show% the whole process tree, who started what
 a: pstree
 ref: pstree
 teach: pstree
+hint: pstree draws the parent-child relationships as a tree
 ---
 q: %show% the process tree with each process's pid
 a: pstree -p
 ref: pstree
 teach: pstree -p
+hint: -p adds each process's pid next to its name
 ---
 q: %list% every open file on the system
 a: lsof
@@ -190,39 +218,47 @@ q: %find% which processes have @log@ open
 a: fuser @log@
 ref: fuser
 teach: fuser
+hint: fuser reports the pids of anything with that file open
 ---
 q: %find% what is using the mount point @dir@
 a: fuser -m @dir@
 ref: fuser
 teach: fuser -m
+hint: -m targets a whole mounted filesystem instead of one file
 ---
 q: %find% and then kill whatever has @log@ open
 a: fuser -k @log@
 ref: fuser
 teach: fuser -k
+hint: -k sends the default signal to every pid it finds
 ---
 q: %show% the memory map of process 1
 a: pmap 1
 ref: pmap
 teach: pmap
+hint: pmap lists the memory regions mapped into a process
 ---
 q: %show% process 1's memory map with full per-mapping detail
 a: pmap -x 1
 ref: pmap
 teach: pmap -x
+hint: -x adds size and usage detail per mapping
 ---
 q: %show% the working directory of process 1
 a: pwdx 1
 ref: pwdx
 teach: pwdx
+hint: pwdx reports a process's current working directory by pid
 ---
-q: kill every process named @proc@ by name
+q: {kill every process named @proc@ by name|use killall to end every process matching @proc@'s name|send the default signal to every process named @proc@}
 a: killall @proc@
 ref: killall
 teach: killall
+hint: killall matches by exact process name, unlike pkill's substring matching
 ---
 q: %list% the signal names killall knows
 a: killall -l
 out: KILL
 ref: killall
 teach: killall -l
+hint: -l lists the signal names killall recognizes

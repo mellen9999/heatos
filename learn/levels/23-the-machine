@@ -8,258 +8,302 @@ brief:
 brief: /proc is the habit worth forming. Nearly everything a monitoring tool
 brief: reports, it read out of a file in there, and so can you.
 ---
-q: what kernel is this
+q: {what kernel is this|which kernel is running|name the kernel this machine is running}
 a: uname -s
 out: Linux
 ref: uname
 teach: uname -s
+hint: -s prints only the kernel name, the shortest of uname's fields
 ---
-q: everything uname knows, in one line
+q: {everything uname knows, in one line|dump every field uname knows about, on one line|report the full uname summary in a single line}
 a: uname -a
 out: Linux
 ref: uname
 teach: uname -a
+hint: -a strings together everything uname knows into one line
 ---
-q: just the kernel version
+q: {just the kernel version|report only the kernel release version|what is the kernel version, and nothing else}
 a: uname -r
 out: [0-9]
 ref: uname
 teach: uname -r
+hint: -r isolates just the kernel release/version number
 ---
-q: the machine's hardware architecture
+q: {the machine's hardware architecture|what hardware architecture is this machine|report this machine's cpu architecture}
 a: uname -m
 out: x86_64|[a-z0-9_]+
 ref: uname
 teach: uname -m
+hint: -m reports the cpu architecture uname was built for
 ---
-q: the network node name
+q: {the network node name|what is this machine's network node name|report the node name uname reports}
 a: uname -n
 out: .
 ref: uname
 teach: uname -n
+hint: -n is the node's network hostname, same field hostname reports
 ---
-q: the kernel build version string
+q: {the kernel build version string|report the kernel's build version string|what build string does the kernel report}
 a: uname -v
 out: .
 ref: uname
 teach: uname -v
+hint: -v is the kernel's build string -- when and how it was compiled
 ---
-q: the operating system name
+q: {the operating system name|what operating system is this, according to uname|report the os name uname knows}
 a: uname -o
 out: .
 ref: uname
 teach: uname -o
+hint: -o names the operating system, distinct from the kernel name
 ---
-q: the processor type
+q: {the processor type|what processor type does uname report|report the processor type}
 a: uname -p
 out: .
 ref: uname
 teach: uname -p
+hint: -p reports the processor type, when the kernel knows it
 ---
-q: the hardware platform
+q: {the hardware platform|what hardware platform does uname report|report the machine's hardware platform}
 a: uname -i
 out: .
 ref: uname
 teach: uname -i
+hint: -i reports the hardware platform, distinct from -m's architecture
 ---
-q: this machine's hostname
+q: {this machine's hostname|what is this machine's hostname|report the current hostname}
 a: hostname
 out: .
 ref: hostname
 teach: hostname
+hint: hostname alone prints the current hostname
 ---
-q: the short hostname, without any domain part
+q: {the short hostname, without any domain part|just the hostname, with the domain part stripped off|report the hostname without its domain suffix}
 a: hostname -s
 out: .
 ref: hostname
 teach: hostname -s
+hint: -s trims off everything after the first dot
 ---
-q: the fully qualified name including the domain
+q: {the fully qualified name including the domain|the hostname together with its domain, in full|report the fully qualified domain name}
 a: hostname -f
 out: .
 ref: hostname
 teach: hostname -f
+hint: -f prints the fully qualified name, domain included
 ---
-q: just the dns domain part
+q: {just the dns domain part|only the dns domain, without the host|report just the domain part of the hostname}
 a: hostname -d
 ref: hostname
 teach: hostname -d
+hint: -d prints only the domain part, no host
 ---
-q: the ip addresses this host resolves to
+q: {the ip addresses this host resolves to|which ip addresses does this hostname resolve to|report the ip addresses this host's name maps to}
 a: hostname -i
 ref: hostname
 teach: hostname -i
+hint: -i resolves the hostname to its ip addresses
 ---
-q: what the kernel said while it was booting
+q: {what the kernel said while it was booting|dump the kernel's boot-time messages|report everything the kernel logged while booting}
 a: dmesg
 ref: dmesg
 teach: dmesg
+hint: dmesg alone dumps the whole kernel ring buffer
 ---
-q: kernel messages with the raw log level markers left in
+q: {kernel messages with the raw log level markers left in|dump the kernel log leaving the raw level prefixes in place|show kernel messages without stripping their raw level markers}
 a: dmesg -r
 ref: dmesg
 teach: dmesg -r
+hint: -r keeps the raw <N> facility/level prefix on each line
 ---
-q: clear the kernel ring buffer after printing it
+q: {clear the kernel ring buffer after printing it|print the kernel ring buffer, then empty it|dump the kernel ring buffer and clear it once printed}
 a: dmesg -c
 ref: dmesg
 teach: dmesg -c
+hint: -c prints the buffer then empties it
 ---
-q: set the console log level so only errors reach the screen
+q: {set the console log level so only errors reach the screen|limit what reaches the console to error-level kernel messages|turn the console log level down to errors only}
 a: dmesg -n 3
 ref: dmesg
 teach: dmesg -n
+hint: -n sets the console log level, not what dmesg itself prints
 ---
-q: read only the last 4096 bytes of the kernel buffer
+q: {read only the last 4096 bytes of the kernel buffer|dump just the final 4096 bytes of the kernel buffer|limit the kernel buffer read to its last 4096 bytes}
 a: dmesg -s 4096
 ref: dmesg
 teach: dmesg -s
+hint: -s caps how many bytes of the buffer are read, from the end
 ---
 q: %find% every line of the kernel log mentioning verity
 a: dmesg | grep -i verity
 ref: dmesg
 teach: dmesg
+hint: pipe dmesg into grep -i -- dmesg itself has no text filter
 ---
-q: what time is it
+q: {what time is it|report the current date and time|what is the time right now}
 a: date
 out: [0-9]
 ref: date
 teach: date
+hint: date with no arguments prints the current date and time
 ---
-q: the time in utc rather than local time
+q: {the time in utc rather than local time|report the current time in utc, not the local zone|what time is it in utc}
 a: date -u
 out: UTC|[0-9]
 ref: date
 teach: date -u
+hint: -u reports the time in utc instead of the local zone
 ---
-q: today's date as YYYY-MM-DD and nothing else
+q: {today's date as YYYY-MM-DD and nothing else|report today's date as YYYY-MM-DD, no time attached|print only today's date, formatted YYYY-MM-DD}
 a: date +%Y-%m-%d
 out: ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
 ref: date
 teach: date
+hint: a +FORMAT argument controls exactly what date prints
 ---
-q: the current time as seconds since 1970
+q: {the current time as seconds since 1970|report now as a unix timestamp|what is the current time in seconds since the epoch}
 a: date +%s
 out: ^[0-9]+$
 ref: date
 teach: date
+hint: %s in a +FORMAT string is seconds since the epoch
 ---
-q: the date in iso 8601 form using the flag rather than a format string
+q: {the date in iso 8601 form using the flag rather than a format string|today's date in iso 8601 form, via the dedicated flag|report the date in iso 8601 form without writing a format string}
 a: date -I
 out: ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
 ref: date
 teach: date -I[SPEC]
+hint: -I is a shortcut for iso 8601 output, no format string needed
 ---
-q: the date in rfc 2822 form, the one email headers use
+q: {the date in rfc 2822 form, the one email headers use|report the date the way email headers format it, rfc 2822|print today's date in rfc 2822 form}
 a: date -R
 out: [0-9]
 ref: date
 teach: date -R
+hint: -R formats the date the way rfc 2822 (email headers) expects
 ---
-q: the modification time of @txt@ rather than the time now
+q: {the modification time of @txt@ rather than the time now|report @txt@'s modification time instead of the current time|when was @txt@ last modified, not what time is it now}
 a: date -r @txt@
 out: [0-9]
 ref: date
 teach: date -r
+hint: -r reports a file's modification time instead of the clock
 ---
-q: interpret a date string rather than reading the clock
+q: {interpret a date string rather than reading the clock|parse a given date string instead of reading the system clock|turn a date string into a formatted date without touching the clock}
 a: date -d 2024-03-01
 out: 2024|Mar
 ref: date
 teach: date -d
+hint: -d parses the string you give instead of reading the clock
 ---
-q: parse a date given in an explicit input format
+q: {parse a date given in an explicit input format|parse a date string whose input format you specify yourself|interpret a date string using a format you name explicitly}
 a: date -D "%Y-%m-%d" -d 2024-03-01 +%s
 ref: date
 teach: date -D
+hint: -D names the format of the input date, paired with -d
 ---
-q: how long has this machine been up, straight from the kernel
+q: {how long has this machine been up, straight from the kernel|report uptime straight from the kernel, not a wrapper around it|read this machine's uptime directly out of the kernel}
 a: cat /proc/uptime
 out: ^[0-9]
 ref: cat
 teach: cat
 hint: /proc holds files that are not on any disk
 ---
-q: what processor does this machine have, from /proc
+q: {what processor does this machine have, from /proc|report the processor details /proc knows about|read the processor information straight out of /proc}
 a: cat /proc/cpuinfo
 out: .
 ref: cat
 teach: cat
+hint: cpuinfo lists this the way /proc sees each core
 ---
-q: how much memory, from /proc
+q: {how much memory, from /proc|report memory usage as /proc sees it|how much memory does /proc report}
 a: cat /proc/meminfo
 out: Mem
 ref: cat
 teach: cat
+hint: meminfo is where free and top get their numbers too
 ---
-q: what command line was this kernel booted with
+q: {what command line was this kernel booted with|report the kernel's boot command line|which command line did this kernel boot with}
 a: cat /proc/cmdline
 out: .
 ref: cat
 teach: cat
+hint: cmdline is the exact string the bootloader handed the kernel
 ---
-q: what filesystems are mounted, read from /proc rather than asking mount
+q: {what filesystems are mounted, read from /proc rather than asking mount|report the mounted filesystems by reading /proc, not the mount command|list what is mounted straight from /proc instead of asking mount}
 a: cat /proc/mounts
 out: /
 ref: cat
 teach: cat
+hint: mounts is the same list mount prints, straight from the kernel
 ---
-q: which terminal am i on
+q: {which terminal am i on|report which terminal device you are attached to|what terminal is this session on}
 a: tty
 out: .
 ref: tty
 teach: tty
+hint: tty with no arguments prints the path of your controlling terminal
 ---
-q: test whether this is a terminal at all, silently
+q: {test whether this is a terminal at all, silently|silently check whether this session is attached to a terminal|find out, with no output, whether stdin is a terminal}
 a: tty -s
 ref: tty
 teach: tty -s
+hint: -s suppresses output, useful only for its exit status
 ---
-q: clear the screen
+q: {clear the screen|wipe the terminal screen|blank the screen}
 a: clear
 ref: clear
 teach: clear
+hint: clear just writes the terminal escape sequence to wipe the screen
 ---
-q: put a terminal back to a sane state after a binary scrambled it
+q: {put a terminal back to a sane state after a binary scrambled it|recover a terminal that some binary left in a broken state|reinitialize a terminal a misbehaving program has scrambled}
 a: reset
 ref: reset
 teach: reset
+hint: reset reinitializes the terminal, further than clear goes
 ---
 q: %show% every terminal setting
 a: stty -a
 ref: stty
 teach: stty -a
+hint: -a dumps every setting, not just the summary
 ---
-q: dump terminal settings in the form you can restore later
+q: {dump terminal settings in the form you can restore later|save the terminal's settings in a form you can feed back in later|report terminal settings in the compact, restorable format}
 a: stty -g
 out: .
 ref: stty
 teach: stty -g
+hint: -g prints settings in a compact form meant to be fed back to stty
 ---
-q: query the settings of a terminal other than your own
+q: {query the settings of a terminal other than your own|report the settings of a terminal that is not your controlling one|check another terminal device's settings, not your own}
 a: stty -F /dev/tty1 -a
 ref: stty
 teach: stty -F
+hint: -F points stty at a device other than your own controlling terminal
 ---
-q: rerun df every 2 seconds and watch it change
+q: {rerun df every 2 seconds and watch it change|keep rerunning df every 2 seconds so you can watch it change|watch df's output update every 2 seconds}
 a: watch df
 ref: watch
 teach: watch
+hint: watch reruns a command every 2 seconds by default
 ---
-q: rerun df every 5 seconds instead
+q: {rerun df every 5 seconds instead|watch df, but on a 5 second interval instead|rerun df every 5 seconds}
 a: watch -n 5 df
 ref: watch
 teach: watch -n
+hint: -n sets the interval in seconds
 ---
-q: watch df with the header line suppressed
+q: {watch df with the header line suppressed|watch df but drop its header line|rerun df under watch with no header shown}
 a: watch -t df
 ref: watch
 teach: watch -t
+hint: -t hides watch's own header/title line
 ---
-q: wait two seconds and then continue
+q: {wait two seconds and then continue|pause for two seconds before continuing|block for two seconds, then carry on}
 a: sleep 2
 ref: sleep
 teach: sleep
+hint: sleep takes a number of seconds and blocks until they pass
 ---
 q: %list% every pci device on this machine
 a: lspci
@@ -271,44 +315,52 @@ q: %list% pci devices showing which kernel driver is bound to each
 a: lspci -k
 ref: lspci
 teach: lspci -k
+hint: -k adds which kernel module claims each device
 ---
 q: %list% pci devices in a form easy to parse
 a: lspci -m
 ref: lspci
 teach: lspci -m
+hint: -m switches to a machine-parseable, script-friendly format
 ---
 q: %list% every usb device
 a: lsusb
 ref: lsusb
 teach: lsusb
+hint: lsusb walks the usb bus the way lspci walks pci
 ---
-q: write a line into the system log
+q: {write a line into the system log|log a line to the system log|send a line into the system log}
 a: logger hello from xos
 ref: logger
 teach: logger
+hint: logger writes its arguments as one line to the system log
 ---
-q: log a line tagged with a name of your choosing
+q: {log a line tagged with a name of your choosing|log a line under a tag you choose|send a log line tagged with your own name}
 a: logger -t xos investigating
 ref: logger
 teach: logger -t
+hint: -t sets the tag that shows up in the log for this line
 ---
-q: log a line and also print it to your own terminal
+q: {log a line and also print it to your own terminal|log a line while also echoing it to your terminal|send a line to the log and print it locally too}
 a: logger -s checking
 ref: logger
 teach: logger -s
+hint: -s echoes the message to stderr as well as logging it
 ---
-q: log a line at a chosen priority
+q: {log a line at a chosen priority|log a line tagged with a specific priority|send a log line at a priority you choose}
 a: logger -p user.warn suspicious
 ref: logger
 teach: logger -p
+hint: -p takes facility.level to set the message's priority
 ---
-q: open a serial console to a device at 115200 baud
+q: {open a serial console to a device at 115200 baud|connect to a serial console running at 115200 baud|dial into a serial device at 115200 baud}
 a: microcom -s 115200 /dev/ttyS0
 ref: microcom
 teach: microcom -s
 hint: when ethernet is dead, this is how you reach a router or another machine
 ---
-q: talk to a serial device giving up after 10 seconds of silence
+q: {talk to a serial device giving up after 10 seconds of silence|open a serial device but bail out after 10 seconds of silence|connect to a serial device, timing out after 10 idle seconds}
 a: microcom -t 10000 /dev/ttyS0
 ref: microcom
 teach: microcom -t
+hint: -t sets an idle timeout in milliseconds before it gives up

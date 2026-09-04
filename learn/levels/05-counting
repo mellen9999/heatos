@@ -15,6 +15,7 @@ a: wc -l @log@
 out: ^[0-9]+
 ref: wc
 teach: wc -l
+hint: l for lines, same flag whether you pipe it in or pass a filename
 ---
 q: {%count% the words in @txt@|how many words are in @txt@?|word count of @txt@}
 a: wc -w < @txt@
@@ -22,6 +23,7 @@ a: wc -w @txt@
 out: [0-9]
 ref: wc
 teach: wc -w
+hint: words are whitespace-separated, not lines
 ---
 q: {%count% the bytes in @txt@|how many bytes is @txt@?|the size of @txt@ in bytes}
 a: wc -c < @txt@
@@ -29,6 +31,7 @@ a: wc -c @txt@
 out: [0-9]
 ref: wc
 teach: wc -c
+hint: c counts bytes -- pair with -m for characters on multibyte text
 ---
 q: {%count% how many entries are in the current directory|how many things are in this directory?|number of files and folders here}
 a: ls | wc -l
@@ -36,24 +39,28 @@ out: [0-9]
 cmp: ref
 ref: wc
 teach: wc -l
+hint: pipe a listing into wc -l to turn it into a count
 ---
 q: {sort the lines of @txt@ alphabetically|put @txt@ in alphabetical order|order @txt@ a to z}
 a: sort @txt@
 out: ^ask why the fan
 ref: sort
 teach: sort
+hint: no flags -- sort defaults to alphabetical, ascending
 ---
 q: {sort @txt@ in reverse alphabetical order|order @txt@ z to a|sort @txt@ backwards}
 a: sort -r @txt@
 out: ^verify the root hash
 ref: sort
 teach: sort -r
+hint: r flips the order
 ---
 q: %show% the lines of @txt@ with duplicates removed, using one command
 a: sort -u @txt@
 out: ask why the fan
 ref: sort
 teach: sort -u
+hint: u does the sort and the dedup in a single pass
 ---
 q: %show% the lines of @txt@ with duplicates removed, using sort and uniq
 a: sort @txt@ | uniq
@@ -67,80 +74,91 @@ a: sort @txt@ | uniq -c
 out: 2 rotate the logs
 ref: uniq
 teach: uniq -c
+hint: c prefixes each line with how many times it appeared
 ---
 q: %show% only the lines of @txt@ that appear more than once
 a: sort @txt@ | uniq -d
 out: rotate the logs
 ref: uniq
 teach: uniq -d
+hint: d shows only lines that had a duplicate
 ---
 q: %show% only the lines of @txt@ that appear exactly once
 a: sort @txt@ | uniq -u
 out: ask why the fan
 ref: uniq
 teach: uniq -u
+hint: u here shows only lines that had no duplicate
 ---
-q: sort @csv@ by its third comma-separated field
+q: {sort @csv@ by its third comma-separated field|order @csv@ using its third comma-separated field as the key|sort @csv@ on the third field, splitting on commas}
 a: sort -t, -k3 @csv@
 out: down
 ref: sort
 teach: sort -t
 hint: -t sets the separator, -k picks the field
 ---
-q: sort @csv@ by the fourth field, numerically, largest first
+q: {sort @csv@ by the fourth field, numerically, largest first|order @csv@ by its fourth field, numeric and descending|sort @csv@ on field four, largest number first}
 a: sort -t, -k4 -rn @csv@
 a: sort -t, -k4rn @csv@
 out: 42
 ref: sort
 teach: sort -k
+hint: n makes the comparison numeric instead of text; r reverses it
 ---
-q: sort @txt@ ignoring the difference between upper and lower case
+q: {sort @txt@ ignoring the difference between upper and lower case|sort @txt@ treating uppercase and lowercase as the same|sort @txt@ case-insensitively}
 a: sort -f @txt@
 out: ask why the fan
 ref: sort
 teach: sort -f
+hint: f folds case, treating upper and lower as equal
 ---
-q: check whether @txt@ is already sorted, without printing it
+q: {check whether @txt@ is already sorted, without printing it|verify @txt@ is already in sorted order, without printing anything|confirm @txt@'s lines are already sorted, silently}
 a: sort -c @txt@
 ref: sort
 teach: sort -c
 hint: it says nothing when sorted, and names the first bad line when not
 ---
-q: sort @csv@ by human-readable sizes like 2K and 1M, smallest first
+q: {sort @csv@ by human-readable sizes like 2K and 1M, smallest first|order @csv@ by sizes such as 2K and 1M, smallest to largest|sort @csv@ so human-readable sizes like 2K and 1M compare correctly, ascending}
 a: sort -h @csv@
 out: .
 ref: sort
 teach: sort -h
+hint: h understands suffixes like K and M when comparing
 ---
-q: sort @txt@ ignoring case differences when comparing
+q: {sort @txt@ ignoring unprintable characters|sort @txt@ as if the unprintable characters were not there|sort @txt@ skipping any character that does not print}
 a: sort -i @txt@
 out: .
 ref: sort
 teach: sort -i
+hint: -i drops the bytes with no glyph before comparing -- case-blind sorting is -f's job
 ---
-q: sort @txt@ writing the result back over the file itself
+q: {sort @txt@ writing the result back over the file itself|sort @txt@ and write the sorted result to a named output file|sort @txt@, saving the output rather than printing it}
 a: sort -o sorted.txt @txt@
 state: exists:sorted.txt
 ref: sort
 teach: sort -o
+hint: -o names the output file -- it can even be the same file you're sorting
 ---
-q: sort a list of version numbers so 1.10 comes after 1.9
+q: {sort a list of version numbers so 1.10 comes after 1.9|sort version numbers so 1.10 lands after 1.9, not before it|order a list of version numbers correctly, so 1.10 follows 1.9}
 a: sort -V @txt@
 out: .
 ref: sort
 teach: sort -V
+hint: V understands version numbers, so 1.9 sorts before 1.10
 ---
-q: collapse duplicate lines ignoring case
+q: {collapse duplicate lines ignoring case|collapse duplicates, treating case as irrelevant|remove case-insensitive duplicate lines}
 a: sort -f @txt@ | uniq -i
 out: .
 ref: uniq
 teach: uniq -i
+hint: sort -f groups case-insensitively, uniq -i then collapses it
 ---
-q: collapse duplicates comparing only the first 6 characters of each line
+q: {collapse duplicates comparing only the first 6 characters of each line|collapse duplicate lines using only their first 6 characters to compare|remove duplicates, comparing just the first 6 characters of each line}
 a: sort @txt@ | uniq -w 6
 out: .
 ref: uniq
 teach: uniq -w
+hint: w limits the comparison to the first N characters of each line
 ---
 q: %find% the length of the longest line in @log@
 a: wc -L @log@
@@ -148,3 +166,4 @@ out: [0-9]
 cmp: ref
 ref: wc
 teach: wc -L
+hint: capital L -- reports the longest line's length, not a count of lines

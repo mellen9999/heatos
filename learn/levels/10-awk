@@ -17,6 +17,7 @@ a: awk '{print $3}' @log@
 out: ^INFO$
 ref: awk
 teach: awk
+hint: $3 is the third field; fields split on whitespace by default
 ---
 q: %show% the last field of every line in @log@
 a: awk '{print $NF}' @log@
@@ -30,12 +31,14 @@ a: awk '{print $1, $3}' @log@
 out: 2024-03-01 INFO
 ref: awk
 teach: awk
+hint: a comma between print arguments inserts a space in the output
 ---
 q: %show% each line of @log@ with its line number in front
 a: awk '{print NR, $0}' @log@
 out: ^1 2024
 ref: awk
 teach: awk
+hint: $0 is the whole line, unsplit
 ---
 q: %count% the lines in @log@ using awk
 a: awk 'END {print NR}' @log@
@@ -57,12 +60,14 @@ a: awk '/@sev@/ {print $2}' @log@
 out: [0-9]
 ref: awk
 teach: awk
+hint: the pattern filters which lines run the action
 ---
 q: %show% the lines of @csv@ using a comma as the field separator, showing field 1
 a: awk -F, '{print $1}' @csv@
 out: ^gateway$
 ref: awk
 teach: awk -F
+hint: -F sets the field separator, same idea as cut -d
 ---
 q: %show% field 1 of @csv@ skipping the header row
 a: awk -F, 'NR > 1 {print $1}' @csv@
@@ -71,18 +76,20 @@ ref: awk
 teach: awk -F
 hint: NR is the line number, so NR>1 means "not the first line"
 ---
-q: add up the fourth column of @csv@, skipping the header
+q: {add up the fourth column of @csv@, skipping the header|sum the fourth column of @csv@, ignoring the header row|total the fourth column of @csv@ without counting the header}
 a: awk -F, 'NR > 1 {s += $4} END {print s}' @csv@
 out: ^[0-9]+$
 cmp: ref
 ref: awk
 teach: awk -F
+hint: s starts at zero (uninitialized) and accumulates with +=
 ---
 q: %show% the largest value in the fourth column of @csv@
 a: awk -F, 'NR > 1 && $4 > m {m = $4} END {print m}' @csv@
 out: ^42$
 ref: awk
 teach: awk
+hint: m starts at zero (uninitialized) and gets replaced whenever a bigger value shows up
 ---
 q: %count% how many times each @sev@ level appears in @log@
 a: awk '{c[$3]++} END {for (k in c) print k, c[k]}' @log@
@@ -103,12 +110,14 @@ a: awk -F, '$3 == "up"' @csv@
 out: gateway
 ref: awk
 teach: awk
+hint: a bare condition with no action still means print
 ---
 q: %show% rows of @csv@ whose count field is above 10
 a: awk -F, 'NR > 1 && $4 > 10' @csv@
 out: 42
 ref: awk
 teach: awk
+hint: && combines two conditions -- both must be true
 ---
 q: %show% field 1 of @csv@ with a header line of your own printed first
 a: awk -F, 'BEGIN {print "host"} {print $1}' @csv@
@@ -117,11 +126,12 @@ ref: awk
 teach: awk
 hint: BEGIN runs before the first line is read
 ---
-q: pass the shell variable value @word@ into awk as a variable called w and print it
+q: {pass the shell variable value @word@ into awk as a variable called w and print it|hand awk the value @word@ as a variable named w, then print it|give awk a variable w set to @word@ and print it back}
 a: awk -v w=@word@ 'BEGIN {print w}'
 out: @word@
 ref: awk
 teach: awk -v
+hint: -v sets an awk variable before the program runs
 ---
 q: %show% field 3 of @csv@ with the output fields joined by a colon
 a: awk -F, -v OFS=: '{print $1, $3}' @csv@
@@ -135,12 +145,14 @@ a: awk -F, '{print NF}' @csv@
 out: ^4$
 ref: awk
 teach: awk
+hint: NF is the field count for the current line
 ---
-q: give awk its program with the explicit program flag rather than positionally
+q: {give awk its program with the explicit program flag rather than positionally|pass awk its program using -e instead of as the bare first argument|run awk's program through the -e flag rather than positionally}
 a: awk -e '{print $1}' @log@
 out: 2024-03-01
 ref: awk
 teach: awk -e
+hint: -e names the program explicitly, the role the positional argument usually plays
 
 ---
 q: %list% each @sev@ level in @log@ by how often it occurs, most frequent first

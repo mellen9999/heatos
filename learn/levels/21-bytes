@@ -21,118 +21,138 @@ a: hexdump -b @bin@
 out: [0-7]
 ref: hexdump
 teach: hexdump -b
+hint: b for byte -- one-byte octal display, unlike the two-byte forms below
 ---
 q: %show% @bin@ as characters, escaping the unprintable ones
 a: hexdump -c @bin@
 out: .
 ref: hexdump
 teach: hexdump -c
+hint: c is for character -- unprintable bytes show as C-style escapes
 ---
 q: %show% @bin@ as two-byte decimal values
 a: hexdump -d @bin@
 out: [0-9]
 ref: hexdump
 teach: hexdump -d
+hint: d for decimal, grouped two bytes at a time
 ---
 q: %show% @bin@ as two-byte hex values
 a: hexdump -x @bin@
 out: [0-9a-f]
 ref: hexdump
 teach: hexdump -x
+hint: x for hex, but grouped two bytes at a time, unlike -C
 ---
 q: %show% @bin@ as two-byte octal values
 a: hexdump -o @bin@
 out: [0-7]
 ref: hexdump
 teach: hexdump -o
+hint: o for octal, again grouped two bytes at a time
 ---
-q: dump only the first 32 bytes of @bin@
+q: {dump only the first 32 bytes of @bin@|show just the first 32 bytes of @bin@, nothing past that|limit the dump of @bin@ to its first 32 bytes}
 a: hexdump -C -n 32 @bin@
 out: \|
 ref: hexdump
 teach: hexdump -n
+hint: -n caps how many bytes hexdump reads, from the start
 ---
-q: dump @bin@ starting 8 bytes in, skipping the header
+q: {dump @bin@ starting 8 bytes in, skipping the header|skip the first 8 bytes of @bin@ and dump what follows|show @bin@ from byte 8 onward, past its header}
 a: hexdump -C -s 8 @bin@
 out: \|
 ref: hexdump
 teach: hexdump -s
+hint: -s skips that many bytes before the dump begins
 ---
-q: dump @bin@ without collapsing repeated lines into a single asterisk
+q: {dump @bin@ without collapsing repeated lines into a single asterisk|show every line of @bin@ in full, even the repeated ones|turn off the asterisk that normally hides repeated lines when dumping @bin@}
 a: hexdump -C -v @bin@
 out: \|
 ref: hexdump
 teach: hexdump -v
+hint: hexdump normally folds repeated lines into a *; -v turns that off
 ---
-q: dump @bin@ using your own output format string
+q: {dump @bin@ using your own output format string|dump @bin@ with a format string you supply yourself|write your own output format and dump @bin@ with it}
 a: hexdump -e '16/1 "%02x " "\n"' @bin@
 out: [0-9a-f]
 ref: hexdump
 teach: hexdump -e
+hint: -e takes a format string, the same kind -f reads from a file
 ---
-q: dump @bin@ with the format string read from a file
+q: {dump @bin@ with the format string read from a file|dump @bin@ using a format string stored in a separate file|point hexdump at a file holding the format string, then dump @bin@ with it}
 a: hexdump -f fmt.txt @bin@
 ref: hexdump
 teach: hexdump -f
+hint: -f points hexdump at a file holding the format string
 ---
-q: dump @txt@ in octal with od, the older tool that does the same job
+q: {dump @txt@ in octal with od, the older tool that does the same job|use od, hexdump's older cousin, to dump @txt@ in octal|show @txt@ in octal using od rather than hexdump}
 a: od @txt@
 out: [0-7]
 ref: od
 teach: od
+hint: od's default is octal words -- no flags needed here
 ---
-q: copy @txt@ to copy.txt using dd
+q: {copy @txt@ to copy.txt using dd|use dd to copy @txt@ into copy.txt|make a copy of @txt@ named copy.txt with dd}
 a: dd if=@txt@ of=copy.txt
 state: exists:copy.txt
 ref: dd
 teach: dd
+hint: if= is the source, of= is the destination -- no other flags needed
 ---
-q: copy the first 512 bytes of @log@ into head.bin
+q: {copy the first 512 bytes of @log@ into head.bin|use dd to copy just the first 512 bytes of @log@ into head.bin|pull the first 512 bytes off @log@ and write them to head.bin}
 a: dd if=@log@ of=head.bin bs=512 count=1
 state: exists:head.bin
 ref: dd
 teach: dd
+hint: bs= sets the block size, count= how many blocks to copy
 ---
-q: read 16 bytes from @log@ starting at byte 32
+q: {read 16 bytes from @log@ starting at byte 32|starting 32 bytes into @log@, read the next 16 bytes|skip the first 32 bytes of @log@ and read 16 bytes from there}
 a: dd if=@log@ bs=1 skip=32 count=16
 out: .
 ref: dd
 teach: dd
+hint: skip= moves the read start point; bs=1 makes skip/count mean bytes
 ---
 q: %make% a 1 kilobyte file of zero bytes
 a: dd if=/dev/zero of=zero.bin bs=1k count=1
 state: exists:zero.bin
 ref: dd
 teach: dd
+hint: /dev/zero is an endless stream of zero bytes; bs=/count= cap it
 ---
 q: %make% 32 bytes of random data
 a: dd if=/dev/urandom of=rand.bin bs=32 count=1
 state: exists:rand.bin
 ref: dd
 teach: dd
+hint: /dev/urandom is the random byte source; bs= sets how many bytes total
 ---
-q: copy @txt@ with dd, showing no progress or summary at all
+q: {copy @txt@ with dd, showing no progress or summary at all|use dd to copy @txt@ while suppressing all progress and summary output|copy @txt@ with dd as quietly as possible, with no summary line}
 a: dd if=@txt@ of=copy.txt status=none
 state: exists:copy.txt
 ref: dd
 teach: dd
+hint: status= controls dd's progress/summary output -- none silences it
 ---
-q: split @log@ into pieces of 2 lines each
+q: {split @log@ into pieces of 2 lines each|break @log@ into pieces of 2 lines apiece|use split to cut @log@ into 2-line chunks}
 a: split -l 2 @log@
 ref: split
 teach: split -l
+hint: -l counts lines per output piece, split's default unit
 ---
-q: split @log@ into pieces of 100 bytes each
+q: {split @log@ into pieces of 100 bytes each|break @log@ into 100-byte pieces|use split to cut @log@ into chunks of 100 bytes}
 a: split -b 100 @log@
 ref: split
 teach: split -b
+hint: -b counts bytes per piece instead of lines
 ---
-q: split @log@ using 3-character suffixes instead of 2
+q: {split @log@ using 3-character suffixes instead of 2|split @log@ but make the output suffixes 3 characters long instead of the default 2|when splitting @log@, widen the suffix length from 2 characters to 3}
 a: split -a 3 -l 2 @log@
 ref: split
 teach: split -a
+hint: -a sets how many characters long the generated suffixes are
 ---
-q: open @bin@ in a hex editor to change bytes in place, not just read them
+q: {open @bin@ in a hex editor to change bytes in place, not just read them|open @bin@ in something that lets you edit bytes, not just view them|unlike hexdump, open @bin@ in a tool that can write bytes back}
 a: hexedit @bin@
 ref: hexedit
 teach: hexedit

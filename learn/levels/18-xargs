@@ -14,133 +14,154 @@ a: find . -name '*.log' | xargs wc -l
 out: [0-9]
 ref: xargs
 teach: xargs
+hint: xargs turns lines of stdin into arguments appended to the command
 ---
-q: do the same, safely, for filenames that might contain spaces
+q: {do the same, safely, for filenames that might contain spaces|repeat that, but safe for filenames with spaces in them|redo it in a way that survives filenames containing spaces}
 a: find . -name '*.log' -print0 | xargs -0 wc -l
 out: [0-9]
 ref: xargs
 teach: xargs -0
 hint: NUL is the one byte a filename cannot contain
 ---
-q: pass exactly one argument per command invocation
+q: {pass exactly one argument per command invocation|use xargs -n 1 to run the command once per input line|split the input so each invocation gets exactly one argument}
 a: ls | xargs -n 1 echo
 out: .
 ref: xargs
 teach: xargs -n
+hint: -n caps how many arguments go into each invocation
 ---
-q: put each input where you want it, not just at the end, using a placeholder
+q: {put each input where you want it, not just at the end, using a placeholder|use xargs -I to place each item wherever you want in the command|give xargs a placeholder so input can go mid-command, not just trailing}
 a: ls *.log | xargs -I {} echo found {}
 out: ^found .*\.log$
 ref: xargs
 teach: xargs -I
+hint: -I defines a placeholder that gets replaced with each input item
 ---
 q: %show% each command before running it
 a: ls | xargs -t echo
 out: .
 ref: xargs
 teach: xargs -t
+hint: -t prints the command line to stderr before running it
 ---
-q: do nothing at all when the input is empty, rather than running once
+q: {do nothing at all when the input is empty, rather than running once|when there's no input at all, run nothing rather than one empty invocation|make xargs skip running entirely on empty input}
 a: printf '' | xargs -r echo nothing
 ref: xargs
 teach: xargs -r
 hint: without -r, an empty input still runs the command once with no arguments
 ---
-q: stop reading input at the word STOP
+q: {stop reading input at the word STOP|use xargs -E STOP to cut off input the moment STOP appears|make xargs ignore everything from STOP onward}
 a: printf 'a b STOP c' | xargs -E STOP echo
 out: ^a b$
 ref: xargs
 teach: xargs -E
+hint: -E names a string that, once seen, ends input reading right there
 ---
-q: run at most 2 commands at the same time
+q: {run at most 2 commands at the same time|use xargs -P 2 to run two invocations in parallel|cap concurrent xargs invocations at 2}
 a: ls | xargs -P 2 -n 1 echo
 out: .
 ref: xargs
 teach: xargs -P
+hint: -P sets how many invocations run in parallel at once
 ---
-q: ask before running each command
+q: {ask before running each command|use xargs -p to confirm each invocation before it runs|make xargs pause and ask before every command}
 a: ls | xargs -p echo
 ref: xargs
 teach: xargs -p
+hint: -p prompts for confirmation before each invocation, handy for a dry run
 ---
-q: take the argument list from @txt@ rather than standard input
+q: {take the argument list from @txt@ rather than standard input|use xargs -a @txt@ so arguments come from that file, not a pipe|read arguments out of @txt@ instead of piping them in}
 a: xargs -a @txt@ echo
 out: rotate
 ref: xargs
 teach: xargs -a
+hint: -a reads the argument list from a file instead of stdin
 ---
-q: keep each command line under 100 bytes, splitting into more invocations
+q: {keep each command line under 100 bytes, splitting into more invocations|use xargs -s 100 to cap each command line's length|limit each invocation's command line to 100 bytes}
 a: ls | xargs -s 100 echo
 out: .
 ref: xargs
 teach: xargs -s
+hint: -s caps the total length of each generated command line
 ---
-q: strip the directory part off the path @dir@/@txt@
+q: {strip the directory part off the path @dir@/@txt@|use basename to drop everything up to the last slash in @dir@/@txt@|reduce @dir@/@txt@ down to just its filename}
 a: basename @dir@/@txt@
 out: ^@txt@$
 ref: basename
 teach: basename
+hint: basename strips everything up through the last slash
 ---
-q: strip the .txt suffix as well as the directory
+q: {strip the .txt suffix as well as the directory|use basename with a suffix argument to drop .txt too|reduce the path down to its name with .txt also removed}
 a: basename @txt@ .txt
 out: .
 ref: basename
 teach: basename
+hint: a second argument to basename is a suffix to strip as well
 ---
-q: strip a suffix using the explicit flag rather than a second argument
+q: {strip a suffix using the explicit flag rather than a second argument|use basename -s .txt instead of passing the suffix as a bare argument|strip .txt off using the -s flag form}
 a: basename -s .txt @txt@
 out: .
 ref: basename
 teach: basename -s
+hint: -s is the explicit-flag form of the same suffix stripping
 ---
-q: take the basename of several paths at once
+q: {take the basename of several paths at once|use basename -a to process @txt@ and @log@ together|run basename over multiple paths in a single call}
 a: basename -a @txt@ @log@
 out: .
 ref: basename
 teach: basename -a
+hint: -a lets you hand basename several paths in one call
 ---
 q: %show% the directory part of @dir@/@txt@
 a: dirname @dir@/@txt@
 out: ^@dir@$
 ref: dirname
 teach: dirname
+hint: dirname is basename's mirror -- it keeps the directory and drops the name
 ---
-q: resolve @txt@ to its full absolute path
+q: {resolve @txt@ to its full absolute path|use realpath to turn @txt@ into an absolute path|find the absolute path realpath resolves @txt@ to}
 a: realpath @txt@
 out: ^/
 ref: realpath
 teach: realpath
+hint: realpath resolves any relative pieces and symlinks along the way
 ---
-q: follow a symlink to whatever it finally points at
+q: {follow a symlink to whatever it finally points at|use readlink -f to chase @txt@'s link chain to the end|resolve @txt@ all the way through any symlinks}
 a: readlink -f @txt@
 out: ^/
 ref: readlink
 teach: readlink -f
+hint: -f follows every link in the chain, not just the first one
 ---
-q: read a symlink without a trailing newline
+q: {read a symlink without a trailing newline|use readlink -n so no newline follows the output|print @txt@'s link target with no newline at the end}
 a: readlink -n @txt@
 ref: readlink
 teach: readlink -n
+hint: -n suppresses the trailing newline readlink would otherwise print
 ---
-q: where does the command sed live
+q: {where does the command sed live|use which to find the path sed resolves to|ask which where sed lives on disk}
 a: which sed
 out: sed
 ref: which
 teach: which
+hint: which searches PATH and reports the file it would run
 ---
-q: is sed a builtin, a file, or a function
+q: {is sed a builtin, a file, or a function|ask type to classify what sed actually is|use type to find out what kind of command sed is}
 a: type sed
 out: sed
 ref: type
 teach: type
+hint: type reports whether a name is a builtin, a file, a function or an alias
 ---
-q: remember where a command lives so the shell stops searching for it
+q: {remember where a command lives so the shell stops searching for it|use hash to cache sed's location for faster lookups|make the shell remember where sed is instead of searching PATH again}
 a: hash sed
 ref: hash
 teach: hash
+hint: hash remembers a command's location so future lookups skip the PATH search
 ---
-q: check whether sed is available, the portable way
+q: {check whether sed is available, the portable way|use command -v to check for sed portably, across shells|test whether sed exists using the POSIX-portable command -v}
 a: command -v sed
 out: sed
 ref: command
 teach: command -v
+hint: -v prints the resolved command, or nothing if it isn't found

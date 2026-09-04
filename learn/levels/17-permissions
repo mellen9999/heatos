@@ -16,100 +16,118 @@ q: %make% @script@ executable
 a: chmod +x @script@
 ref: chmod
 teach: chmod
+hint: +x adds execute for everyone at once, owner group and other
 ---
-q: set @script@ to mode 755 -- everyone may read and run, only you may write
+q: {set @script@ to mode 755 -- everyone may read and run, only you may write|use chmod 755 on @script@ so anyone can read and run it, only you can write|set @script@'s mode to 755, giving read+execute to all and write to just you}
 a: chmod 755 @script@
 ref: chmod
 teach: chmod
+hint: 7=rwx, 5=r-x -- add read(4)+write(2)+execute(1) per set
 ---
-q: set @txt@ to mode 644
+q: {set @txt@ to mode 644|use chmod 644 on @txt@ so you get read+write and everyone else gets read-only|set @txt@'s mode to 644}
 a: chmod 644 @txt@
 ref: chmod
 teach: chmod
+hint: 6=rw-, 4=r-- -- you get read+write, everyone else read-only
 ---
-q: set @txt@ so only you can read or write it, nobody else anything
+q: {set @txt@ so only you can read or write it, nobody else anything|use chmod 600 on @txt@ to lock out everyone but you|set @txt@'s mode to 600, all access removed from group and other}
 a: chmod 600 @txt@
 ref: chmod
 teach: chmod
+hint: 6=rw-, 0=--- -- nothing at all for group or other
 ---
-q: remove the execute bit from @script@ for everyone
+q: {remove the execute bit from @script@ for everyone|use chmod -x on @script@ to strip execute from every set|take execute permission off @script@ entirely}
 a: chmod -x @script@
 ref: chmod
 teach: chmod
+hint: a bare -x with no letter in front strips execute from all three sets
 ---
-q: add write permission for the group on @txt@
+q: {add write permission for the group on @txt@|use chmod g+w on @txt@ to give the group write access|grant the group write permission on @txt@, nothing else changed}
 a: chmod g+w @txt@
 ref: chmod
 teach: chmod
+hint: g targets the group set specifically, leaving owner and other untouched
 ---
-q: take away all permissions from everyone-else on @txt@
+q: {take away all permissions from everyone-else on @txt@|use chmod o= on @txt@ to zero out the other set|strip all permissions from everyone but owner and group on @txt@}
 a: chmod o= @txt@
 ref: chmod
 teach: chmod
+hint: = sets the listed permissions exactly, and an empty list means none
 ---
 q: %make% every file under @dir@ readable by everyone, recursively
 a: chmod -R a+r @dir@
 ref: chmod
 teach: chmod -R
+hint: -R walks into every subdirectory and applies the change there too
 ---
-q: who are you
+q: {who are you|ask the shell who you are logged in as|print your current username}
 a: whoami
 out: ^[a-z_][a-z0-9_-]*$
 ref: whoami
 teach: whoami
+hint: whoami is a shortcut for id -un
 ---
 q: %show% your user id, group id and groups all at once
 a: id
 out: uid=
 ref: id
 teach: id
+hint: id with no flags prints uid, gid and every group at once
 ---
 q: %show% just your numeric user id
 a: id -u
 out: ^[0-9]+$
 ref: id
 teach: id -u
+hint: -u limits output to just the numeric uid
 ---
 q: %show% just your user NAME rather than the number
 a: id -un
 out: ^[a-z_][a-z0-9_-]*$
 ref: id
 teach: id -n
+hint: -n added to -u prints the name instead of the number
 ---
 q: %show% just your numeric group id
 a: id -g
 out: ^[0-9]+$
 ref: id
 teach: id -g
+hint: -g limits output to just the numeric gid
 ---
 q: %show% every group you belong to, numerically
 a: id -G
 out: [0-9]
 ref: id
 teach: id -G
+hint: -G lists every group id you belong to, not just the primary
 ---
 q: %show% your real user id rather than the effective one
 a: id -ur
 out: ^[0-9]+$
 ref: id
 teach: id -r
+hint: -r combined with -u asks for the real id rather than the effective one
 ---
 q: %show% the default permission mask new files are created with
 a: umask
 out: [0-7]
 ref: umask
 teach: umask
+hint: umask alone prints the current mask without changing it
 ---
-q: set the mask so new files are private to you
+q: {set the mask so new files are private to you|use umask 077 so new files start out owner-only|set the creation mask to 077}
 a: umask 077
 ref: umask
 teach: umask
+hint: umask is subtracted from the default; 077 leaves only owner permissions
 ---
 q: %show% everything the filesystem knows about @txt@
 a: stat @txt@
 out: Size
 ref: stat
 teach: stat
+hint: stat alone prints every field it knows about a file
 ---
 q: %show% just the size of @txt@ in bytes, nothing else
 a: stat -c %s @txt@
@@ -124,31 +142,37 @@ a: stat -c %a @script@
 out: ^[0-9]+$
 ref: stat
 teach: stat -c
+hint: %a in the format string is permission bits
 ---
 q: %show% filesystem information for @txt@ rather than the file itself
 a: stat -f @txt@
 out: ID|Block
 ref: stat
 teach: stat -f
+hint: -f switches from the file's info to the filesystem it lives on
 ---
-q: stat the target of a symlink rather than the link
+q: {stat the target of a symlink rather than the link|use stat -L to report on what a symlink points to, not the link|follow a symlink with stat -L before reading its info}
 a: stat -L @txt@
 out: Size
 ref: stat
 teach: stat -L
+hint: -L follows the link and reports on its target instead of the link itself
 ---
 q: %show% stat's output in terse single-line form
 a: stat -t @txt@
 out: [0-9]
 ref: stat
 teach: stat -t
+hint: -t packs every field onto one line, script-friendly
 ---
-q: set @txt@'s timestamp to a date you name rather than to now
+q: {set @txt@'s timestamp to a date you name rather than to now|use touch -d to stamp @txt@ with a date you choose|give @txt@ an explicit timestamp instead of the current time}
 a: touch -d 2024-03-01 @txt@
 ref: touch
 teach: touch -d
+hint: -d takes an explicit date/time instead of using now
 ---
-q: give @txt2@ the same timestamp @txt@ already has
+q: {give @txt2@ the same timestamp @txt@ already has|use touch -r to copy @txt@'s timestamp onto @txt2@|stamp @txt2@ with whatever timestamp @txt@ has}
 a: touch -r @txt@ @txt2@
 ref: touch
 teach: touch -r
+hint: -r copies another file's timestamp instead of specifying one yourself

@@ -17,6 +17,7 @@ a: awk '$2=="/" {print $1, $3, $4}' /proc/mounts
 out: .
 ref: awk
 teach: awk
+hint: $1, $3, $4 print the device, filesystem type and mount flags together
 ---
 setup: A hash tree has a single root hash. Everything below it is checked
 setup: against that one number, so the whole filesystem reduces to it.
@@ -24,6 +25,7 @@ q: %get% the root hash the kernel was given
 a: sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline
 ref: sed
 teach: sed -n
+hint: the capture group pulls just the 64 hex characters after sha256
 ---
 setup: That number arrived on the kernel command line. The command line is
 setup: baked into the unified kernel image on the ESP, and that image is
@@ -33,14 +35,16 @@ q: %show% the whole command line so you can see the hash sitting in it
 a: cat /proc/cmdline
 ref: cat
 teach: cat
+hint: no filtering this time -- the whole line, hash included
 ---
 setup: A checksum stored inside the thing it describes proves nothing -- an
 setup: attacker who can edit the data can edit the checksum beside it. This is
 setup: the single most important idea on this page.
-q: confirm the kernel halts instead of continuing when a block fails its check
+q: {confirm the kernel halts instead of continuing when a block fails its check|check that the kernel is set to halt, not continue, on a failed block|prove the kernel panics rather than limping on after a corrupted block}
 a: grep -o panic_on_corruption /proc/cmdline
 ref: grep
 teach: grep -o
+hint: panic_on_corruption in the cmdline is what forces the halt
 ---
 setup: Now the other end. Hash the bytes actually mounted and see the number
 setup: for yourself.
@@ -48,6 +52,7 @@ q: %show% the digest of the filesystem you are running on, and nothing else
 a: sha256sum /dev/dm-0 | cut -d' ' -f1
 ref: sha256sum
 teach: sha256sum
+hint: cut -d' ' -f1 drops the device name sha256sum prints after the hash
 ---
 setup: Compare that against the digest recorded when the image was built --
 setup: which you must have carried here from somewhere else. Reading it off
@@ -60,10 +65,11 @@ hint: two command substitutions inside one printf
 ---
 setup: A verified root is worth nothing if code can be added to the kernel
 setup: underneath it. Close that door and check it stayed closed.
-q: in one line, report the module loader, /dev/mem and the lockdown state together
+q: {in one line, report the module loader, /dev/mem and the lockdown state together|report the module loader, /dev/mem and lockdown state together, on one line|combine the module loader check, /dev/mem check and lockdown state into a single line}
 a: printf 'modules %s\ndevmem %s\nlockdown %s\n' "$([ -e /proc/modules ] && echo present || echo absent)" "$([ -e /dev/mem ] && echo present || echo absent)" "$(cat /sys/kernel/security/lockdown)"
 ref: printf
 teach: printf
+hint: three [ -e ] / cat checks, joined with $() inside one printf
 ---
 setup: And nothing writable may be executable, or the read-only root is a
 setup: formality.
@@ -72,12 +78,14 @@ a: awk '$4 ~ /rw/ {print $2, $4}' /proc/mounts
 out: .
 ref: awk
 teach: awk
+hint: $4 ~ /rw/ matches writable filesystems by their mount options
 ---
 setup: One line now. The whole argument, in the order you made it.
 q: %show% the root device, its filesystem, its flags and its on-corruption policy together
 a: awk '$2=="/" {printf "%s %s %s ", $1, $3, $4}' /proc/mounts && grep -o panic_on_corruption /proc/cmdline
 ref: awk
 teach: awk
+hint: two commands chained with && so both must succeed as evidence
 ---
 setup: Last. Everything you have learned, aimed at the machine underneath you.
 setup: If this prints and the numbers are the ones you carried in, the system

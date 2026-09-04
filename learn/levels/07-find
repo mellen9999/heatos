@@ -16,18 +16,21 @@ a: find .
 out: \.
 ref: find
 teach: find
+hint: just find and a starting point -- no predicates means everything matches
 ---
 q: %find% every file under here whose name ends in .log
 a: find . -name '*.log'
 out: \.log
 ref: find
 teach: find -name
+hint: -name matches the glob against just the filename
 ---
 q: %find% every .LOG or .log under here, ignoring case in the name
 a: find . -iname '*.log'
 out: \.log
 ref: find
 teach: find -iname
+hint: i for case-insensitive, same idea as grep -i
 ---
 q: %find% only regular files under here, no directories
 a: find . -type f
@@ -41,18 +44,21 @@ a: find . -type d
 out: \.
 ref: find
 teach: find -type
+hint: d for directory, same flag family as -type f
 ---
 q: %find% files under here but do not descend more than one level
 a: find . -maxdepth 1
 out: \.
 ref: find
 teach: find -maxdepth
+hint: -maxdepth caps how far down find will go
 ---
 q: %find% entries under here at least 2 levels deep
 a: find . -mindepth 2
 out: .
 ref: find
 teach: find -mindepth
+hint: -mindepth is the floor, -maxdepth is the ceiling
 ---
 q: %find% files under here larger than 1 kilobyte
 a: find . -type f -size +1k
@@ -66,6 +72,7 @@ a: find . -empty
 out: .
 ref: find
 teach: find -empty
+hint: matches files with zero bytes or directories with nothing in them
 ---
 q: %find% files under here modified in the last day
 a: find . -type f -mtime -1
@@ -79,45 +86,53 @@ a: find . -type f -mmin -30
 out: .
 ref: find
 teach: find -mmin
+hint: -mmin is -mtime's minutes cousin
 ---
 q: %find% files under here that are executable
 a: find . -type f -executable
 out: \.sh
 ref: find
 teach: find -executable
+hint: tests the permission bits directly, not the file extension
 ---
 q: %find% files under here with the exact permission mode 755
 a: find . -perm 755
 ref: find
 teach: find -perm
+hint: takes an exact octal mode, no + or - like -size does
 ---
 q: %find% files under here owned by user @user@
 a: find . -user @user@
 ref: find
 teach: find -user
+hint: matches the file's owner, not who's running find
 ---
 q: %find% files under here belonging to group @user@
 a: find . -group @user@
 ref: find
 teach: find -group
+hint: same idea as -user, but for the owning group
 ---
 q: %find% either .log or .txt files under here in one command
 a: find . -name '*.log' -o -name '*.txt'
 out: \.(log|txt)
 ref: find
 teach: find -o
+hint: -o is OR; without it, predicates are ANDed together
 ---
 q: %find% files under here that are NOT .log files
 a: find . -type f ! -name '*.log'
 out: .
 ref: find
 teach: find -name
+hint: ! negates whatever predicate follows it
 ---
 q: %find% files whose path contains the word src
 a: find . -path '*src*'
 out: src
 ref: find
 teach: find -path
+hint: -path matches the whole path, not just the filename like -name does
 ---
 q: %find% .log files under here but do not descend into the logs directory
 a: find . -name logs -prune -o -name '*.log' -print
@@ -126,10 +141,11 @@ ref: find
 teach: find -prune
 hint: -prune means "do not enter this one"; it pairs with -o -print
 ---
-q: stop at the first .log file found rather than walking the whole tree
+q: {stop at the first .log file found rather than walking the whole tree|find the first .log file and stop there, without walking the rest of the tree|find one .log file and quit immediately, not the whole tree}
 a: find . -name '*.log' -quit
 ref: find
 teach: find -quit
+hint: -quit stops the walk as soon as something matches
 ---
 q: %find% every .log file and run wc -l on each one, one process per file
 a: find . -name '*.log' -exec wc -l {} \;
@@ -150,18 +166,21 @@ a: find . -xdev
 out: \.
 ref: find
 teach: find -xdev
+hint: stops find from crossing into a mounted filesystem
 ---
 q: %find% files under here following symlinks rather than listing them
 a: find -L . -type f
 out: .
 ref: find
 teach: find -L
+hint: makes find follow symlinks and describe what they point to
 ---
 q: %list% every file under here in depth-first order, contents before the directory
 a: find . -depth
 out: \.
 ref: find
 teach: find -depth
+hint: flips the walk order -- normally a directory prints before its contents
 ---
 q: %find% every .log file and print the names separated by NUL rather than newline
 a: find . -name '*.log' -print0

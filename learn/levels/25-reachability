@@ -8,228 +8,272 @@ brief:
 brief: ping proves a host answers. traceroute shows where the packets stop.
 brief: netstat shows what your own machine is doing about it.
 ---
-q: send three pings to @ip@ and stop
+q: {send three pings to @ip@ and stop|ping @ip@ three times, then stop|send exactly three pings to @ip@}
 a: ping -c 3 @ip@
 ref: ping
 teach: ping -c
+hint: -c sets how many pings to send before stopping
 ---
-q: ping @ip@ quietly, printing only the summary
+q: {ping @ip@ quietly, printing only the summary|ping @ip@ with per-packet output suppressed, summary only|ping @ip@ and print only the final summary}
 a: ping -c 3 -q @ip@
 ref: ping
 teach: ping -q
+hint: -q suppresses per-packet lines, printing only the final summary
 ---
-q: ping with one second between packets
+q: {ping with one second between packets|ping @ip@, spacing packets one second apart|space out the pings to @ip@ by one second each}
 a: ping -i 1 -c 3 @ip@
 ref: ping
 teach: ping -i
+hint: -i sets the interval between packets, in seconds
 ---
-q: ping out of a specific interface
+q: {ping out of a specific interface|ping @ip@ through a chosen interface|send the pings to @ip@ out of a specific interface}
 a: ping -I @iface@ -c 3 @ip@
 ref: ping
 teach: ping -I
+hint: -I picks which interface the pings go out of
 ---
-q: ping with a payload of 1000 bytes to test for MTU trouble
+q: {ping with a payload of 1000 bytes to test for MTU trouble|ping @ip@ with a 1000 byte payload, to probe for MTU trouble|send 1000 byte pings to @ip@ to test for MTU issues}
 a: ping -s 1000 -c 3 @ip@
 ref: ping
 teach: ping -s
+hint: -s sets the payload size in bytes, useful for MTU testing
 ---
-q: give up on the whole ping run after 5 seconds
+q: {give up on the whole ping run after 5 seconds|cap the whole ping run to @ip@ at 5 seconds|stop pinging @ip@ after 5 seconds, whatever happens}
 a: ping -w 5 @ip@
 ref: ping
 teach: ping -w
+hint: -w caps the whole run's wall-clock time, in seconds
 ---
-q: wait at most 2 seconds for each individual reply
+q: {wait at most 2 seconds for each individual reply|cap the wait for each reply from @ip@ at 2 seconds|ping @ip@, waiting no more than 2 seconds per reply}
 a: ping -W 2 -c 3 @ip@
 ref: ping
 teach: ping -W
+hint: -W caps how long to wait for each individual reply
 ---
-q: ping with a fixed time to live of 5 hops
+q: {ping with a fixed time to live of 5 hops|ping @ip@ with the ttl fixed at 5 hops|send pings to @ip@ that expire after 5 hops}
 a: ping -t 5 -c 3 @ip@
 ref: ping
 teach: ping -t
+hint: -t sets the ip ttl, capping how many hops a packet can cross
 ---
-q: ping using a chosen pattern in the payload bytes
+q: {ping using a chosen pattern in the payload bytes|ping @ip@ with a specific byte pattern filling the payload|fill the ping payload to @ip@ with a chosen pattern}
 a: ping -p ff -c 3 @ip@
 ref: ping
 teach: ping -p
+hint: -p fills the payload with a repeating hex pattern you choose
 ---
-q: ping in adaptive mode, sending as fast as replies come back
+q: {ping in adaptive mode, sending as fast as replies come back|ping @ip@ adaptively, firing the next packet as soon as a reply lands|speed up pings to @ip@, sending as fast as replies allow}
 a: ping -A -c 3 @ip@
 ref: ping
 teach: ping -A
+hint: -A sends the next ping as soon as the last reply arrives, instead of waiting
 ---
 q: %show% the path packets take to @ip@
 a: traceroute @ip@
 ref: traceroute
 teach: traceroute
+hint: traceroute with no flags shows the path packets take, hop by hop
 ---
-q: trace the path without resolving names, so it runs fast
+q: {trace the path without resolving names, so it runs fast|trace to @ip@ skipping name resolution for speed|run the trace to @ip@ fast, with no hostname lookups}
 a: traceroute -n @ip@
 ref: traceroute
 teach: traceroute -n
+hint: -n skips resolving each hop's hostname, so it runs faster
 ---
-q: trace no further than 10 hops
+q: {trace no further than 10 hops|cap the trace to @ip@ at 10 hops|trace to @ip@ but stop after 10 hops}
 a: traceroute -m 10 @ip@
 ref: traceroute
 teach: traceroute -m
+hint: -m caps the maximum number of hops traced
 ---
-q: send one probe per hop instead of three
+q: {send one probe per hop instead of three|trace to @ip@ sending just one probe per hop|cut the probes per hop to one, instead of the default three}
 a: traceroute -q 1 @ip@
 ref: traceroute
 teach: traceroute -q
+hint: -q sets how many probes are sent per hop, default is three
 ---
-q: start the trace at hop 5, skipping the first four
+q: {start the trace at hop 5, skipping the first four|trace to @ip@ starting from hop 5|skip the first four hops and start tracing at hop 5}
 a: traceroute -f 5 @ip@
 ref: traceroute
 teach: traceroute -f
+hint: -f sets the starting ttl, skipping the earlier hops
 ---
-q: trace using icmp echo rather than udp
+q: {trace using icmp echo rather than udp|trace to @ip@ with icmp echo probes instead of udp|switch the trace to @ip@ over to icmp echo}
 a: traceroute -I @ip@
 ref: traceroute
 teach: traceroute -I
+hint: -I switches the probe type to icmp echo instead of udp
 ---
-q: trace out of a specific interface
+q: {trace out of a specific interface|trace to @ip@ through a chosen interface|send the trace to @ip@ out of a specific interface}
 a: traceroute -i @iface@ @ip@
 ref: traceroute
 teach: traceroute -i
+hint: -i picks which interface the probes go out of
 ---
-q: trace using a chosen source address
+q: {trace using a chosen source address|trace to @ip@ with a source address you pick|set the source address for a trace to @ip@}
 a: traceroute -s @ip2@ @ip@
 ref: traceroute
 teach: traceroute -s
+hint: -s sets the source address the probes claim to be from
 ---
-q: trace to a specific destination port
+q: {trace to a specific destination port|trace to @ip@ targeting a specific port|aim the trace to @ip@ at one destination port}
 a: traceroute -p @port@ @ip@
 ref: traceroute
 teach: traceroute -p
+hint: -p sets the destination port the probes target
 ---
-q: wait at most 2 seconds for each probe
+q: {wait at most 2 seconds for each probe|cap each probe's wait time at 2 seconds while tracing to @ip@|trace to @ip@, waiting no more than 2 seconds per probe}
 a: traceroute -w 2 @ip@
 ref: traceroute
 teach: traceroute -w
+hint: -w caps how long to wait for each probe's reply
 ---
-q: trace verbosely, showing every packet received
+q: {trace verbosely, showing every packet received|trace to @ip@ verbosely, printing every packet received|run a verbose trace to @ip@, showing every packet}
 a: traceroute -v @ip@
 ref: traceroute
 teach: traceroute -v
+hint: -v prints every packet received, not just the summary
 ---
-q: trace bypassing the normal routing tables
+q: {trace bypassing the normal routing tables|trace to @ip@, skipping the normal routing tables|send trace probes to @ip@ direct, bypassing routing}
 a: traceroute -r @ip@
 ref: traceroute
 teach: traceroute -r
+hint: -r sends probes directly, bypassing the normal routing tables
 ---
-q: pause half a second between probes
+q: {pause half a second between probes|trace to @ip@ with half a second between probes|space the probes to @ip@ half a second apart}
 a: traceroute -z 500 @ip@
 ref: traceroute
 teach: traceroute -z
+hint: -z pauses between probes, in milliseconds
 ---
-q: set the time to live of the first probe
+q: {set the time to live of the first probe|trace to @ip@, setting the first probe's ttl|choose the ttl the very first probe to @ip@ carries}
 a: traceroute -t 1 @ip@
 ref: traceroute
 teach: traceroute -t
+hint: -t sets the ttl of the very first probe
 ---
-q: set the probe packet length
+q: {set the probe packet length|trace to @ip@ with a chosen probe packet length|set how long each probe packet to @ip@ is}
 a: traceroute -l 60 @ip@
 ref: traceroute
 teach: traceroute -l
+hint: -l sets the length of the probe packets themselves
 ---
-q: do not fragment the trace packets
+q: {do not fragment the trace packets|trace to @ip@ with fragmentation disabled|forbid the trace packets to @ip@ from being fragmented}
 a: traceroute -F @ip@
 ref: traceroute
 teach: traceroute -F
+hint: -F sets the don't-fragment bit on the trace packets
 ---
-q: look up the address of a hostname
+q: {look up the address of a hostname|resolve @host@ to its address|find the address @host@ resolves to}
 a: nslookup @host@
 ref: nslookup
 teach: nslookup
+hint: nslookup with just a name asks your configured resolver
 ---
-q: look up a name using a specific dns server
+q: {look up a name using a specific dns server|resolve @host@ using a dns server you name|query a specific dns server directly for @host@}
 a: nslookup @host@ @ip@
 ref: nslookup
 teach: nslookup
+hint: naming a server after the host queries it directly, bypassing your resolver
 ---
-q: what sockets is this machine using
+q: {what sockets is this machine using|report the sockets this machine is currently using|list this machine's current sockets}
 a: netstat
 ref: netstat
 teach: netstat
+hint: netstat alone lists the sockets currently in use
 ---
 q: %show% only listening sockets
 a: netstat -l
 ref: netstat
 teach: netstat -l
+hint: -l filters down to sockets in the listening state
 ---
 q: %show% every socket, listening or not
 a: netstat -a
 ref: netstat
 teach: netstat -a
+hint: -a shows every socket, listening and connected alike
 ---
 q: %show% sockets numerically, without resolving names or ports
 a: netstat -n
 ref: netstat
 teach: netstat -n
+hint: -n skips resolving hostnames and service names to numbers
 ---
 q: %show% only tcp sockets
 a: netstat -t
 ref: netstat
 teach: netstat -t
+hint: -t filters to tcp sockets only
 ---
 q: %show% only udp sockets
 a: netstat -u
 ref: netstat
 teach: netstat -u
+hint: -u filters to udp sockets only
 ---
 q: %show% which process owns each socket
 a: netstat -p
 ref: netstat
 teach: netstat -p
+hint: -p adds the pid and process name that owns each socket
 ---
 q: %show% every listening tcp socket numerically, with its process
 a: netstat -tlnp
 ref: netstat
 teach: netstat -t
+hint: single-letter flags combine -- tlnp is t, l, n and p together
 ---
 q: %show% the routing table using netstat
 a: netstat -r
 ref: netstat
 teach: netstat -r
+hint: -r switches netstat to print the routing table instead of sockets
 ---
 q: %show% unix domain sockets
 a: netstat -x
 ref: netstat
 teach: netstat -x
+hint: -x filters to unix domain sockets
 ---
 q: %show% raw sockets
 a: netstat -w
 ref: netstat
 teach: netstat -w
+hint: -w filters to raw sockets
 ---
 q: %show% netstat output with extended information
 a: netstat -e
 ref: netstat
 teach: netstat -e
+hint: -e adds extended fields like user and inode
 ---
 q: %show% netstat with wide columns so long addresses are not truncated
 a: netstat -W
 ref: netstat
 teach: netstat -W
+hint: -W widens columns so long addresses print in full
 ---
-q: ping an ipv6 host three times
+q: {ping an ipv6 host three times|send three pings to an ipv6 host|ping an ipv6 host, stopping after three}
 a: ping6 -c 3 ::1
 ref: ping6
 teach: ping6
 hint: the whole world is moving to ipv6; the tools have a 6 on the end
 ---
-q: trace the ipv6 path to a host
+q: {trace the ipv6 path to a host|trace the path to an ipv6 host|show the ipv6 path a trace takes to a host}
 a: traceroute6 ::1
 ref: traceroute6
 teach: traceroute6
+hint: traceroute6 is traceroute's ipv6-only counterpart
 ---
-q: trace the ipv6 path without resolving names
+q: {trace the ipv6 path without resolving names|trace the ipv6 path fast, skipping name resolution|trace to an ipv6 host without resolving hostnames}
 a: traceroute6 -n ::1
 ref: traceroute6
 teach: traceroute6 -n
+hint: -n skips name resolution here too
 ---
-q: trace an ipv6 path no further than 10 hops
+q: {trace an ipv6 path no further than 10 hops|cap an ipv6 trace at 10 hops|trace the ipv6 path but stop after 10 hops}
 a: traceroute6 -m 10 ::1
 ref: traceroute6
 teach: traceroute6 -m
+hint: -m caps hops the same way it does for traceroute

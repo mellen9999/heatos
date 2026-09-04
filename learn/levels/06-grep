@@ -15,12 +15,14 @@ a: grep @sev@ @log@
 out: @sev@
 ref: grep
 teach: grep
+hint: just grep, the pattern, then the file
 ---
 q: {%show% the @sev@ lines in @log@, ignoring case|find @sev@ in @log@ whether it is upper or lower case|match @sev@ in @log@ case-insensitively}
 a: grep -i @sev@ @log@
 out: @sev@
 ref: grep
 teach: grep -i
+hint: i for case-insensitive
 ---
 q: {%show% every line of @log@ that does NOT contain @sev@|which lines of @log@ are missing @sev@?|drop the @sev@ lines from @log@ and show the rest}
 a: grep -v @sev@ @log@
@@ -43,67 +45,78 @@ out: ^[0-9]+:
 cmp: ref
 ref: grep
 teach: grep -n
+hint: n prefixes each match with its line number
 ---
 q: {search every file under here for @term@, recursively|%find% @term@ anywhere in the tree below you|grep the whole directory tree for @term@}
 a: grep -r @term@ .
 out: .
 ref: grep
 teach: grep -r
+hint: r walks into subdirectories; the dot is where it starts
 ---
 q: %list% only the NAMES of files under here that contain @term@
 a: grep -rl @term@ .
 out: .
 ref: grep
 teach: grep -l
+hint: l switches grep from printing lines to printing filenames
 ---
 q: %list% the files under here that do NOT contain @term@
 a: grep -rL @term@ .
 out: .
 ref: grep
 teach: grep -L
+hint: capital L is the opposite of -l -- files with NO match
 ---
 q: %show% only the matched text from @log@, not the whole line
 a: grep -o @sev@ @log@
 out: ^@sev@$
 ref: grep
 teach: grep -o
+hint: o prints just the matched substring, one per line
 ---
 q: %show% lines of @log@ where @sev@ appears as a whole word, not inside another
 a: grep -w @sev@ @log@
 out: @sev@
 ref: grep
 teach: grep -w
+hint: w anchors the match to word boundaries
 ---
 q: %show% lines of @log@ that consist of exactly @sev@ and nothing else
 a: grep -x @sev@ @log@
 ref: grep
 teach: grep -x
+hint: x requires the whole line to match, not just part of it
 ---
 q: %find% @sev@ in @log@ and show the 2 lines after each match
 a: grep -A 2 @sev@ @log@
 out: @sev@
 ref: grep
 teach: grep -A
+hint: A for after, followed by the count
 ---
 q: %find% @sev@ in @log@ and show the 2 lines before each match
 a: grep -B 2 @sev@ @log@
 out: @sev@
 ref: grep
 teach: grep -B
+hint: B for before, followed by the count
 ---
 q: %find% @sev@ in @log@ and show 2 lines of context on either side
 a: grep -C 2 @sev@ @log@
 out: @sev@
 ref: grep
 teach: grep -C
+hint: C for context -- both before and after
 ---
 q: %show% only the first 2 matching lines of @log@ and stop
 a: grep -m 2 @sev@ @log@
 out: @sev@
 ref: grep
 teach: grep -m
+hint: m caps the number of matches before grep stops reading
 ---
-q: search @log@ for the literal text 0.0.0.0 -- the dots must not be wildcards
+q: {search @log@ for the literal text 0.0.0.0 -- the dots must not be wildcards|find the literal string 0.0.0.0 in @log@, not the dots-as-wildcards version|search @log@ for 0.0.0.0 as plain text, no regex}
 a: grep -F 0.0.0.0 @log@
 out: 0\.0\.0\.0
 ref: grep
@@ -116,31 +129,35 @@ out: [0-9]
 cmp: ref
 ref: grep
 teach: grep -E
+hint: E turns on extended regex, so + doesn't need a backslash
 ---
-q: match either @sev@ or @term@ in @log@ in one extended-regex pass
+q: {match either @sev@ or @term@ in @log@ in one extended-regex pass|find lines in @log@ containing @sev@ or @term@, using one extended-regex command|search @log@ for @sev@ or @term@ with a single extended-regex pattern}
 a: grep -E '@sev@|@term@' @log@
 out: .
 ref: grep
 teach: grep -E
+hint: the pipe inside the pattern means OR; -E is what lets you write it unescaped
 ---
-q: check quietly whether @log@ mentions @sev@ -- no output, just an exit status
+q: {check quietly whether @log@ mentions @sev@ -- no output, just an exit status|silently check whether @sev@ appears in @log@, using only the exit status|test whether @log@ contains @sev@ without printing anything}
 a: grep -q @sev@ @log@
 ref: grep
 teach: grep -q
 hint: this is the form you use inside an if
 ---
-q: search @log@ for @sev@ and suppress any error about unreadable files
+q: {search @log@ for @sev@ and suppress any error about unreadable files|search @log@ for @sev@, silencing any complaint about files it can't read|search @log@ for @sev@ without printing errors for unreadable files}
 a: grep -s @sev@ @log@
 out: @sev@
 ref: grep
 teach: grep -s
+hint: s silences the "no such file" complaints, built into grep itself
 ---
-q: search @log@ using each line of @txt@ as a separate pattern
+q: {search @log@ using each line of @txt@ as a separate pattern|search @log@ against a whole list of patterns, one per line of @txt@|search @log@ for anything matching a line from @txt@}
 a: grep -f @txt@ @log@
 ref: grep
 teach: grep -f
+hint: f reads patterns from a file instead of the command line, one per line
 ---
-q: search @log@ for @sev@ naming the pattern explicitly with a flag
+q: {search @log@ for @sev@ naming the pattern explicitly with a flag|search @log@ for @sev@, passing the pattern via its own flag|search @log@ for @sev@ using -e to name the pattern}
 a: grep -e @sev@ @log@
 out: @sev@
 ref: grep

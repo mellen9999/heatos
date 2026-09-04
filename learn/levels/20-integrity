@@ -11,163 +11,191 @@ brief: against someone deliberately constructing a collision. For "did this
 brief: file arrive intact" they are fine. For "did an attacker swap it", they
 brief: are not.
 ---
-q: compute the sha256 of @txt@
+q: {compute the sha256 of @txt@|run sha256sum on @txt@|hash @txt@ with sha256}
 a: sha256sum @txt@
 out: ^[0-9a-f]{64}
 ref: sha256sum
 teach: sha256sum
+hint: sha256 produces a 64 hex character digest, the current default choice
 ---
-q: compute the sha256 of @txt@ reading it from standard input, so no filename is printed
+q: {compute the sha256 of @txt@ reading it from standard input, so no filename is printed|redirect @txt@ into sha256sum's stdin so only the hash prints|hash @txt@'s contents via stdin, leaving the filename out of the output}
 a: sha256sum < @txt@
 out: ^[0-9a-f]{64}
 ref: sha256sum
 teach: sha256sum
+hint: reading from stdin means sha256sum never sees a filename to print
 ---
 q: %show% only the hash of @txt@, with the filename cut away
 a: sha256sum @txt@ | awk '{print $1}'
 out: ^[0-9a-f]{64}$
 ref: sha256sum
 teach: sha256sum
+hint: awk '{print $1}' keeps only the first field, dropping the filename
 ---
-q: save the hashes of every .log file here into sums.txt
+q: {save the hashes of every .log file here into sums.txt|hash every .log file and redirect the results into sums.txt|write sha256sum's output for all .log files to sums.txt}
 a: sha256sum *.log > sums.txt
 state: exists:sums.txt
 ref: sha256sum
 teach: sha256sum
+hint: sha256sum's normal output format is exactly what -c later expects to read
 ---
-q: check the files listed in sums.txt still match their recorded hashes
+q: {check the files listed in sums.txt still match their recorded hashes|use sha256sum -c to verify every file listed in sums.txt|re-hash the files in sums.txt and confirm they still match}
 a: sha256sum *.log > sums.txt && sha256sum -c sums.txt
 out: OK
 ref: sha256sum
 teach: sha256sum -c
+hint: -c reads a hash file back and reports OK or FAILED per line
 ---
-q: check sums.txt quietly, printing nothing unless something fails
+q: {check sums.txt quietly, printing nothing unless something fails|use sha256sum -c -s so only failures produce output|verify sums.txt silently, staying quiet unless a hash mismatches}
 a: sha256sum *.log > sums.txt && sha256sum -c -s sums.txt
 ref: sha256sum
 teach: sha256sum -s
+hint: -s silences the OK lines, leaving output only for failures
 ---
-q: compute the sha512 of @txt@
+q: {compute the sha512 of @txt@|run sha512sum on @txt@|hash @txt@ with sha512}
 a: sha512sum @txt@
 out: ^[0-9a-f]{128}
 ref: sha512sum
 teach: sha512sum
+hint: sha512 produces a longer, 128 hex character digest
 ---
-q: verify a sha512 checksum file
+q: {verify a sha512 checksum file|use sha512sum -c to check a saved sha512 hash file|confirm a file still matches its recorded sha512 hash}
 a: sha512sum @txt@ > s5.txt && sha512sum -c s5.txt
 out: OK
 ref: sha512sum
 teach: sha512sum -c
+hint: -c checks a saved hash file the same way it does for sha256sum
 ---
-q: check a sha512 list without printing the successes
+q: {check a sha512 list without printing the successes|use sha512sum -c -s to verify silently|check a sha512 hash file, staying quiet unless something fails}
 a: sha512sum @txt@ > s5.txt && sha512sum -c -s s5.txt
 ref: sha512sum
 teach: sha512sum -s
+hint: -s keeps the successes quiet, same as with sha256sum
 ---
-q: compute the sha1 of @txt@, for checking against an old published value
+q: {compute the sha1 of @txt@, for checking against an old published value|run sha1sum on @txt@ to compare against a value published elsewhere|hash @txt@ with the older sha1 algorithm}
 a: sha1sum @txt@
 out: ^[0-9a-f]{40}
 ref: sha1sum
 teach: sha1sum
+hint: sha1 is 40 hex characters, kept around only for matching old published hashes
 ---
-q: verify a sha1 checksum file
+q: {verify a sha1 checksum file|use sha1sum -c to check a saved sha1 hash file|confirm a file still matches its recorded sha1 hash}
 a: sha1sum @txt@ > s1.txt && sha1sum -c s1.txt
 out: OK
 ref: sha1sum
 teach: sha1sum -c
+hint: -c verifies a sha1 hash file the same way as the other *sum tools
 ---
-q: check a sha1 list silently
+q: {check a sha1 list silently|use sha1sum -c -s to verify without the OK noise|check a sha1 hash file, staying quiet unless something fails}
 a: sha1sum @txt@ > s1.txt && sha1sum -c -s s1.txt
 ref: sha1sum
 teach: sha1sum -s
+hint: -s suppresses the OK lines, showing only failures
 ---
-q: compute the md5 of @txt@
+q: {compute the md5 of @txt@|run md5sum on @txt@|hash @txt@ with md5}
 a: md5sum @txt@
 out: ^[0-9a-f]{32}
 ref: md5sum
 teach: md5sum
+hint: md5 is 32 hex characters, the oldest and weakest of these tools
 ---
-q: verify an md5 checksum file
+q: {verify an md5 checksum file|use md5sum -c to check a saved md5 hash file|confirm a file still matches its recorded md5 hash}
 a: md5sum @txt@ > m.txt && md5sum -c m.txt
 out: OK
 ref: md5sum
 teach: md5sum -c
+hint: -c verifies an md5 hash file the same way as the other *sum tools
 ---
-q: check an md5 list silently
+q: {check an md5 list silently|use md5sum -c -s to verify without printing every OK|check an md5 hash file, staying quiet unless something fails}
 a: md5sum @txt@ > m.txt && md5sum -c -s m.txt
 ref: md5sum
 teach: md5sum -s
+hint: -s keeps the successes quiet, printing failures only
 ---
-q: compute the old unix checksum and byte count of @txt@
+q: {compute the old unix checksum and byte count of @txt@|run cksum on @txt@ for its legacy checksum and size|get @txt@'s cksum value alongside its byte count}
 a: cksum @txt@
 out: [0-9]
 ref: cksum
 teach: cksum
+hint: cksum prints a checksum and the byte count together, unlike the *sum tools
 ---
-q: are @txt@ and @txt2@ byte for byte identical
+q: {are @txt@ and @txt2@ byte for byte identical|use cmp to check @txt@ against @txt2@ byte for byte|compare @txt@ and @txt2@ for an exact byte match}
 a: cmp @txt@ @txt2@
 ref: cmp
 teach: cmp
+hint: cmp reports the first byte and line where two files diverge
 ---
-q: compare two files reporting only the exit status, printing nothing
+q: {compare two files reporting only the exit status, printing nothing|use cmp -s so only the exit status reflects the comparison|check @txt@ against @txt2@ silently, exit status only}
 a: cmp -s @txt@ @txt2@
 ref: cmp
 teach: cmp -s
+hint: -s suppresses all output, leaving only the exit status to check
 ---
 q: %list% every differing byte between two files, not just the first
 a: cmp -l @txt@ @txt2@
 ref: cmp
 teach: cmp -l
+hint: -l lists every differing byte position and value, not just the first
 ---
-q: compare only the first 10 bytes of two files
+q: {compare only the first 10 bytes of two files|use cmp -n 10 to compare just the first 10 bytes|limit the byte comparison between @txt@ and @txt2@ to the first 10 bytes}
 a: cmp -n 10 @txt@ @txt2@
 ref: cmp
 teach: cmp -n
+hint: -n limits the comparison to the first N bytes of each file
 ---
 q: %show% the differences between @txt@ and @txt2@ line by line
 a: diff @txt@ @txt2@
 ref: diff
 teach: diff
+hint: diff's default output shows changed lines with < and > markers
 ---
 q: %show% the differences in the unified format patches use
 a: diff -U 3 @txt@ @txt2@
 ref: diff
 teach: diff -U
+hint: -U sets how many lines of context surround each change
 ---
-q: report only WHETHER two files differ, not how
+q: {report only WHETHER two files differ, not how|use diff -q to get a yes/no answer, not a line-by-line diff|check whether @txt@ and @txt2@ differ at all, without the details}
 a: diff -q @txt@ @txt2@
 ref: diff
 teach: diff -q
+hint: -q collapses the whole comparison down to a single differ/no-differ line
 ---
-q: compare two files ignoring case
+q: {compare two files ignoring case|use diff -i so case differences don't count as changes|diff @txt@ and @txt2@ treating upper and lower case as equal}
 a: diff -i @txt@ @txt2@
 ref: diff
 teach: diff -i
+hint: -i folds case before comparing, so Abc and abc count as equal
 ---
-q: compare two files ignoring differences in whitespace
+q: {compare two files ignoring differences in whitespace|use diff -w so whitespace-only changes don't show up|diff @txt@ and @txt2@ while ignoring whitespace differences}
 a: diff -w @txt@ @txt2@
 ref: diff
 teach: diff -w
+hint: -w treats runs of whitespace as equivalent, ignoring how much there is
 ---
-q: compare two directories recursively
+q: {compare two directories recursively|use diff -r to compare every file under @dir@ and @dir2@|diff @dir@ against @dir2@, descending into subdirectories}
 a: diff -r @dir@ @dir2@
 ref: diff
 teach: diff -r
+hint: -r walks into subdirectories, diffing every file it finds on both sides
 ---
-q: encode @txt@ as base64
+q: {encode @txt@ as base64|run base64 on @txt@ to get its text encoding|convert @txt@'s bytes into base64 text}
 a: base64 @txt@
 out: [A-Za-z0-9+/]
 ref: base64
 teach: base64
+hint: base64 turns arbitrary bytes into printable text, expanding the size by a third
 ---
-q: decode a base64 file back to its original bytes
+q: {decode a base64 file back to its original bytes|use base64 -d to reverse the encoding on b64.txt|turn b64.txt's base64 text back into its original bytes}
 a: base64 @txt@ > b64.txt && base64 -d b64.txt
 out: rotate
 ref: base64
 teach: base64 -d
 hint: base64 is an encoding, not encryption -- anyone can undo it
 ---
-q: encode @txt@ as base64 wrapped at 40 columns
+q: {encode @txt@ as base64 wrapped at 40 columns|use base64 -w 40 so output wraps every 40 columns|base64-encode @txt@ with lines wrapped to 40 characters}
 a: base64 -w 40 @txt@
 out: [A-Za-z0-9+/]
 ref: base64
 teach: base64 -w
+hint: -w wraps output at that many columns instead of one long line

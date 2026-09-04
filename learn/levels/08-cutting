@@ -14,53 +14,62 @@ out: ^gateway$
 ref: cut
 teach: cut -d
 teach: cut -f
+hint: -d sets the delimiter, -f picks the field number
 ---
 q: %show% the third comma-separated field of @csv@
 a: cut -d, -f3 @csv@
 out: ^up$
 ref: cut
 teach: cut -f
+hint: field numbers start at 1, not 0
 ---
 q: %show% fields 1 and 3 of @csv@
 a: cut -d, -f1,3 @csv@
 out: gateway,up
 ref: cut
 teach: cut -f
+hint: comma-separate the field numbers to pick more than one
 ---
 q: %show% fields 2 through 4 of @csv@
 a: cut -d, -f2-4 @csv@
 out: 1,up,42
 ref: cut
 teach: cut -f
+hint: a dash between two numbers means a range
 ---
 q: %show% everything from field 3 to the end of each line in @csv@
 a: cut -d, -f3- @csv@
 out: up,42
 ref: cut
 teach: cut -f
+hint: a trailing dash with no end number means to the end of the line
 ---
 q: %show% the first field of @csv@ treating any run of whitespace as the delimiter
 a: cut -D -f1 @csv@
 ref: cut
 teach: cut -D
+hint: capital D treats consecutive whitespace as one delimiter
 ---
 q: %show% the first 10 characters of each line of @log@
 a: cut -c1-10 @log@
 out: ^2024-03-01$
 ref: cut
 teach: cut -c
+hint: -c counts characters by position, not fields
 ---
 q: %show% characters 12 onward of each line of @log@
 a: cut -c12- @log@
 out: [0-9]
 ref: cut
 teach: cut -c
+hint: same trailing-dash trick as field ranges, but for characters
 ---
 q: %show% the first 8 bytes of each line of @log@
 a: cut -b1-8 @log@
 out: ^2024-03
 ref: cut
 teach: cut -b
+hint: -b counts bytes; same as -c unless the text is multibyte
 ---
 q: %show% field 1 of @csv@, skipping lines that have no comma in them at all
 a: cut -d, -f1 -s @csv@
@@ -73,6 +82,7 @@ q: %show% field 1 of @csv@ separating the output with a colon instead of a comma
 a: cut -d, -f1,3 -O: @csv@
 ref: cut
 teach: cut -O
+hint: -O sets the OUTPUT delimiter, separate from -d which sets the input one
 ---
 q: {uppercase everything in @txt@|%turn% @txt@ to upper case|make @txt@ all capitals}
 a: tr a-z A-Z < @txt@
@@ -86,20 +96,23 @@ a: tr A-Z a-z < @txt@
 out: rotate
 ref: tr
 teach: tr
+hint: same idea as uppercasing, just with the ranges swapped
 ---
-q: delete every digit from @log@
+q: {delete every digit from @log@|strip all the digits out of @log@|remove every numeral from @log@}
 a: tr -d 0-9 < @log@
 out: INFO
 ref: tr
 teach: tr -d
+hint: d deletes every character in the set, with nothing to replace it
 ---
-q: strip the newlines out of @txt@ so it becomes one long line
+q: {strip the newlines out of @txt@ so it becomes one long line|delete every newline from @txt@, collapsing it to one line|remove the line breaks from @txt@ so it reads as a single line}
 a: tr -d '\n' < @txt@
 out: rotate
 ref: tr
 teach: tr -d
+hint: \n is the newline character, deleted the same as any other
 ---
-q: collapse every run of repeated spaces in @log@ down to a single space
+q: {collapse every run of repeated spaces in @log@ down to a single space|squeeze repeated spaces in @log@ down to one space each|collapse runs of spaces in @log@ so each run becomes a single space}
 a: tr -s ' ' < @log@
 out: INFO service
 ref: tr
@@ -111,8 +124,9 @@ a: tr ' ' '\n' < @txt@
 out: ^rotate$
 ref: tr
 teach: tr
+hint: tr maps the first set onto the second, one character at a time
 ---
-q: delete everything from @txt@ except letters and newlines
+q: {delete everything from @txt@ except letters and newlines|keep only letters and newlines in @txt@, deleting the rest|strip @txt@ down to just letters and newlines}
 a: tr -dc 'a-zA-Z\n' < @txt@
 out: rotate
 ref: tr
@@ -120,7 +134,7 @@ teach: tr -c
 hint: -c complements the set, so -dc deletes everything NOT listed
 
 ---
-q: sort the numbers in the count column of @csv@ numerically, largest first
+q: {sort the numbers in the count column of @csv@ numerically, largest first|order the count column of @csv@ numerically, biggest number first|pull the count column from @csv@ and sort it numerically, descending}
 a: cut -d, -f4 @csv@ | sort -rn
 out: 42
 ref: sort
