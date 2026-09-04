@@ -47,8 +47,17 @@ chal_ask() {
 }
 
 challenge() {
-	local nq i score=0 rc best
+	local nq i score=0 rc best left
 	[ -f "$CHAINS" ] || { echo "learn: no chains at $CHAINS" >&2; return 1; }
+
+	# the endgame unlocks the way an endgame should: when the last boss has
+	# fallen. until then it names exactly what still stands.
+	left=$(( $(level_ids | grep -c .) - $(awk 'END { print NR }' "$PASSED" 2>/dev/null || echo 0) ))
+	if [ "$left" -gt 0 ]; then
+		no "locked. $left boss$([ "$left" = 1 ] || echo es) still stand$([ "$left" = 1 ] && echo s) between you and the gauntlet."
+		note "'learn' resumes the curriculum. come back when ROOT has fallen."
+		return 1
+	fi
 	nq=$(chal_nq)
 
 	hdr "$(sed -n '/^---$/q; s/^name: \{0,1\}//p' "$CHAINS")" "${nq} stages  30s each  one life"

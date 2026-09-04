@@ -4,13 +4,13 @@
 # also marked by a character, so NO_COLOR and a dumb terminal lose nothing.
 
 if [ -n "${NO_COLOR:-}" ] || [ "${TERM:-dumb}" = dumb ] || [ ! -t 1 ]; then
-	N= B= D= R= G= Y= C= M= W= U=
+	N= B= D= R= G= Y= C= M= W= U= V=
 else
 	N=$(printf '\033[0m')      B=$(printf '\033[1m')    D=$(printf '\033[2m')
 	R=$(printf '\033[38;5;196m') G=$(printf '\033[38;5;46m')
 	Y=$(printf '\033[38;5;226m') C=$(printf '\033[38;5;51m')
 	M=$(printf '\033[38;5;208m') W=$(printf '\033[38;5;231m')
-	U=$(printf '\033[4m')
+	U=$(printf '\033[4m')     V=$(printf '\033[7m')
 fi
 
 COLS=${COLUMNS:-80}

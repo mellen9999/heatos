@@ -16,6 +16,7 @@
 # plain read, so nothing here can break a headless learn.
 
 E_ESC=$(printf '\033'); E_DEL=$(printf '\177'); E_BS=$(printf '\010')
+E_TAB=$(printf '\011')
 EDIT_HIST="${EDIT_HIST:-$TMP/answers}"
 
 # redraw: reprint the line after the prompt, clear to end, park the cursor.
@@ -74,6 +75,16 @@ read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
 			;;
 		"$E_DEL"|"$E_BS")
 			[ -n "$L" ] && L="${L%?}"
+			;;
+		"$E_TAB")
+			# Tab: the reference panel, without abandoning what you typed --
+			# the page scrolls past, the question and your line are reprinted.
+			# learn mode only, same as typing man; the clock modes get nothing.
+			if [ "${MODE:-}" = learn ] && [ -n "${Q_REF:-}" ] && command -v ref >/dev/null; then
+				printf '\n'
+				ref "$Q_REF" | ${PAGER:-cat}
+				printf '  %s%s%s\n' "$W" "$Q_PROMPT" "$N"
+			fi
 			;;
 		*)
 			if [ "$mode" = insert ]; then

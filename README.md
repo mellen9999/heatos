@@ -284,8 +284,11 @@ accepted answer. every level ends with a named boss -- five questions, thirty se
 no hints and no reference -- and the last level is the machine itself. `learn` resumes the curriculum
 where the last boss fell, `learn review` re-asks the weakest cards first,
 `learn daily` is the same ten questions for everyone on a date, and
-`learn challenge` is the second track: thirteen timed chains that compose the
-whole curriculum, one life, graded purely on what your pipeline prints.
+`learn place` climbs the curriculum one question per rung so a first run can
+skip what you already know. `learn challenge` is the endgame, unlocked when
+the last boss falls: thirteen timed chains that compose the whole curriculum,
+one life, graded purely on what your pipeline prints. Tab at any question is
+the reference panel, mid-line, without losing what you typed.
 
 five rules govern it, and all five are gates rather than intentions:
 

@@ -178,6 +178,8 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			_stk=""
 			[ "$S_STREAK" -ge 3 ] && _stk="  ${Y}${S_STREAK} in a row${N}"
 			ok "right${tier:+  ${D}tier $tier${N}}$_stk"
+			# five straight lights the banner; it burns until a miss
+			[ "$S_STREAK" -eq 5 ] && printf '  %s on fire -- five straight %s\n' "$V$Y" "$N"
 			[ "$MODE" = learn ] && coach_right "$input"
 			return 0
 		fi
@@ -249,22 +251,31 @@ run_level() {
 	level_field "$id" brief | say
 	echo
 
-	i=1
-	while [ "$i" -le "$nq" ]; do
+	# the order changes every run, so the level cannot be memorised as a
+	# sequence -- only as a set of things you can do
+	for i in $(shuffle_n "$nq" "$nq"); do
 		ask "$id" "$i"; rc=$?
 		[ "$rc" = 2 ] && return 2
 		[ "$rc" = 0 ] && right=$((right + 1))
 		total=$((total + 1))
-		i=$((i + 1))
 		echo
 	done
 
 	rule
 	printf '  %s/%s\n' "$right" "$total"
 	echo
-	boss_round "$id"; rc=$?
-	[ "$rc" = 0 ] && level_passed "$id"
-	return "$rc"
+	while :; do
+		boss_round "$id"; rc=$?
+		[ "$rc" = 0 ] && { level_passed "$id"; return 0; }
+		[ "$rc" = 2 ] && return 2
+		# a fallen learner gets the choice a fallen boss never offers:
+		# straight back in, or back to practice. EOF (the build's probes,
+		# a closed pipe) declines, so nothing automated can hang here.
+		printf '  %sretry the boss? [y/N]%s ' "$D" "$N"
+		IFS= read -r _again 2>/dev/null || _again=""
+		case "$_again" in y|Y|yes) echo; continue ;; esac
+		return "$rc"
+	done
 }
 
 # what is printed when ROOT falls. it names the one thing that is actually
@@ -326,6 +337,45 @@ review() {
 		[ "$rc" = 2 ] && return 0
 		echo
 	done 3< "$TMP/rev"
+}
+
+# ---- placement ------------------------------------------------------------
+
+# ten rungs up the curriculum, one question each. two misses in a row stops
+# the climb; every level below the last rung cleared is marked passed, so a
+# bare `learn` then starts where your knowledge actually stops.
+place() {
+	local rung lvl last=0 misses=0 nq idx rc
+	note "placement: one question per rung, no hints. two misses in a row stops the climb."
+	echo
+	MODE=daily   # the editor, no hints -- placement measures, it does not teach
+	for rung in 03 06 09 12 15 18 21 24 27 30; do
+		lvl=$(level_ids | grep "^$rung-" | head -1)
+		[ -n "$lvl" ] || continue
+		nq=$(level_nq "$lvl")
+		[ "$nq" -gt 0 ] || continue
+		rnd "$nq"; idx=$((REPLY + 1))
+		printf '  %srung %s%s\n' "$D" "$(level_num "$lvl")" "$N"
+		ask "$lvl" "$idx"; rc=$?
+		[ "$rc" = 2 ] && { MODE=learn; return 0; }
+		echo
+		if [ "$rc" = 0 ]; then
+			last=$(level_num "$lvl"); misses=0
+		else
+			misses=$((misses + 1))
+			[ "$misses" -ge 2 ] && break
+		fi
+	done
+	MODE=learn
+	rule
+	if [ "$last" -gt 0 ]; then
+		for lvl in $(level_ids); do
+			[ "$(level_num "$lvl")" -lt "$last" ] && level_passed "$lvl"
+		done
+		ok "placed. everything below level $last is marked passed -- 'learn' picks up there."
+	else
+		note "starting from the top. that is where everyone starts."
+	fi
 }
 
 # ---- daily ----------------------------------------------------------------
@@ -855,6 +905,7 @@ usage() {
 	learn <cmd>           same, shorthand
 	learn -k <word>       search the corpus
 	learn list            every command xos ships
+	learn place           placement: skip past the levels you already know
 	learn review [n]      re-ask your weakest cards, weakest first
 	learn daily           today's ten -- same ten everywhere, compare scores
 	learn challenge       the gauntlet: timed chains, one life, a best to beat
@@ -863,12 +914,16 @@ usage() {
 
 	at a question: type your answer with full vi editing -- Esc for normal
 	mode, then h l w b e x dd i a, and the up-arrow recalls what you typed.
-	?  hint    man  the reference    skip  reveal    quit  leave
+	?  hint    Tab or man  the reference    skip  reveal    quit  leave
 	EOF
 }
 
 case "${1:-}" in
-	'')       _all=1; _ran=0
+	'')       if [ ! -s "$PASSED" ] && [ ! -s "$CARDS" ] && [ -t 0 ]; then
+	          	note "first run? 'learn place' skips you past what you already know."
+	          	echo
+	          fi
+	          _all=1; _ran=0
 	          for _id in $(level_ids); do
 	          	level_is_passed "$_id" && continue
 	          	if [ "$_ran" = 0 ] && [ -s "$PASSED" ]; then
@@ -890,6 +945,7 @@ case "${1:-}" in
 	stats)    stats ;;
 	selftest) selftest ;;
 	daily)    daily; session_summary ;;
+	place)    place; session_summary ;;
 	lint)     shift; lint "${1:-}" ;;
 	challenge) shift
 	          case "${1:-}" in
