@@ -90,9 +90,9 @@ out: ^differ$
 ref: [
 teach: [
 ---
-q: check that the line count of @log@ equals 10, printing ten
-a: [ "$(wc -l < @log@)" -eq 10 ] && echo ten
-out: ^ten$
+q: check that the line count of @cfg@ equals 7, printing seven
+a: [ "$(wc -l < @cfg@)" -eq 7 ] && echo seven
+out: ^seven$
 ref: [
 teach: [ -eq
 ---

@@ -12,7 +12,7 @@ brief: adjacent -- which is why sort comes first, every time.
 q: {%count% the lines in @log@|how many lines does @log@ have?|how long is @log@ in lines?}
 a: wc -l < @log@
 a: wc -l @log@
-out: 10
+out: ^[0-9]+
 ref: wc
 teach: wc -l
 ---

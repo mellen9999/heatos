@@ -14,6 +14,105 @@
 
 SANDBOX="${LEARN_SANDBOX:-$TMP/sandbox}"
 SANDBOX_OK=0
+FX_BUILT=""
+
+# the generators. each takes the roll's seed, so the same roll always builds
+# the same bytes -- a learner's run and the grader's reference run must see
+# one tree. the lines the corpus' out: patterns rely on are placed
+# unconditionally (the first log line, the FATAL close, gateway's csv row,
+# the exact repeat counts in the txts); randomness only pads around them.
+
+_fx_log() {
+	awk -v seed="$1" '
+		function line(sev, msg) {
+			t += 20 + int(rand() * 500)
+			printf "2024-03-01 %02d:%02d:%02d %-5s %s\n", t/3600, t%3600/60, t%60, sev, msg
+		}
+		BEGIN {
+			srand(seed)
+			split("10.0.0.50 192.168.1.100 172.16.0.1 10.20.30.40 203.0.113.7 192.168.4.20", ip, " ")
+			t = 32400 + int(rand() * 900)                 # a little past 09:00
+			line("INFO", "service started")
+			line("INFO", "listening on 0.0.0.0:8080")
+			line("WARN", "slow query took " (900 + int(rand() * 2400)) "ms")
+			# the repeated line uniq lessons lean on: byte-identical, adjacent
+			t += 20 + int(rand() * 500)
+			refused = ip[1 + int(rand() * 6)]
+			for (i = 0; i < 2; i++)
+				printf "2024-03-01 %02d:%02d:%02d ERROR connection refused %s\n", t/3600, t%3600/60, t%60, refused
+			if (rand() < 0.7) line("INFO", "retry succeeded")
+			for (i = int(rand() * 3); i > 0; i--)
+				line("ERROR", "timeout talking to " ip[1 + int(rand() * 6)])
+			line("DEBUG", "cache hit ratio 0." (70 + int(rand() * 29)))
+			if (rand() < 0.6) line("WARN", "disk usage at " (75 + int(rand() * 24)) "%")
+			line("FATAL", "out of memory, aborting")
+		}'
+}
+
+_fx_txt() {
+	# exact multiset, order shuffled: "rotate" appears exactly twice (uniq -c
+	# prints "2 rotate ..."), "ask" exactly once (uniq -u prints it), the
+	# other two pad the file to a varying length.
+	awk -v seed="$1" '
+		BEGIN {
+			srand(seed)
+			n = 0
+			l[++n] = "ask why the fan is loud"
+			l[++n] = "rotate the logs before they fill the disk"
+			l[++n] = "rotate the logs before they fill the disk"
+			l[++n] = "check the certificate expiry"
+			l[++n] = "verify the root hash after every build"
+			if (rand() < 0.5) l[++n] = "check the certificate expiry"
+			for (i = int(rand() * 3); i > 0; i--)
+				l[++n] = "verify the root hash after every build"
+			for (i = n; i > 1; i--) {                     # shuffle
+				j = 1 + int(rand() * i)
+				tmp = l[i]; l[i] = l[j]; l[j] = tmp
+			}
+			for (i = 1; i <= n; i++) print l[i]
+		}'
+}
+
+_fx_csv() {
+	# gateway,1,up,42 is fixed and 42 stays the column maximum (other counts
+	# top out at 41) -- several questions read their answer off that row.
+	# at least one row is down, and two rows share a count, for the
+	# filtering and dedupe lessons.
+	awk -v seed="$1" '
+		BEGIN {
+			srand(seed)
+			nh = split("bastion router jump-host web01 db01 proxy cache01 mail edge01 node07", h, " ")
+			print "name,id,status,count"
+			print "gateway,1,up,42"
+			rows = 3 + int(rand() * 3)                    # 3..5 more rows
+			for (i = 1; i <= rows; i++) {                 # sample rows distinct hosts
+				j = i + int(rand() * (nh - i + 1))
+				tmp = h[i]; h[i] = h[j]; h[j] = tmp
+			}
+			dn = 2 + int(rand() * rows)                   # the forced down row
+			for (i = 2; i <= rows + 1; i++) {
+				c[i] = 1 + int(rand() * 41)
+				if (i == 3) c[i] = c[2]                   # two rows share a count
+				print h[i-1] "," i "," (i == dn ? "down" : (rand() < 0.75 ? "up" : "down")) "," c[i]
+			}
+		}'
+}
+
+_fx_cfg() {
+	# key names and the port value are fixed -- the sed lessons extract 8080
+	# by name. the other values change with the roll.
+	awk -v seed="$1" '
+		BEGIN {
+			srand(seed)
+			print "# generated -- do not edit by hand"
+			print "listen = 0.0.0.0"
+			print "port = 8080"
+			print "debug = " (rand() < 0.5 ? "true" : "false")
+			print "retries = " (1 + int(rand() * 9))
+			print ""
+			print "timeout = " (10 + int(rand() * 90))
+		}'
+}
 
 # parent directory of every pooled path that has one. the grep comes BEFORE
 # the strip: filtering after it drops samples/target.bin, whose parent is a
@@ -30,53 +129,21 @@ sandbox_build() {
 	mkdir -p $(grep . "$POOLS/dirs") 2>/dev/null
 	mkdir -p $(cat "$POOLS/logs" "$POOLS/bins" "$POOLS/archives" | _fx_dirs) 2>/dev/null
 
-	local f
+	local f fx=0
 	for f in $(grep . "$POOLS/logs"); do
-		cat > "$f" <<-'EOF'
-		2024-03-01 09:14:02 INFO  service started
-		2024-03-01 09:14:05 INFO  listening on 0.0.0.0:8080
-		2024-03-01 09:20:41 WARN  slow query took 2103ms
-		2024-03-01 09:21:07 ERROR connection refused 10.0.0.50
-		2024-03-01 09:21:07 ERROR connection refused 10.0.0.50
-		2024-03-01 09:22:18 INFO  retry succeeded
-		2024-03-01 09:31:55 ERROR timeout talking to 192.168.1.100
-		2024-03-01 09:40:12 DEBUG cache hit ratio 0.87
-		2024-03-01 09:44:39 WARN  disk usage at 91%
-		2024-03-01 09:52:00 FATAL out of memory, aborting
-		EOF
+		fx=$((fx + 1)); _fx_log "$(( ${FX_SEED:-0} + fx ))" > "$f"
 	done
 
 	for f in $(grep . "$POOLS/txts"); do
-		cat > "$f" <<-'EOF'
-		rotate the logs before they fill the disk
-		check the certificate expiry
-		rotate the logs before they fill the disk
-		verify the root hash after every build
-		ask why the fan is loud
-		verify the root hash after every build
-		EOF
+		fx=$((fx + 1)); _fx_txt "$(( ${FX_SEED:-0} + fx ))" > "$f"
 	done
 
 	for f in $(grep . "$POOLS/csvs"); do
-		cat > "$f" <<-'EOF'
-		name,id,status,count
-		gateway,1,up,42
-		bastion,2,down,7
-		router,3,up,19
-		jump-host,4,up,7
-		EOF
+		fx=$((fx + 1)); _fx_csv "$(( ${FX_SEED:-0} + fx ))" > "$f"
 	done
 
 	for f in $(grep . "$POOLS/cfgs"); do
-		cat > "$f" <<-'EOF'
-		# generated -- do not edit by hand
-		listen = 0.0.0.0
-		port = 8080
-		debug = true
-		retries = 3
-
-		timeout = 30
-		EOF
+		fx=$((fx + 1)); _fx_cfg "$(( ${FX_SEED:-0} + fx ))" > "$f"
 	done
 
 	for f in $(grep . "$POOLS/scripts"); do
@@ -111,13 +178,16 @@ sandbox_build() {
 	cd - >/dev/null 2>&1 || :
 	[ -z "$missing" ] || { echo "learn: sandbox missing:$missing" >&2; return 1; }
 	SANDBOX_OK=1
+	SANDBOX_DIRTY=0
+	FX_BUILT="${FX_SEED:-0}"
 }
 
-# rebuild only when an answer actually changed something. a read-only answer
-# (the common case) leaves the tree alone and costs nothing.
+# rebuild when an answer changed something, or when the roll moved on and the
+# tree holds the previous question's content. a read-only answer against the
+# current roll (the common case) leaves the tree alone and costs nothing.
 SANDBOX_DIRTY=0
 sandbox_reset() {
 	[ "$SANDBOX_OK" = 1 ] || { sandbox_build || return 1; return 0; }
-	[ "$SANDBOX_DIRTY" = 1 ] || return 0
+	[ "$SANDBOX_DIRTY" = 1 ] || [ "$FX_BUILT" != "${FX_SEED:-0}" ] || return 0
 	sandbox_build
 }

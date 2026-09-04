@@ -67,6 +67,11 @@ sub() {
 roll() {
 	: > "$SUBST"
 
+	# the fixture seed rides along with the roll: the sandbox's file contents
+	# are generated from it, so every question runs against fresh data and the
+	# same question always sees the same bytes.
+	FX_SEED=$RANDOM
+
 	pick2 logs;  sub log "$REPLY";  sub log2 "$REPLY2"
 	pick2 txts;  sub txt "$REPLY";  sub txt2 "$REPLY2"
 	pick2 cfgs;  sub cfg "$REPLY";  sub cfg2 "$REPLY2"

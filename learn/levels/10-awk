@@ -39,7 +39,7 @@ teach: awk
 ---
 q: %count% the lines in @log@ using awk
 a: awk 'END {print NR}' @log@
-out: ^10$
+out: ^[0-9]+$
 ref: awk
 teach: awk
 hint: END runs once, after the last line, and NR is still set
@@ -72,7 +72,7 @@ hint: NR is the line number, so NR>1 means "not the first line"
 ---
 q: add up the fourth column of @csv@, skipping the header
 a: awk -F, 'NR > 1 {s += $4} END {print s}' @csv@
-out: ^75$
+out: ^[0-9]+$
 ref: awk
 teach: awk -F
 ---

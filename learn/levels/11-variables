@@ -47,7 +47,7 @@ teach: sh
 ---
 q: %show% the line count of @log@ inside a sentence reading "lines: N"
 a: echo "lines: $(wc -l < @log@)"
-out: ^lines: 10$
+out: ^lines: [0-9]+$
 ref: echo
 teach: echo
 ---
