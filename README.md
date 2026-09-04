@@ -78,6 +78,13 @@ static linking survivable when a dependency gets a CVE.
 
 ## remote access
 
+xos ships no wifi driver -- a wifi chip needs a firmware blob loaded into it,
+and "a firmware blob shipped in the image" is a hard build failure (see
+`what's enforced` below). the answer is usb: an android phone in tethering
+mode, or a plain usb-ethernet dongle, both enumerate as a wired NIC over xhci
+and need no firmware at all. plug either in and `udhcpc` runs on it exactly
+like a wired port -- any laptop plus a phone is online, firmware-free.
+
 off by default, and it can only be switched on from the encrypted state
 partition -- so an attacker holding the stick cannot even see that it exists,
 let alone enable it.
@@ -211,6 +218,12 @@ on tmpfs and is gone at reboot.
 userland is compiled static-PIE with the stack protector and stack-clash
 protection, and linked with a non-executable stack.
 
+the one attack surface this posture knowingly accepts: the usb-net drivers
+(rndis, cdc-ether) that make phone tethering work parse whatever a plugged-in
+device claims to be. xos is a pure usb host, so this is reachable only by
+physically plugging something in, and it sits behind every mitigation above --
+naming it here beats pretending it isn't attack surface.
+
 ## revocation
 
 a signature says who signed an image. it never says when.
@@ -335,5 +348,7 @@ SOURCES.md.
 not a general distro. no package manager, no compiler. persistence is opt-in
 and encrypted (p3) -- decline it and nothing survives a
 reboot. pre-xHCI machines (roughly pre-2012) are out of scope: the stick
-enumerates over xHCI only.
+enumerates over xHCI only. iphone usb tethering does not work -- it needs
+usbmuxd, apple's pairing daemon, which xos does not ship; android tethering
+and plain usb-ethernet dongles do.
 don't enroll these keys on hardware whose own secure boot chain you still need.
