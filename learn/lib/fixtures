@@ -3,12 +3,14 @@
 # every path here is read out of learn/pools, not written twice. that is the
 # invariant: the roll picks a filename from pools/logs, and the sandbox builds
 # exactly what pools/logs names, so a generated question cannot ask about a
-# file that does not exist. G31 checks it from the outside too.
+# file that does not exist -- sandbox_build verifies every pooled path after
+# building and refuses to grade against a tree that is missing one.
 #
-# the content is small, fixed and deliberately shaped so the interesting
-# answers have interesting output: repeated lines to dedupe, mixed severities
-# to filter and count, a csv with a header row to skip, a binary with a string
-# buried in it.
+# the content is generated from the roll's seed and deliberately shaped so the
+# interesting answers have interesting output: repeated lines to dedupe, mixed
+# severities to filter and count, a csv with a header row to skip, a binary
+# with a string buried in it. the counts change with every roll, so an answer
+# has to compute them -- there is no constant to memorise.
 
 SANDBOX="${LEARN_SANDBOX:-$TMP/sandbox}"
 SANDBOX_OK=0

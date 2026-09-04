@@ -5,7 +5,7 @@
 # two properties this has that a quiz on a general-purpose distro cannot:
 #
 #   the surface is CLOSED. xos's programs are fixed at build time, so "teach
-#   everything" is a finite claim the build checks (G32) rather than an
+#   everything" is a finite claim the build checks (G24, G26) rather than an
 #   aspiration. a busybox bump that adds a flag breaks the build until someone
 #   decides whether to teach it.
 #
@@ -71,6 +71,15 @@ level_field() { sed -n "/^---$/q; s/^$2: \{0,1\}//p" "$(level_path "$1")"; }
 
 # how many question blocks a level holds
 level_nq() { awk '/^---$/ { c++ } END { print c + 0 }' "$(level_path "$1")"; }
+
+# level id as a plain number. ids are zero-padded ("08-cutting"), and ash reads
+# a leading zero in $(( )) as octal -- $((08)) is a FATAL arithmetic error, not
+# 8. every id that enters arithmetic goes through here.
+level_num() { _n=${1%%-*}; echo "${_n#0}"; }
+
+# the boss clock grows with the level, the way it always has: the questions
+# get longer to type, not easier to remember.
+boss_limit() { echo $(( 30 + $(level_num "$1") / 3 )); }
 
 # q_load LEVEL INDEX -- fills Q_PROMPT, Q_ANSWERS, Q_OUT, Q_REF, Q_HINT, Q_ID.
 # the roll happens here, once, and the SAME rolled script renders the prompt
@@ -189,9 +198,7 @@ boss_round() {
 	nq=$(level_nq "$id")
 	[ "$nq" -ge 5 ] || return 0
 
-	# the clock grows with the level, the way it always has: the questions get
-	# longer to type, not easier to remember.
-	BOSS_LIMIT=$(( 30 + ${id%%-*} / 3 ))
+	BOSS_LIMIT=$(boss_limit "$id")
 
 	echo
 	printf '%s' "$R$B"; awk -v n="$COLS" 'BEGIN{while(n-->0)printf "="}'; printf '%s\n' "$N"
@@ -624,6 +631,24 @@ selftest() {
 
 			i=$((i + 1))
 		done
+
+		# the boss path never used to run under selftest, and that is how a
+		# fatal arithmetic error in its clock shipped. walk it for every level:
+		# with stdin closed each read times out instantly, so the whole round
+		# -- banner, clock, scoring, verdict -- completes in milliseconds. the
+		# subshell contains a fatal error AND keeps the probe's card writes out
+		# of real state.
+		boss_limit "$id" 2>/dev/null | grep -qE '^[0-9]+$' \
+			|| { echo "FAIL $id: boss_limit is not a number" >&2; bad=$((bad+1)); }
+		if [ -n "$(level_field "$id" boss)" ] && [ "$nq" -ge 5 ]; then
+			( CARDS="$TMP/bosscards"; SESSION_SEEN="$TMP/bosssession"
+			  : > "$CARDS"; : > "$SESSION_SEEN"
+			  boss_round "$id" </dev/null ) > "$TMP/boss.$$" 2>&1
+			grep -qE 'holds|falls' "$TMP/boss.$$" \
+				|| { echo "FAIL $id: boss round did not complete" >&2
+				     sed 's/^/  /' "$TMP/boss.$$" | tail -3 >&2; bad=$((bad+1)); }
+			rm -f "$TMP/boss.$$"
+		fi
 	done
 
 	printf 'learn: %d questions in %d levels, %d bad\n' \

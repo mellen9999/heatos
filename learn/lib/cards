@@ -15,7 +15,9 @@
 # every lookup to the first word.
 
 CARDS="$STATE/cards"
-SESSION_SEEN="$TMP/seen"
+# not $TMP/seen -- order() owns that name for its introduced-commands ledger,
+# and a long-lived process (review, challenge) runs both code paths.
+SESSION_SEEN="$TMP/session"
 DECAY_DAYS=30
 
 cards_init() {
