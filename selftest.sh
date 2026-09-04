@@ -279,6 +279,9 @@ grep -q 'learn-phrases: yes' <<< "$out" && ok "phrase macros ship" \
 grep -q 'learn-varies: yes' <<< "$out" \
 	&& ok "a rendered prompt has no unexpanded macro" \
 	|| bad "a prompt rendered with a literal %macro% in it"
+grep -q 'learn-chains: yes' <<< "$out" \
+	&& ok "challenge track holds its shape on the booted system" \
+	|| bad "learn challenge check failed at runtime"
 
 echo
 section "A13  a session outlives the terminal that started it"

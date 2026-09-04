@@ -25,6 +25,9 @@ usr/share/learn/lib/ctx
 usr/share/learn/lib/edit
 usr/share/learn/skip
 usr/share/learn/phrases
+usr/share/learn/chains
+usr/share/learn/lib/chal
+usr/share/learn/lib/coach
 etc/shrc
 bin/udhcpc
 bin/ip

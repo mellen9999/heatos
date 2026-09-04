@@ -1,0 +1,139 @@
+# chal -- the challenge track. the endgame the levels build toward.
+#
+# every stage is a chain: one pipeline composing commands from across the
+# whole curriculum, in the order the levels taught them, getting harder as it
+# goes. thirty seconds a stage, one life, no hints, no reference. grading is
+# always by reference -- the chain's own answer runs against the same seeded
+# tree, and yours must print exactly what it printed -- so ANY correct
+# pipeline passes, and nothing else does.
+#
+# the shape is enforced, not intended: `learn challenge check` runs at build
+# time (G29) and fails if the track is short, a stage is not a chain, the
+# difficulty ever falls, the end is shallow, or a stage's lvl: claims
+# commands the levels have not taught by then.
+
+CHAINS="$ROOT/chains"
+CHAL_BEST="$STATE/challenge"
+
+chal_nq() { awk '/^---$/ { c++ } END { print c + 0 }' "$CHAINS"; }
+
+# chal_lvl -- the lvl: field of the block just loaded, de-padded for $(( ))
+chal_lvl() { _n=$(sed -n 's/^lvl: \{0,1\}//p' "$TMP/blk" | head -1); echo "${_n#0}"; }
+
+# one stage: prompt, thirty seconds, one shot. 0 cleared, 1 died, 2 quit.
+chal_ask() {
+	local input
+	blk_load "$CHAINS" "$1" || return 1
+	Q_CMP=ref
+	printf '  %s%s%s %s%s%s\n' "$D" "$1" "$N" "$W" "$Q_PROMPT" "$N"
+	while :; do
+		printf '  %s$%s ' "$C" "$N"
+		if ! IFS= read -t 30 -r input; then
+			echo; no "out of time."
+			return 1
+		fi
+		case "$input" in
+			quit|:q) return 2 ;;
+			'')      continue ;;
+		esac
+		break
+	done
+	if correct "$input"; then
+		ok "clear"
+		return 0
+	fi
+	no "the chain was: $(printf '%s\n' "$Q_ANSWERS" | head -1)"
+	return 1
+}
+
+challenge() {
+	local nq i score=0 rc best
+	[ -f "$CHAINS" ] || { echo "learn: no chains at $CHAINS" >&2; return 1; }
+	nq=$(chal_nq)
+
+	hdr "$(sed -n '/^---$/q; s/^name: \{0,1\}//p' "$CHAINS")" "${nq} stages  30s each  one life"
+	sed -n '/^---$/q; s/^brief: \{0,1\}//p' "$CHAINS" | say
+	echo
+
+	MODE=boss
+	i=1
+	while [ "$i" -le "$nq" ]; do
+		chal_ask "$i"; rc=$?
+		[ "$rc" = 2 ] && { MODE=learn; return 2; }
+		[ "$rc" != 0 ] && break
+		score=$((score + 1))
+		echo
+		i=$((i + 1))
+	done
+	MODE=learn
+
+	rule
+	if [ "$score" -ge "$nq" ]; then
+		printf '  %sthe gauntlet falls.%s %s of %s.\n' "$G$B" "$N" "$score" "$nq"
+	else
+		printf '  %s of %s.\n' "$score" "$nq"
+	fi
+	best=$(awk -F'\t' 'NR == 1 { print $1 }' "$CHAL_BEST" 2>/dev/null)
+	if [ -z "$best" ] || [ "$score" -gt "$best" ] 2>/dev/null; then
+		mkdir -p "$STATE" 2>/dev/null || :
+		printf '%s\t%s\n' "$score" "$(now)" > "$CHAL_BEST" 2>/dev/null || :
+		note "new best."
+	else
+		note "best: $best of $nq"
+	fi
+}
+
+# chal_check -- the G29 gate. every rule above, mechanically.
+chal_check() {
+	local nq i bad=0 lvl ncmds d prevd=0 firstd=0 lastlvl=0 c id
+	[ -f "$CHAINS" ] || { echo "learn: no chains at $CHAINS" >&2; return 1; }
+	nq=$(chal_nq)
+	[ "$nq" -ge 12 ] || { echo "CHAINS: only $nq stages, need 12" >&2; bad=$((bad+1)); }
+
+	i=1
+	while [ "$i" -le "$nq" ]; do
+		blk_load "$CHAINS" "$i" \
+			|| { echo "CHAINS $i: no prompt" >&2; bad=$((bad+1)); i=$((i+1)); continue; }
+		lvl=$(chal_lvl)
+		[ -n "$lvl" ] || { echo "CHAINS $i: no lvl:" >&2; bad=$((bad+1)); i=$((i+1)); continue; }
+
+		# a stage must be a chain -- two commands at least
+		ncmds=$(printf '%s\n' "$Q_ANSWERS" | head -1 | answer_cmds | grep -c .)
+		[ "$ncmds" -ge 2 ] \
+			|| { echo "CHAINS $i: $ncmds command is not a chain" >&2; bad=$((bad+1)); }
+
+		# the difficulty may never fall, and the end must be the deep end.
+		# this is what makes "a challenge track that stops getting harder"
+		# a build failure instead of a slow disappointment.
+		d=$(( lvl * 10 + ncmds ))
+		[ "$d" -ge "$prevd" ] \
+			|| { echo "CHAINS $i: difficulty falls ($d after $prevd)" >&2; bad=$((bad+1)); }
+		[ "$i" = 1 ] && firstd=$d
+		prevd=$d; lastlvl=$lvl
+
+		# lvl: must be truthful: every command the chain runs is taught by
+		# that level or an earlier one. difficulty you did not earn is a lie.
+		for id in $(level_ids); do
+			[ "$(level_num "$id")" -le "$lvl" ] || continue
+			sed -n 's/^teach: \{0,1\}//p' "$(level_path "$id")" | awk '{ print $1 }'
+		done | sort -u > "$TMP/chseen"
+		printf '%s\n' "$Q_ANSWERS" | answer_cmds | sort -u | while read -r c; do
+			[ -n "$c" ] || continue
+			[ -f "$REF/$(refname "$c")" ] || continue
+			grep -qxF -- "$c" "$TMP/chseen" \
+				|| echo "CHAINS $i: uses '$c', not taught by level $lvl"
+		done > "$TMP/ch.$$" 2>&1
+		if [ -s "$TMP/ch.$$" ]; then cat "$TMP/ch.$$" >&2; bad=$((bad + $(grep -c . "$TMP/ch.$$"))); fi
+		rm -f "$TMP/ch.$$"
+
+		i=$((i + 1))
+	done
+
+	[ "$prevd" -gt "$firstd" ] \
+		|| { echo "CHAINS: the track never gets harder" >&2; bad=$((bad+1)); }
+	[ "$lastlvl" -ge 25 ] \
+		|| { echo "CHAINS: ends at level $lastlvl, the deep end starts at 25" >&2; bad=$((bad+1)); }
+
+	printf 'learn: %d chains checked, %d bad\n' "$nq" "$bad"
+	[ "$bad" -eq 0 ]
+}

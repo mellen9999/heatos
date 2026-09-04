@@ -29,7 +29,7 @@ die() { echo "learn: $*" >&2; exit 1; }
 mkdir -p "$TMP" 2>/dev/null || die "cannot create $TMP"
 trap 'rm -rf "$TMP" 2>/dev/null' EXIT INT TERM
 
-for _l in ui ctx grade fixtures cards coach edit; do
+for _l in ui ctx grade fixtures cards coach chal edit; do
 	[ -f "$ROOT/lib/$_l" ] || die "missing lib/$_l"
 	. "$ROOT/lib/$_l"
 done
@@ -81,18 +81,18 @@ level_num() { _n=${1%%-*}; echo "${_n#0}"; }
 # get longer to type, not easier to remember.
 boss_limit() { echo $(( 30 + $(level_num "$1") / 3 )); }
 
-# q_load LEVEL INDEX -- fills Q_PROMPT, Q_ANSWERS, Q_OUT, Q_REF, Q_HINT, Q_ID.
-# the roll happens here, once, and the SAME rolled script renders the prompt
-# and every answer. rolling twice would ask about app.log and accept an answer
-# about server.log.
-q_load() {
-	local f blk seed
-	f=$(level_path "$1")
+# blk_load FILE INDEX -- fills Q_PROMPT, Q_ANSWERS, Q_OUT, Q_REF, Q_HINT, Q_ID
+# from block INDEX of any question file -- the levels and the challenge chains
+# share one parser. the roll happens here, once, and the SAME rolled script
+# renders the prompt and every answer. rolling twice would ask about app.log
+# and accept an answer about server.log.
+blk_load() {
+	local blk seed
 	roll
 	seed=$(( RANDOM + $2 ))
 
 	blk="$TMP/blk"
-	awk -v n="$2" 'BEGIN { c = 0 } /^---$/ { c++; next } c == n' "$f" > "$blk"
+	awk -v n="$2" 'BEGIN { c = 0 } /^---$/ { c++; next } c == n' "$1" > "$blk"
 
 	Q_ID="$2"
 	Q_TPL=$(sed -n 's/^q: \{0,1\}//p' "$blk")
@@ -106,6 +106,8 @@ q_load() {
 	Q_SETUP=$(sed -n 's/^setup: \{0,1\}//p' "$blk" | render "$seed")
 	[ -n "$Q_PROMPT" ]
 }
+
+q_load() { blk_load "$(level_path "$1")" "$2"; }
 
 # ---- the question loop ----------------------------------------------------
 
@@ -560,8 +562,96 @@ answer_flags() {
 		}' | sort -u
 }
 
+# st_block LABEL -- every check one loaded question block must pass. called
+# with Q_* filled and the raw block in $TMP/blk; increments the caller's bad
+# count (ash locals scope dynamically, so selftest's is visible here).
+st_block() {
+	local lbl=$1 a got flag
+
+	[ -n "$Q_ANSWERS" ] || { echo "FAIL $lbl: no answer" >&2; bad=$((bad+1)); }
+
+	# unrendered placeholder: a @name@ with no pool behind it
+	case "$Q_PROMPT$Q_ANSWERS" in
+		*@*@*) echo "FAIL $lbl: unrendered placeholder in: $Q_PROMPT" >&2; bad=$((bad+1)) ;;
+	esac
+
+	# ref must be a command we ship
+	if [ -n "$Q_REF" ] && [ ! -f "$REF/$Q_REF" ]; then
+		echo "FAIL $lbl: ref '$Q_REF' is not a shipped command" >&2; bad=$((bad+1))
+	fi
+
+	# every listed answer must be accepted
+	printf '%s\n' "$Q_ANSWERS" | while IFS= read -r a; do
+		[ -n "$a" ] || continue
+		correct "$a" || echo "FAIL $lbl: own answer rejected: $a"
+	done > "$TMP/st.$$" 2>&1
+	if [ -s "$TMP/st.$$" ]; then cat "$TMP/st.$$" >&2; bad=$((bad + $(grep -c . "$TMP/st.$$"))); fi
+	rm -f "$TMP/st.$$"
+
+	# every flag an answer USES must be documented in the corpus that
+	# ships beside it. without this, a question can quietly depend on a
+	# flag this build compiled out -- which is the one promise the whole
+	# curriculum rests on: nothing is asked that the docs cannot answer.
+	printf '%s\n' "$Q_ANSWERS" | answer_flags | while read -r ac af; do
+		[ -f "$REF/$ac" ] || continue
+		flag_ok "$ac" "$af" || echo "FAIL $lbl: answer uses $ac $af, undocumented in ref/$ac"
+	done > "$TMP/fl.$$" 2>&1
+	if [ -s "$TMP/fl.$$" ]; then cat "$TMP/fl.$$" >&2; bad=$((bad + $(grep -c . "$TMP/fl.$$"))); fi
+	rm -f "$TMP/fl.$$"
+
+	# the coverage claim has to be true in both directions.
+	# a teach: line reads "<command> <flag>...". everything after the
+	# first word is a flag, dashed or not -- tar's modes are bare
+	# letters, so the shape cannot be inferred from the token alone.
+	# (chains carry no teach: lines, so this walks nothing for them.)
+	sed -n "s/^teach: \{0,1\}//p" "$TMP/blk" | while read -r tcmd tflags; do
+		[ -n "$tcmd" ] || continue
+		[ -f "$REF/$(refname "$tcmd")" ] \
+			|| { echo "FAIL $lbl: teaches '$tcmd', not a shipped command"; continue; }
+		for flag in $tflags; do
+			printf '%s\n' "$Q_ANSWERS" | uses_flag "$flag" \
+				|| echo "FAIL $lbl: claims to teach $tcmd $flag, no answer uses it"
+			documented "$tcmd" "$flag" \
+				|| echo "FAIL $lbl: teaches $tcmd $flag, undocumented in ref/$tcmd"
+		done
+	done > "$TMP/tc.$$" 2>&1
+	if [ -s "$TMP/tc.$$" ]; then cat "$TMP/tc.$$" >&2; bad=$((bad + $(grep -c . "$TMP/tc.$$"))); fi
+	rm -f "$TMP/tc.$$"
+
+	# and out:/state: must describe reality, not the author's hope
+	if [ -n "$Q_OUT" ] || [ -n "$Q_STATE" ]; then
+		a=$(printf '%s\n' "$Q_ANSWERS" | head -1)
+		if ! printf '%s\n' "$a" | unsafe; then
+			got=$(run_answer "$a"); SANDBOX_DIRTY=1
+			[ -z "$Q_OUT" ] || printf '%s\n' "$got" | grep -qE -- "$Q_OUT" \
+			  || { echo "FAIL $lbl: out:/$Q_OUT/ does not match what '$a' prints" >&2; bad=$((bad+1)); }
+			[ -z "$Q_STATE" ] || check_state "$Q_STATE" \
+			  || { echo "FAIL $lbl: state:$Q_STATE not true after '$a'" >&2; bad=$((bad+1)); }
+		fi
+	fi
+
+	# cmp: ref grades by comparing against the first answer's output,
+	# so that output must be stable across a rebuild of the same seed
+	# (or a right answer could be marked wrong), and every listed
+	# answer must print it (or a listed phrasing would be rejected).
+	if [ "${Q_CMP:-}" = ref ]; then
+		a=$(printf '%s\n' "$Q_ANSWERS" | head -1)
+		got=$(run_answer "$a"); SANDBOX_DIRTY=1
+		[ "$(run_answer "$a")" = "$got" ] \
+		  || { echo "FAIL $lbl: cmp:ref but '$a' is not deterministic" >&2; bad=$((bad+1)); }
+		SANDBOX_DIRTY=1
+		printf '%s\n' "$Q_ANSWERS" | while IFS= read -r a; do
+			[ -n "$a" ] || continue
+			[ "$(run_answer "$a")" = "$got" ] \
+			  || echo "FAIL $lbl: cmp:ref but '$a' prints something else"
+		done > "$TMP/cr.$$" 2>&1
+		if [ -s "$TMP/cr.$$" ]; then cat "$TMP/cr.$$" >&2; bad=$((bad + $(grep -c . "$TMP/cr.$$"))); fi
+		rm -f "$TMP/cr.$$"
+	fi
+}
+
 selftest() {
-	local id nq i bad=0 nq_all=0 a rc got flag base
+	local id nq i bad=0 nq_all=0 a
 	sandbox_build || die "cannot build sandbox at $SANDBOX"
 
 	for id in $(level_ids); do
@@ -570,87 +660,7 @@ selftest() {
 		while [ "$i" -le "$nq" ]; do
 			q_load "$id" "$i" || { echo "FAIL $id/$i: no prompt" >&2; bad=$((bad+1)); i=$((i+1)); continue; }
 			nq_all=$((nq_all + 1))
-
-			[ -n "$Q_ANSWERS" ] || { echo "FAIL $id/$i: no answer" >&2; bad=$((bad+1)); }
-
-			# unrendered placeholder: a %name% with no pool behind it
-			case "$Q_PROMPT$Q_ANSWERS" in
-				*@*@*) echo "FAIL $id/$i: unrendered placeholder in: $Q_PROMPT" >&2; bad=$((bad+1)) ;;
-			esac
-
-			# ref must be a command we ship
-			if [ -n "$Q_REF" ] && [ ! -f "$REF/$Q_REF" ]; then
-				echo "FAIL $id/$i: ref '$Q_REF' is not a shipped command" >&2; bad=$((bad+1))
-			fi
-
-			# every listed answer must be accepted
-			printf '%s\n' "$Q_ANSWERS" | while IFS= read -r a; do
-				[ -n "$a" ] || continue
-				correct "$a" || echo "FAIL $id/$i: own answer rejected: $a"
-			done > "$TMP/st.$$" 2>&1
-			if [ -s "$TMP/st.$$" ]; then cat "$TMP/st.$$" >&2; bad=$((bad + $(grep -c . "$TMP/st.$$"))); fi
-			rm -f "$TMP/st.$$"
-
-			# every flag an answer USES must be documented in the corpus that
-			# ships beside it. without this, a question can quietly depend on a
-			# flag this build compiled out -- which is the one promise the whole
-			# curriculum rests on: nothing is asked that the docs cannot answer.
-			printf '%s\n' "$Q_ANSWERS" | answer_flags | while read -r ac af; do
-				[ -f "$REF/$ac" ] || continue
-				flag_ok "$ac" "$af" || echo "FAIL $id/$i: answer uses $ac $af, undocumented in ref/$ac"
-			done > "$TMP/fl.$$" 2>&1
-			if [ -s "$TMP/fl.$$" ]; then cat "$TMP/fl.$$" >&2; bad=$((bad + $(grep -c . "$TMP/fl.$$"))); fi
-			rm -f "$TMP/fl.$$"
-
-			# the coverage claim has to be true in both directions.
-			# a teach: line reads "<command> <flag>...". everything after the
-			# first word is a flag, dashed or not -- tar's modes are bare
-			# letters, so the shape cannot be inferred from the token alone.
-			sed -n "s/^teach: \{0,1\}//p" "$TMP/blk" | while read -r tcmd tflags; do
-				[ -n "$tcmd" ] || continue
-				[ -f "$REF/$(refname "$tcmd")" ] \
-					|| { echo "FAIL $id/$i: teaches '$tcmd', not a shipped command"; continue; }
-				for flag in $tflags; do
-					printf '%s\n' "$Q_ANSWERS" | uses_flag "$flag" \
-						|| echo "FAIL $id/$i: claims to teach $tcmd $flag, no answer uses it"
-					documented "$tcmd" "$flag" \
-						|| echo "FAIL $id/$i: teaches $tcmd $flag, undocumented in ref/$tcmd"
-				done
-			done > "$TMP/tc.$$" 2>&1
-			if [ -s "$TMP/tc.$$" ]; then cat "$TMP/tc.$$" >&2; bad=$((bad + $(grep -c . "$TMP/tc.$$"))); fi
-			rm -f "$TMP/tc.$$"
-
-			# and out:/state: must describe reality, not the author's hope
-			if [ -n "$Q_OUT" ] || [ -n "$Q_STATE" ]; then
-				a=$(printf '%s\n' "$Q_ANSWERS" | head -1)
-				if ! printf '%s\n' "$a" | unsafe; then
-					got=$(run_answer "$a"); SANDBOX_DIRTY=1
-					[ -z "$Q_OUT" ] || printf '%s\n' "$got" | grep -qE -- "$Q_OUT" \
-					  || { echo "FAIL $id/$i: out:/$Q_OUT/ does not match what '$a' prints" >&2; bad=$((bad+1)); }
-					[ -z "$Q_STATE" ] || check_state "$Q_STATE" \
-					  || { echo "FAIL $id/$i: state:$Q_STATE not true after '$a'" >&2; bad=$((bad+1)); }
-				fi
-			fi
-
-			# cmp: ref grades by comparing against the first answer's output,
-			# so that output must be stable across a rebuild of the same seed
-			# (or a right answer could be marked wrong), and every listed
-			# answer must print it (or a listed phrasing would be rejected).
-			if [ "${Q_CMP:-}" = ref ]; then
-				a=$(printf '%s\n' "$Q_ANSWERS" | head -1)
-				got=$(run_answer "$a"); SANDBOX_DIRTY=1
-				[ "$(run_answer "$a")" = "$got" ] \
-				  || { echo "FAIL $id/$i: cmp:ref but '$a' is not deterministic" >&2; bad=$((bad+1)); }
-				SANDBOX_DIRTY=1
-				printf '%s\n' "$Q_ANSWERS" | while IFS= read -r a; do
-					[ -n "$a" ] || continue
-					[ "$(run_answer "$a")" = "$got" ] \
-					  || echo "FAIL $id/$i: cmp:ref but '$a' prints something else"
-				done > "$TMP/cr.$$" 2>&1
-				if [ -s "$TMP/cr.$$" ]; then cat "$TMP/cr.$$" >&2; bad=$((bad + $(grep -c . "$TMP/cr.$$"))); fi
-				rm -f "$TMP/cr.$$"
-			fi
-
+			st_block "$id/$i"
 			i=$((i + 1))
 		done
 
@@ -672,6 +682,21 @@ selftest() {
 			rm -f "$TMP/boss.$$"
 		fi
 	done
+
+	# the challenge chains get the same per-block treatment. they are always
+	# reference-graded, so the determinism and agreement checks apply to
+	# every one of them.
+	if [ -f "$CHAINS" ]; then
+		nq=$(chal_nq)
+		i=1
+		while [ "$i" -le "$nq" ]; do
+			blk_load "$CHAINS" "$i" || { echo "FAIL chain/$i: no prompt" >&2; bad=$((bad+1)); i=$((i+1)); continue; }
+			Q_CMP=ref
+			nq_all=$((nq_all + 1))
+			st_block "chain/$i"
+			i=$((i + 1))
+		done
+	fi
 
 	# the coach turns arbitrary learner input into diagnosis rows; it must
 	# never be able to crash a lesson. feed it hostile shapes and require
@@ -729,6 +754,7 @@ usage() {
 	learn <cmd>           same, shorthand
 	learn -k <word>       search the corpus
 	learn list            every command xos ships
+	learn challenge       the gauntlet: timed chains, one life, a best to beat
 	learn stats           what you have mastered
 	learn reset           forget all progress
 
@@ -748,6 +774,11 @@ case "${1:-}" in
 	list)     surface ;;
 	stats)    stats ;;
 	selftest) selftest ;;
+	challenge) shift
+	          case "${1:-}" in
+	          	check) chal_check ;;
+	          	*)     challenge; session_summary ;;
+	          esac ;;
 	coverage) shift; coverage "${1:--q}" ;;
 	order)    order ;;
 	reset)    rm -f "$CARDS" 2>/dev/null; ok "progress cleared" ;;

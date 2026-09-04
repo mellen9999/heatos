@@ -525,7 +525,7 @@ rootfs() {
   install -m 0755 learn/learn root/bin/learn
   mkdir -p root/usr/share/learn
   cp -r learn/ref learn/lib learn/pools learn/levels root/usr/share/learn/
-  cp learn/skip learn/builtins learn/phrases root/usr/share/learn/
+  cp learn/skip learn/builtins learn/phrases learn/chains root/usr/share/learn/
 
   # hand-written shims for things busybox lacks
   # overlay carries the udhcpc script without
@@ -1010,7 +1010,7 @@ flagchk() {
 size() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=25   # origin 17 + G20/G21 + G23/G24 + G25/G26 (learn checks itself) + G28 (kernel/config binding)
+  local EXPECTED_GATES=26   # origin 17 + G20/G21 + G23/G24 + G25/G26 (learn checks itself) + G28 (kernel/config binding) + G29 (challenge shape)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -1286,6 +1286,19 @@ size() {
   printf '%s\n' "$or_out" | grep -v '^learn: ' >&2 || true
   g "G27 $(printf '%s' "$or_out" | sed -n 's/^learn: //p' | tail -1)" \
     "$([ "$or_ok" -eq 1 ] && echo ok || echo FAIL)"
+
+  # G29 -- the challenge track holds its shape. at least twelve stages, every
+  # stage a real chain, the difficulty never falling and ending in the deep
+  # end, and no stage claiming a lvl: whose commands the levels have not
+  # taught by then. this is what makes "a challenge track that stops getting
+  # harder" a build failure instead of a slow disappointment.
+  local ch_out ch_ok=1
+  ch_out=$(LEARN_ROOT="$PWD/learn" LEARN_SH="$lsh/sh" \
+           XDG_STATE_HOME="$lsh/state" HOME="$lsh/home" NO_COLOR=1 \
+           ./busybox ash learn/learn challenge check 2>&1) || ch_ok=0
+  printf '%s\n' "$ch_out" | grep -v '^learn: ' >&2 || true
+  g "G29 $(printf '%s' "$ch_out" | sed -n 's/^learn: //p' | tail -1)" \
+    "$([ "$ch_ok" -eq 1 ] && echo ok || echo FAIL)"
 
   rm -rf "$lsh"
 

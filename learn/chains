@@ -1,0 +1,67 @@
+name: the gauntlet
+brief: multi-command chains, composed from everything the levels taught. thirty seconds each, one life, no hints, no reference. every chain is graded on what your pipe really prints, so any correct pipeline passes. how far can you get?
+---
+q: %count% the distinct lines of @txt@
+a: sort -u @txt@ | wc -l
+lvl: 05
+ref: sort
+---
+q: %show% only the lines of @txt@ that appear more than once
+a: sort @txt@ | uniq -d
+lvl: 05
+ref: uniq
+---
+q: %count% the @sev@ lines of @log@ with a pipe, not a flag
+a: grep @sev@ @log@ | wc -l
+lvl: 06
+ref: grep
+---
+q: %count% the .txt files under this directory, at any depth
+a: find . -name '*.txt' | wc -l
+lvl: 07
+ref: find
+---
+q: %show% the status column of @csv@ without its header, sorted
+a: tail -n +2 @csv@ | cut -d, -f3 | sort
+lvl: 08
+ref: cut
+---
+q: %show% the settings in @cfg@ with the spaces squeezed out of the assignments, skipping comments and blanks
+a: grep -v '^#' @cfg@ | sed -n 's/ = /=/p'
+lvl: 09
+ref: sed
+---
+q: add up the count column of @csv@, skipping the header
+a: tail -n +2 @csv@ | awk -F, '{s += $4} END {print s}'
+lvl: 10
+ref: awk
+---
+q: %show% the times of the @sev@ lines in @log@, sorted
+a: grep @sev@ @log@ | awk '{print $2}' | sort
+lvl: 10
+ref: awk
+---
+q: %show% the grand total line count across every .log file under this directory
+a: find . -name '*.log' | xargs wc -l | tail -1
+lvl: 18
+ref: xargs
+---
+q: %show% just the hash of @txt@, nothing after it
+a: sha256sum @txt@ | cut -d' ' -f1
+lvl: 20
+ref: sha256sum
+---
+q: %count% the processor lines in /proc/cpuinfo with a pipe, not a flag
+a: grep processor /proc/cpuinfo | wc -l
+lvl: 23
+ref: grep
+---
+q: %count% the inet addresses on this machine
+a: ip addr | grep -c inet
+lvl: 24
+ref: ip
+---
+q: %show% the value of roothash from the kernel command line, splitting it into one word per line first
+a: tr ' ' '\n' < /proc/cmdline | grep roothash | cut -d= -f2
+lvl: 29
+ref: tr
