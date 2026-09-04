@@ -53,8 +53,11 @@ PU_ROOT=56524c00-0000-4002-8000-000000000002
 PU_STATE=56524c00-0000-4003-8000-000000000003
 STICK_ESP_MIB=64
 # fixed build clock: the same commit must yield the same image, so the
-# artifact can be checked against its source instead of trusted.
-export SOURCE_DATE_EPOCH=1755648000
+# artifact can be checked against its source instead of trusted. this is also
+# xos.epoch, the security floor init refuses to boot before -- so it is a
+# PINNED LITERAL, never `date +%s`, and gets bumped + repinned periodically
+# (G30 fails the build once it goes stale). 2026-09-04 00:00:00 UTC.
+export SOURCE_DATE_EPOCH=1788480000
 # busybox renders its banner timestamp in LOCAL time, so without a pinned TZ
 # the same source builds differently in a different timezone.
 export TZ=UTC
@@ -1007,10 +1010,45 @@ flagchk() {
   return 0
 }
 
+# gate roster -- every G-number that exists, in one place, so a silently
+# dropped gate is visible instead of hiding in a diff. most run in size()
+# below; G8 runs in fetch(), G9 lives in githooks/pre-commit (not this
+# script). G22 was never assigned -- skip on purpose, not a gap.
+#   G1  image <= IMAGE_MAX
+#   G2  no dynamic loader (no INTERP segment on any ELF)
+#   G3  every ELF is PIE
+#   G4  no setuid/setgid files
+#   G5  no world-writable files
+#   G6  cmdline root hash matches the built tree
+#   G7  kernel has no module loader
+#   G8  every source pinned + verified before extraction   (fetch())
+#   G9  no build artifacts/keys committed                  (githooks/pre-commit)
+#   G10 build clock pinned (busybox banner matches SOURCE_DATE_EPOCH)
+#   G11 no plaintext private key on disk
+#   G12 image has every manifest entry
+#   G13 image matches the committed digest (reproducibility)
+#   G14 kernel honours the hardening config
+#   G15 cmdline carries every hardening param
+#   G16 no executable stack
+#   G17 stick.img coherent with the pinned artifacts
+#   G18 no firmware blobs in image
+#   G19 UKI + image <= IMAGE_MAX (the binding size gate)
+#   G20 shipped image is not revoked
+#   G21 revocation digest matches the signature
+#   G22 -- unassigned, on purpose
+#   G23 exactly one shell (busybox ash)
+#   G24 learn corpus covers the shipped surface exactly
+#   G25 learn selftest passes under the built busybox
+#   G26 curriculum covers the surface (nothing untaught)
+#   G27 levels only use commands already taught, in order
+#   G28 bzImage was built from the on-disk kernel.config
+#   G29 challenge track holds its shape
+#   G30 clock floor is fresh, not stale                    (new)
+#   G31 no test flags on the production cmdline            (new)
 size() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=26   # origin 17 + G20/G21 + G23/G24 + G25/G26 (learn checks itself) + G28 (kernel/config binding) + G29 (challenge shape)
+  local EXPECTED_GATES=28   # roster above, minus G8/G9 (checked elsewhere) and G22 (unassigned)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -1328,6 +1366,27 @@ size() {
   g "G28 bzImage was built from this kernel.config" \
     "$([ "$kb_ok" -eq 1 ] && echo ok || echo FAIL)"
 
+  # G30 -- SOURCE_DATE_EPOCH doubles as xos.epoch, the security floor init
+  # refuses to boot before. it is a pinned literal (never build-time `date
+  # +%s` -- that would break G13 reproducibility), so nothing else stops it
+  # going stale and quietly re-opening the window to roll a clock back onto
+  # an expired or revoked cert. 90 days is tunable; it just has to be shorter
+  # than "nobody noticed".
+  local floor_age floor_max=7776000
+  floor_age=$(( $(date +%s) - SOURCE_DATE_EPOCH ))
+  g "G30 clock floor fresh (epoch $((floor_age / 86400)) days old, max $((floor_max / 86400)))" \
+    "$([ "$floor_age" -le "$floor_max" ] && echo ok || echo FAIL)"
+
+  # G31 -- a leaked test build must never pass as production. XOS_TEST=1
+  # appends these to cmdline.txt (verity()); selftest.sh restores a clean
+  # build afterward, but a hard gate here means that restore is enforced,
+  # not just intended.
+  local tf=0 tfword
+  for tfword in xos.test xos.teststate xos.testwg; do
+    grep -qF "$tfword" cmdline.txt && tf=$((tf+1))
+  done
+  g "G31 no test flags on production cmdline" "$([ "$tf" -eq 0 ] && echo ok || echo FAIL)"
+
   # a gate that dies mid-run under set -e looked exactly like a passing one,
   # so prove every gate actually executed.
   if [ "$ran" -ne "$EXPECTED_GATES" ]; then
@@ -1468,7 +1527,7 @@ stick_install() {
 
   # build everything if it is not already sitting here, so a fresh clone can go
   # straight to install.
-  [ -f stick.img ] || { echo "  no stick.img yet -- building the whole image first"; all || return 1; }
+  [ -f stick.img ] || { echo "  no stick.img yet -- building the whole image first"; build_all || return 1; }
 
   # the flash + byte-for-byte verification lives in usb(); reuse it rather than
   # keeping a second copy of the careful part.
@@ -1491,14 +1550,44 @@ stick_install() {
   printf '  \033[1;32minstall complete\033[0m\n'
 }
 
+# lint -- shellcheck over every shell source in the tree. not wired into
+# `all`: it's a lint pass, not a build gate, and a machine without shellcheck
+# must still be able to build. warnings print but don't fail the run; errors
+# do. learn/lib/* are sourced fragments with no shebang of their own, so they
+# need -s sh spelled out -- learn/learn (their one caller) is #!/bin/sh.
+lint() {
+  say "shellcheck"
+  if ! command -v shellcheck >/dev/null 2>&1; then
+    echo "  shellcheck not installed -- skipping (paru -S shellcheck)"
+    return 0
+  fi
+  local out=""
+  out+=$(shellcheck build.sh selftest.sh init learn/learn overlay/usr/share/udhcpc/default.script; echo)
+  out+=$(shellcheck -s sh learn/lib/*; echo)
+  printf '%s\n' "$out"
+  # warnings/info are noise until they aren't; only error-severity fails the
+  # run, so a bump in shellcheck's own defaults can't silently red the tree.
+  if printf '%s' "$out" | has '(error):'; then
+    printf '  \033[1;31mshellcheck found errors\033[0m\n'
+    return 1
+  fi
+  printf '  \033[1;32mno shellcheck errors\033[0m\n'
+  return 0
+}
+
+# build_all -- the whole pipeline, front to back. a real function (not just a
+# case arm) so other commands (stick_install on a clean tree) can call it too.
+build_all() {
+  deps; fetch; kernel; headers; busybox; tls; ii_; abduco; cryptsetup_; wg_; dropbear_; rootfs; verity; keys
+  # clean clone makes plaintext keys; seal them so uki's unlock has db.key.enc
+  # and G11 stays green. a sealed tree short-circuits keys() and skips this.
+  if [ -f keys/db.key ]; then seal; fi
+  uki; stick; size
+}
+
 case "${1:-all}" in
   install) shift; stick_install "$@" ;;
-  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|size|boot|bootusb) "$@" ;;
-  all)
-    deps; fetch; kernel; headers; busybox; tls; ii_; abduco; cryptsetup_; wg_; dropbear_; rootfs; verity; keys
-    # clean clone makes plaintext keys; seal them so uki's unlock has db.key.enc
-    # and G11 stays green. a sealed tree short-circuits keys() and skips this.
-    if [ -f keys/db.key ]; then seal; fi
-    uki; stick; size ;;
-  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|dbx|revoke IMAGE|stick|usb <dev>|pin|seed|size|boot|bootusb|all}"; exit 1 ;;
+  deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|ramkeys|uki|dbx|revoke|stick|usb|pin|seed|size|boot|bootusb|lint) "$@" ;;
+  all) build_all ;;
+  *) echo "usage: $0 {deps|fetch|kernel|headers|busybox|ii_|abduco|cryptsetup_|wg_|dropbear_|addstate|tls|ta|rootfs|verity|keys|seal|reseal|unlock|lock|uki|dbx|revoke IMAGE|stick|usb <dev>|pin|seed|size|boot|bootusb|lint|all}"; exit 1 ;;
 esac
