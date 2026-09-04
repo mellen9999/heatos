@@ -33,6 +33,7 @@ teach: wc -c
 q: {%count% how many entries are in the current directory|how many things are in this directory?|number of files and folders here}
 a: ls | wc -l
 out: [0-9]
+cmp: ref
 ref: wc
 teach: wc -l
 ---
@@ -144,5 +145,6 @@ teach: uniq -w
 q: %find% the length of the longest line in @log@
 a: wc -L @log@
 out: [0-9]
+cmp: ref
 ref: wc
 teach: wc -L

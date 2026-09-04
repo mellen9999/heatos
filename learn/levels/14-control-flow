@@ -38,6 +38,7 @@ teach: sh
 q: loop over every .log file here printing its line count
 a: for f in *.log; do wc -l < $f; done
 out: ^[0-9]+$
+cmp: ref
 ref: wc
 teach: wc -l
 ---

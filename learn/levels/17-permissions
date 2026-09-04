@@ -114,6 +114,7 @@ teach: stat
 q: %show% just the size of @txt@ in bytes, nothing else
 a: stat -c %s @txt@
 out: ^[0-9]+$
+cmp: ref
 ref: stat
 teach: stat -c
 hint: -c takes a format; %s is size, %n name, %a permission bits

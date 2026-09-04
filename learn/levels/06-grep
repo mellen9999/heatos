@@ -32,6 +32,7 @@ hint: v for invert
 q: {%count% how many lines of @log@ contain @sev@|how many @log@ lines mention @sev@?|report the number of @sev@ lines in @log@}
 a: grep -c @sev@ @log@
 out: ^[0-9]+$
+cmp: ref
 ref: grep
 teach: grep -c
 hint: this counts LINES, not occurrences -- two matches on one line count once
@@ -39,6 +40,7 @@ hint: this counts LINES, not occurrences -- two matches on one line count once
 q: {%show% the @sev@ lines of @log@ with their line numbers|number the @sev@ matches in @log@|which line numbers in @log@ have @sev@?}
 a: grep -n @sev@ @log@
 out: ^[0-9]+:
+cmp: ref
 ref: grep
 teach: grep -n
 ---
@@ -111,6 +113,7 @@ hint: F for fixed string
 q: %find% lines in @log@ holding an IP-like number, using extended regex
 a: grep -E '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' @log@
 out: [0-9]
+cmp: ref
 ref: grep
 teach: grep -E
 ---

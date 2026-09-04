@@ -139,7 +139,7 @@ correct() {
 	# `wc -l f`, `wc -l < f`, `cat f | wc -l` all use wc. grammar questions
 	# (Q_REF is the shell itself) have no single command to require, so they
 	# fall back to their listed forms.
-	[ -n "${Q_OUT:-}" ] || [ -n "${Q_STATE:-}" ] || return 1
+	[ -n "${Q_OUT:-}" ] || [ -n "${Q_STATE:-}" ] || [ "${Q_CMP:-}" = ref ] || return 1
 	[ "${SANDBOX_OK:-0}" = 1 ] || return 1
 	printf '%s\n' "$1" | unsafe && return 1
 	case "${Q_REF:-}" in
@@ -150,5 +150,15 @@ correct() {
 	_got=$(run_answer "$1"); SANDBOX_DIRTY=1
 	[ -z "${Q_OUT:-}" ]   || printf '%s\n' "$_got" | grep -qE -- "$Q_OUT" || return 1
 	[ -z "${Q_STATE:-}" ] || check_state "$Q_STATE" || return 1
+
+	# cmp: ref -- the strictest tier, for questions whose out: shape alone is
+	# gameable: `grep -c WARN` prints the same ^[0-9]+$ shape as the
+	# `grep -c ERROR` the question asked for, and both invoke grep. deriving
+	# the wanted output by running the question's own first answer against the
+	# same seeded tree closes that: only the right computation prints it.
+	if [ "${Q_CMP:-}" = ref ]; then
+		_want=$(run_answer "$(printf '%s\n' "$Q_ANSWERS" | head -1)"); SANDBOX_DIRTY=1
+		[ "$_got" = "$_want" ] || return 1
+	fi
 	return 0
 }

@@ -101,6 +101,7 @@ q_load() {
 	Q_OUT=$(sed -n 's/^out: \{0,1\}//p' "$blk" | render "$seed" | head -1)
 	Q_STATE=$(sed -n 's/^state: \{0,1\}//p' "$blk" | render "$seed" | head -1)
 	Q_REF=$(sed -n 's/^ref: \{0,1\}//p' "$blk" | head -1)
+	Q_CMP=$(sed -n 's/^cmp: \{0,1\}//p' "$blk" | head -1)
 	Q_HINT=$(sed -n 's/^hint: \{0,1\}//p' "$blk" | render "$seed" | head -1)
 	Q_SETUP=$(sed -n 's/^setup: \{0,1\}//p' "$blk" | render "$seed")
 	[ -n "$Q_PROMPT" ]
@@ -627,6 +628,25 @@ selftest() {
 					[ -z "$Q_STATE" ] || check_state "$Q_STATE" \
 					  || { echo "FAIL $id/$i: state:$Q_STATE not true after '$a'" >&2; bad=$((bad+1)); }
 				fi
+			fi
+
+			# cmp: ref grades by comparing against the first answer's output,
+			# so that output must be stable across a rebuild of the same seed
+			# (or a right answer could be marked wrong), and every listed
+			# answer must print it (or a listed phrasing would be rejected).
+			if [ "${Q_CMP:-}" = ref ]; then
+				a=$(printf '%s\n' "$Q_ANSWERS" | head -1)
+				got=$(run_answer "$a"); SANDBOX_DIRTY=1
+				[ "$(run_answer "$a")" = "$got" ] \
+				  || { echo "FAIL $id/$i: cmp:ref but '$a' is not deterministic" >&2; bad=$((bad+1)); }
+				SANDBOX_DIRTY=1
+				printf '%s\n' "$Q_ANSWERS" | while IFS= read -r a; do
+					[ -n "$a" ] || continue
+					[ "$(run_answer "$a")" = "$got" ] \
+					  || echo "FAIL $id/$i: cmp:ref but '$a' prints something else"
+				done > "$TMP/cr.$$" 2>&1
+				if [ -s "$TMP/cr.$$" ]; then cat "$TMP/cr.$$" >&2; bad=$((bad + $(grep -c . "$TMP/cr.$$"))); fi
+				rm -f "$TMP/cr.$$"
 			fi
 
 			i=$((i + 1))
