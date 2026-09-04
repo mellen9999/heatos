@@ -272,11 +272,20 @@ array at all.
 30 levels and 800-odd questions cover the whole surface in dependency order,
 from `ls` to reading a suspect disk's bytes without mounting it to proving, from
 inside the running system, that the machine underneath you is the one you built.
-the questions are generated, not fixed: each rolls its own filenames and values
-and is graded by running what you type, so `sort -u` and `sort | uniq` both
-pass. every level ends with a named boss -- five questions, thirty seconds each,
-no hints and no reference -- and the last level is the machine itself. `learn` resumes the curriculum,
-`learn challenge` is the second track.
+the questions are generated, not fixed: each rolls its own filenames, values
+and file *contents* -- the sandbox data is rebuilt from the roll's seed, so a
+count has to be computed, never remembered -- and is graded by running what you
+type, so `sort -u` and `sort | uniq` both pass. the gameable count questions go
+further: the answer's own output is derived by running it, and yours must match
+exactly, so `grep -c WARN` cannot pass an ERROR question. a miss shows you
+where your command died -- what it printed against what was wanted, the line
+count at every pipeline stage, and the exact flags between you and the nearest
+accepted answer. every level ends with a named boss -- five questions, thirty seconds each,
+no hints and no reference -- and the last level is the machine itself. `learn` resumes the curriculum
+where the last boss fell, `learn review` re-asks the weakest cards first,
+`learn daily` is the same ten questions for everyone on a date, and
+`learn challenge` is the second track: thirteen timed chains that compose the
+whole curriculum, one life, graded purely on what your pipeline prints.
 
 five rules govern it, and all five are gates rather than intentions:
 
@@ -298,6 +307,9 @@ five rules govern it, and all five are gates rather than intentions:
 - a level may only use commands it or an earlier level introduced (G27), so
   "teach in the right order" survives someone moving a question. it found six
   real violations the first time it ran.
+- the challenge track holds its shape (G29): at least twelve stages, every
+  stage a real chain, difficulty never falling, the end in the deep end, and
+  no stage claiming a level whose commands are not yet taught.
 
 the reference is complete; the curriculum is selective. a lesson's `uses:` are
 drilled with questions, its `mentions:` are named and explained but not drilled
