@@ -1300,6 +1300,11 @@ size() {
   g "G29 $(printf '%s' "$ch_out" | sed -n 's/^learn: //p' | tail -1)" \
     "$([ "$ch_ok" -eq 1 ] && echo ok || echo FAIL)"
 
+  # not a gate: hint coverage and wording variety are judgment calls, and a
+  # hard gate on them would breed filler. printed here so drift is visible.
+  LEARN_ROOT="$PWD/learn" ./busybox ash learn/learn lint 2>/dev/null \
+    | sed -n 's/^learn: /  /p' || true
+
   rm -rf "$lsh"
 
   # G28 -- the bzImage on disk was built from the kernel.config on disk.

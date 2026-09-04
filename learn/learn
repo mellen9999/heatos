@@ -328,6 +328,71 @@ review() {
 	done 3< "$TMP/rev"
 }
 
+# ---- daily ----------------------------------------------------------------
+
+# ten questions, the same ten for everyone on the same date -- the seed is
+# the day number, and the pinned busybox fixes the rand() stream, so one
+# build asks one daily everywhere. no hints, no reference: a score to
+# compare, not a lesson. (RANDOM is seedable -- ASH_RANDOM_SUPPORT is on
+# for exactly this.)
+daily() {
+	local day nl lvl nq idx n=0 right=0 rc
+	day=$(date +%Y-%m-%d 2>/dev/null || echo today)
+	RANDOM=$(( $(date +%s 2>/dev/null || echo 0) / 86400 ))
+	nl=$(level_ids | grep -c .)
+	hdr "daily" "$day  ten questions  no hints"
+	echo
+	MODE=daily
+	while [ "$n" -lt 10 ]; do
+		# draw in THIS shell: a subshell re-seeds RANDOM from its own pid,
+		# which would make the "same ten everywhere" claim quietly false
+		rnd "$nl"; lvl=$(level_ids | sed -n "$((REPLY + 1))p")
+		nq=$(level_nq "$lvl")
+		[ "$nq" -gt 0 ] || continue
+		rnd "$nq"; idx=$((REPLY + 1))
+		ask "$lvl" "$idx"; rc=$?
+		[ "$rc" = 2 ] && { MODE=learn; return 0; }
+		[ "$rc" = 0 ] && right=$((right + 1))
+		n=$((n + 1))
+		echo
+	done
+	MODE=learn
+	rule
+	printf '  %sdaily %s%s  %s/10\n' "$B" "$day" "$N" "$right"
+}
+
+# ---- lint -----------------------------------------------------------------
+
+# reported, never gated: wording variety and hint coverage are judgment
+# calls, and a hard gate on them would breed filler. the numbers print
+# beside the gates so drift is visible instead of silent.
+lint() {
+	awk -v verbose="${1:-}" '
+		function flushblk() {
+			if (!inblk) return
+			total++; ft[FILENAME]++
+			if (!hashint) { nohint++; fh[FILENAME]++ }
+			if (q !~ /%[a-z]+%/ && q !~ /\{[^{}]*\|/) { novary++; fv[FILENAME]++ }
+			inblk = 0
+		}
+		FNR == 1 { flushblk() }
+		/^---$/  { flushblk(); inblk = 1; hashint = 0; q = ""; next }
+		inblk && /^hint:/ { hashint = 1 }
+		inblk && /^q: / && q == "" { q = $0 }
+		END {
+			flushblk()
+			if (verbose == "-v")
+				for (f in ft) {
+					n = split(f, p, "/")
+					printf "  %-24s %3d questions  %3d hintless  %3d single-phrasing\n", \
+						p[n], ft[f], fh[f] + 0, fv[f] + 0
+				}
+			printf "learn: lint: %d questions, %d without a hint, %d with a single phrasing\n", \
+				total, nohint, novary
+		}
+	' "$LEVELS"/*
+}
+
 # ---- stats ----------------------------------------------------------------
 
 stats() {
@@ -791,6 +856,7 @@ usage() {
 	learn -k <word>       search the corpus
 	learn list            every command xos ships
 	learn review [n]      re-ask your weakest cards, weakest first
+	learn daily           today's ten -- same ten everywhere, compare scores
 	learn challenge       the gauntlet: timed chains, one life, a best to beat
 	learn stats           what you have mastered
 	learn reset           forget all progress
@@ -823,6 +889,8 @@ case "${1:-}" in
 	list)     surface ;;
 	stats)    stats ;;
 	selftest) selftest ;;
+	daily)    daily; session_summary ;;
+	lint)     shift; lint "${1:-}" ;;
 	challenge) shift
 	          case "${1:-}" in
 	          	check) chal_check ;;
