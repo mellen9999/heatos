@@ -122,7 +122,8 @@ pump(br_ssl_client_context *cc, int tcp, int local)
 
 			if (fds[i].fd == tcp && (re & POLLOUT) && (st & BR_SSL_SENDREC)) {
 				buf = br_ssl_engine_sendrec_buf(&cc->eng, &len);
-				ssize_t n = write(tcp, buf, len);
+				ssize_t n;
+				do { n = write(tcp, buf, len); } while (n < 0 && errno == EINTR);
 				if (n <= 0) return 1;
 				br_ssl_engine_sendrec_ack(&cc->eng, n);
 			}
@@ -141,7 +142,8 @@ pump(br_ssl_client_context *cc, int tcp, int local)
 			}
 			if (fds[i].fd == local && (re & POLLOUT) && (st & BR_SSL_RECVAPP)) {
 				buf = br_ssl_engine_recvapp_buf(&cc->eng, &len);
-				ssize_t n = write(local, buf, len);
+				ssize_t n;
+				do { n = write(local, buf, len); } while (n < 0 && errno == EINTR);
 				if (n <= 0) return 1;
 				br_ssl_engine_recvapp_ack(&cc->eng, n);
 			}
@@ -181,7 +183,8 @@ pump_stdio(br_ssl_client_context *cc, int tcp)
 
 		if (want_out) {
 			buf = br_ssl_engine_recvapp_buf(&cc->eng, &len);
-			ssize_t n = write(1, buf, len);
+			ssize_t n;
+			do { n = write(1, buf, len); } while (n < 0 && errno == EINTR);
 			if (n <= 0) return 1;
 			br_ssl_engine_recvapp_ack(&cc->eng, n);
 			continue;
@@ -195,7 +198,8 @@ pump_stdio(br_ssl_client_context *cc, int tcp)
 			if (!re) continue;
 			if (fds[i].fd == tcp && (re & POLLOUT) && (st & BR_SSL_SENDREC)) {
 				buf = br_ssl_engine_sendrec_buf(&cc->eng, &len);
-				ssize_t n = write(tcp, buf, len);
+				ssize_t n;
+				do { n = write(tcp, buf, len); } while (n < 0 && errno == EINTR);
 				if (n <= 0) return 1;
 				br_ssl_engine_sendrec_ack(&cc->eng, n);
 			}

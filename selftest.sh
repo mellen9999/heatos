@@ -26,9 +26,20 @@ ROOT_OFF=$(( (1 + 64) * 1024 * 1024 ))
 ./build.sh unlock || { echo "cannot unlock signing keys"; exit 1; }
 # uki rebuilds ovmf-vars.fd from the pristine OVMF template, so restore() also
 # discards the throwaway dbx entry A11 enrolls into firmware.
-XOS_TEST=1 ./build.sh verity >/dev/null && ./build.sh uki >/dev/null && ./build.sh stick >/dev/null
+XOS_TEST=1 ./build.sh verity >/dev/null && ./build.sh uki >/dev/null && ./build.sh stick >/dev/null \
+	|| { echo "cannot build test uki/stick"; exit 1; }
+# restore is the EXIT trap: if it fails partway, the tree can be left holding
+# a TEST uki/stick -- xos.test xos.teststate xos.testwg on a cmdline that must
+# never ship. that failure must be impossible to miss, so check every step and
+# make noise (and a nonzero exit) rather than silently leaving debug scaffolding
+# in place for build.sh's own G31 to (hopefully) catch on the next run.
 restore() {
-	./build.sh verity >/dev/null 2>&1 && ./build.sh uki >/dev/null 2>&1 && ./build.sh stick >/dev/null 2>&1
+	if ! ./build.sh verity >/dev/null 2>&1 || ! ./build.sh uki >/dev/null 2>&1 || ! ./build.sh stick >/dev/null 2>&1; then
+		printf '\033[1;31m  RESTORE FAILED -- the tree may still hold a TEST uki/stick (xos.test xos.teststate xos.testwg). rebuild before shipping anything.\033[0m\n' >&2
+		./build.sh lock >/dev/null 2>&1
+		rm -f /tmp/xos-a*.img /tmp/xos-a*.efi
+		exit 1
+	fi
 	./build.sh lock >/dev/null 2>&1
 	rm -f /tmp/xos-a*.img /tmp/xos-a*.efi
 }
@@ -39,6 +50,22 @@ bad() { printf '  \033[1;31mFAIL\033[0m  %s\n' "$1"; fail=$((fail+1)); }
 # a check quietly not evaluated is the exact failure this harness exists to
 # catch everywhere else.
 skipped() { printf '  \033[1;33mSKIP\033[0m  %s\n' "$1"; skip=$((skip+1)); }
+
+# init prints XOS-TEST-END once the whole probe block finished and
+# XOS-TEST-DONE once the console supervisor is up too -- the same
+# did-everything-run guard this harness already applies to itself
+# (EXPECTED_SECTIONS/EXPECTED_GATES), applied to a single boot's output. a
+# probe block that dies partway (a hang, a crash) must not look like a clean
+# run just because every check that DID print happened to pass. only call
+# this for a boot that is expected to reach the end -- never for an
+# adversarial boot that is supposed to be refused before it gets there.
+assert_complete() {
+	if grep -q 'XOS-TEST-END' <<< "$1" && grep -q 'XOS-TEST-DONE' <<< "$1"; then
+		ok "$2: probe run reached XOS-TEST-END and XOS-TEST-DONE"
+	else
+		bad "$2: probe run did not complete (missing END and/or DONE -- truncated)"
+	fi
+}
 
 # boots the real chain over VIRTIO: firmware -> enrolled key -> signed UKI ->
 # verity root resolved by PARTUUID off the stick's p2.
@@ -109,6 +136,43 @@ out=$(boot_img stick.img)
 grep -qi 'secure boot is enabled' <<< "$out" && ok "secure boot was enforcing during the run" || bad "secure boot not enabled"
 grep -q 'write-to-root: refused' <<< "$out" && ok "write to / returned EROFS" || bad "root was writable"
 grep -q 'busybox-runs: yes'      <<< "$out" && ok "userland actually executes"  || bad "userland did not run"
+grep -q 'rootfs-type: squashfs' <<< "$out" && ok "root is mounted as squashfs" || bad "root filesystem type is not squashfs"
+grep -q 'rootfs-flags: ro'      <<< "$out" && ok "root mount flags include ro" || bad "root not mounted ro"
+# the strongest self-statement init makes about itself, checked against
+# sources that live OUTSIDE the booted system -- the squashfs on disk and the
+# roothash build.sh just wrote for this run -- not anything the image could
+# have lied about from the inside. dm-0 exposes xos.img's data region, and
+# verity() zero-pads that to a 4096 boundary before hashing it (see build.sh),
+# so replicate the same padding here rather than hashing rootfs.squashfs raw --
+# otherwise an unaligned squashfs size makes this fail for no real reason.
+sqsz=$(stat -c%s rootfs.squashfs)
+padsz=$(( (4096 - sqsz % 4096) % 4096 ))
+if [ "$padsz" -eq 0 ]; then
+	want_digest=$(sha256sum rootfs.squashfs | cut -d' ' -f1)
+else
+	want_digest=$( { cat rootfs.squashfs; head -c "$padsz" /dev/zero; } | sha256sum | cut -d' ' -f1)
+fi
+got_digest=$(grep -oP 'rootfs-digest: \K[0-9a-f]+' <<< "$out" | head -1)
+[ -n "$got_digest" ] && [ "$got_digest" = "$want_digest" ] \
+	&& ok "rootfs-digest (hashed live through dm-verity) matches rootfs.squashfs" \
+	|| bad "rootfs-digest mismatch (got ${got_digest:-none}, want $want_digest)"
+want_rh=$(cat verity.roothash 2>/dev/null)
+got_rh=$(grep -oP 'verity-roothash: \K[0-9a-f]+' <<< "$out" | head -1)
+[ -n "$got_rh" ] && [ "$got_rh" = "$want_rh" ] \
+	&& ok "verity-roothash on the signed cmdline matches verity.roothash" \
+	|| bad "verity-roothash mismatch (got ${got_rh:-none}, want ${want_rh:-none})"
+grep -q 'verity-onerror: panic_on_corruption' <<< "$out" \
+	&& ok "verity is set to panic on corruption, not merely warn" \
+	|| bad "verity onerror is not panic_on_corruption"
+# networking: qemu's usermode nic + built-in dhcp server, no real internet needed.
+grep -q 'net-iface-up: none' <<< "$out" \
+	&& bad "no network interface came up" \
+	|| ok "a network interface came up"
+grep -q 'net-has-address: yes' <<< "$out" && ok "dhcp lease obtained" || bad "no ipv4 address"
+grep -q 'net-default-route: yes' <<< "$out" && ok "a default route was installed" || bad "no default route"
+dns_n=$(grep -oP 'net-dns-servers: \K[0-9]+' <<< "$out" | head -1)
+[ "${dns_n:-0}" -gt 0 ] && ok "$dns_n dns server(s) from dhcp" || bad "no dns servers from dhcp"
+assert_complete "$out" "A2 boot"
 
 echo
 section "A3  unsigned UKI -- firmware must refuse it"
@@ -157,6 +221,9 @@ else
 		*)                bad "a cert outside trust/ was not refused: ${err:-no error}" ;;
 	esac
 fi
+grep -q 'trust-anchors-in-binary: [1-9]' <<< "$out" \
+	&& ok "trust anchors are compiled into the binary, not read from a directory" \
+	|| bad "no trust anchor strings found in the shipped binary"
 
 echo
 section "A7  flip a byte in the verity HASH TREE -- boot must refuse"
@@ -184,12 +251,15 @@ grep -q 'kcore: absent'        <<< "$out" && ok "/proc/kcore absent"       || ba
 grep -q 'kexec-loaded: absent' <<< "$out" && ok "kexec unavailable"        || bad "kexec present"
 grep -q 'vsyscall-map: 0'      <<< "$out" && ok "no fixed vsyscall page"   || bad "vsyscall page mapped"
 grep -q 'lockdown: .*\[confidentiality\]' <<< "$out" && ok "lockdown=confidentiality enforced" || bad "lockdown not in confidentiality mode"
+grep -q 'module-loader: absent' <<< "$out" && ok "no loadable module support" || bad "module loading is possible"
+grep -q 'devport-node: absent'  <<< "$out" && ok "/dev/port absent"           || bad "/dev/port present"
 
 echo
 section "A9  write / exec containment"
 grep -q 'remount-rw: refused' <<< "$out" && ok "/ cannot be remounted rw"      || bad "/ was remounted rw"
 grep -q 'tmp-exec: refused'   <<< "$out" && ok "noexec /tmp blocks execution"  || bad "a binary ran from /tmp"
 grep -q 'kptr-restrict: 2'    <<< "$out" && ok "kernel pointers restricted"    || bad "kptr_restrict not 2"
+grep -q 'dmesg-restrict: 1'   <<< "$out" && ok "dmesg restricted to privileged readers" || bad "dmesg_restrict not 1"
 
 echo
 section "A10  boot the stick over emulated USB (the real hardware path)"
@@ -198,6 +268,7 @@ if grep -q XOS-TEST-BEGIN <<< "$o10"; then
 	ok "booted from usb-storage via dm-mod.waitfor"
 	grep -qi 'secure boot is enabled' <<< "$o10" && ok "secure boot enforcing over USB" || bad "secure boot not enabled over USB"
 	grep -q 'write-to-root: refused'  <<< "$o10" && ok "root unwritable over USB"       || bad "root writable over USB"
+	assert_complete "$o10" "A10 boot"
 else
 	bad "stick did not boot over emulated USB (waitfor may have timed out)"
 fi
@@ -209,8 +280,9 @@ section "A11  a superseded but validly-signed image must be refused"
 # something has to boot -- and the firmware runs it, signature valid, every gate
 # green. this asserts dbx actually closes that.
 stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub
-R=$(./build.sh ramkeys)
-if [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
+if ! R=$(./build.sh ramkeys); then
+	skipped "no stub or unlocked key -- A11 not evaluated (ramkeys failed)"
+elif [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
 	skipped "no stub or unlocked key -- A11 not evaluated"
 else
 	ukify build --linux=bzImage --cmdline="$(cat cmdline.txt) xos.rel=old" \
@@ -242,9 +314,12 @@ else
 		fi
 		# revocation must not have collaterally killed the good image
 		o11b=$(boot_img stick.img)
-		grep -q XOS-TEST-BEGIN <<< "$o11b" \
-			&& ok "the current image still boots with dbx enrolled" \
-			|| bad "dbx enrollment broke the image we actually ship"
+		if grep -q XOS-TEST-BEGIN <<< "$o11b"; then
+			ok "the current image still boots with dbx enrolled"
+			assert_complete "$o11b" "A11 clean re-boot"
+		else
+			bad "dbx enrollment broke the image we actually ship"
+		fi
 	fi
 	rm -f /tmp/xos-a11.efi /tmp/xos-a11-signed.efi /tmp/xos-a11.img
 fi
@@ -256,6 +331,7 @@ section "A12  learn describes the system that is actually running"
 # cannot see, and the whole point of learn is that its questions are answerable
 # on the stick, offline.
 grep -q 'no-bash: absent' <<< "$out" && ok "bash is gone -- one shell" || bad "a second shell shipped"
+grep -q 'shell-vi-default: yes' <<< "$out" && ok "vi-mode line editing is the default shell behavior" || bad "vi keybindings are not the default"
 refs=$(grep -oP 'learn-refs: \K[0-9]+' <<< "$out" | head -1)
 runs=$(grep -oP 'learn-runs: \K[0-9]+' <<< "$out" | head -1)
 if [ "${refs:-0}" -gt 0 ] && [ "${refs:-0}" = "${runs:-x}" ]; then
@@ -290,6 +366,8 @@ section "A13  a session outlives the terminal that started it"
 # living child is proof the program is owned by abduco and not by a terminal.
 grep -q 'devpts-mounted: devpts' <<< "$out" && ok "devpts is mounted" \
 	|| bad "no devpts -- nothing can allocate a terminal"
+grep -q 'ptmx-node: yes' <<< "$out" && ok "/dev/ptmx is a character device" \
+	|| bad "/dev/ptmx missing -- pty allocation would fail before it even tries"
 grep -q 'pty-alloc: ok' <<< "$out" && ok "a pty can actually be allocated" \
 	|| bad "pty allocation failed"
 grep -q 'legacy-ptys: absent' <<< "$out" && ok "the obsolete pty interface is gone" \
@@ -328,6 +406,10 @@ grep -q 'flock-works: yes' <<< "$out" && ok "file locking works" \
 grep -q 'cryptsetup-runs: yes' <<< "$out" \
 	&& ok "cryptsetup runs, using the kernel crypto backend" \
 	|| bad "cryptsetup missing, or linked against a crypto library instead of the kernel"
+grep -q 'crypto-aes: yes'     <<< "$out" && ok "aes is available in the kernel crypto api"   || bad "aes missing from the kernel crypto api"
+grep -q 'crypto-sha512: yes'  <<< "$out" && ok "sha512 is available in the kernel crypto api" || bad "sha512 missing from the kernel crypto api"
+grep -q 'loop-node: present'  <<< "$out" && ok "/dev/loop0 exists"                            || bad "no loop device node"
+grep -q 'dm-control: present' <<< "$out" && ok "/dev/mapper/control exists"                   || bad "no device-mapper control node"
 grep -q 'luks-format: ok' <<< "$out" && ok "a LUKS2 volume can be created with integrity" \
 	|| bad "luksFormat failed"
 grep -q 'luks-open: ok' <<< "$out" && ok "it unlocks with the right passphrase" \
@@ -363,6 +445,7 @@ backout=$(boot_backclock stick.img)
 grep -q 'clock-not-before-floor: yes' <<< "$backout" \
 	&& ok "clock forced to 2010 was raised to the build-date floor" \
 	|| bad "the clock stayed in the past -- the floor did not hold"
+assert_complete "$backout" "A15 boot"
 
 echo
 section "A16  state survives a real power cycle"
@@ -381,10 +464,12 @@ if grep -q 'teststate-phase: provision' <<< "$b1" \
 else
 	bad "boot 1 did not provision p3"
 fi
+assert_complete "$b1" "A16 boot 1"
 b2=$(boot_state "$p3disk")
 grep -q 'teststate-prior-marker: survived-a-reboot' <<< "$b2" \
 	&& ok "boot 2 read the marker back -- state survived the power cycle" \
 	|| bad "the marker did not survive the reboot"
+assert_complete "$b2" "A16 boot 2"
 rm -f "$p3disk"
 
 echo

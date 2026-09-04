@@ -76,10 +76,22 @@ mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
 
 ip link set lo up 2>/dev/null
 if ! grep -q xos.nonet /proc/cmdline; then
-	for dev in $(ls /sys/class/net 2>/dev/null); do
-		[ "$dev" = lo ] && continue
-		ip link set "$dev" up 2>/dev/null
-		udhcpc -i "$dev" -q -t 3 -T 1 >/dev/null 2>&1 && break
+	# pci nics are up before /init; usb net (tether/dongle) enumerates on
+	# xhci a second or two later. one pass misses it -- re-scan until a lease
+	# lands or the deadline passes. wired boxes exit on pass 1; only a box
+	# that needs the usb uplink waits, and it is bounded so we never hang.
+	t=0
+	while : ; do
+		# busybox ls is the idiom for iterating /sys/class/net here
+		# shellcheck disable=SC2045
+		for dev in $(ls /sys/class/net 2>/dev/null); do
+			[ "$dev" = lo ] && continue
+			ip link set "$dev" up 2>/dev/null
+			[ "$(cat /sys/class/net/"$dev"/carrier 2>/dev/null)" = 1 ] || continue
+			udhcpc -i "$dev" -q -t 3 -T 1 >/dev/null 2>&1 && break 2
+		done
+		t=$((t+1)); [ "$t" -ge 6 ] && break
+		sleep 1
 	done
 fi
 
@@ -115,7 +127,9 @@ if grep -q xos.test /proc/cmdline; then
 	printf 'devpts-mounted: '; awk '$2=="/dev/pts" {print $3; f=1} END{if(!f) print "no"}' /proc/mounts
 	printf 'ptmx-node: '; if [ -c /dev/ptmx ]; then echo yes; else echo "no (BAD)"; fi
 	printf 'pty-alloc: '; if exec 9<>/dev/ptmx 2>/dev/null; then
-		ls /dev/pts 2>/dev/null | grep -q '^[0-9]' && echo ok || echo "FAILED (no slave)"
+		_slave=no
+		for _p in /dev/pts/[0-9]*; do [ -e "$_p" ] && _slave=yes && break; done
+		[ "$_slave" = yes ] && echo ok || echo "FAILED (no slave)"
 		exec 9>&-
 	else echo "FAILED (no ptmx)"; fi
 	printf 'legacy-ptys: '; if [ -c /dev/ptyp0 ]; then echo "present (BAD)"; else echo "absent (good)"; fi
@@ -178,11 +192,11 @@ if grep -q xos.test /proc/cmdline; then
 	printf 'abduco-child-alive: '; [ -s /tmp/tick ] && echo yes || echo no
 	# learn must describe the system that is actually running, not the one it was
 	# written against -- A15 reads these two back.
-	printf 'learn-refs: '; ls /usr/share/learn/ref 2>/dev/null | grep -c . || echo 0
+	printf 'learn-refs: '; _n=0; for _f in /usr/share/learn/ref/*; do [ -e "$_f" ] && _n=$((_n+1)); done; echo "$_n"
 	printf 'learn-runs: '; learn list 2>/dev/null | grep -c . || echo 0
 	printf 'learn-ref-ls: '; learn ref ls 2>/dev/null | head -1 | grep . || echo MISSING
-	printf 'learn-levels: '; ls /usr/share/learn/levels 2>/dev/null | grep -c . || echo 0
-	printf 'learn-pools: '; ls /usr/share/learn/pools 2>/dev/null | grep -c . || echo 0
+	printf 'learn-levels: '; _n=0; for _f in /usr/share/learn/levels/*; do [ -e "$_f" ] && _n=$((_n+1)); done; echo "$_n"
+	printf 'learn-pools: '; _n=0; for _f in /usr/share/learn/pools/*; do [ -e "$_f" ] && _n=$((_n+1)); done; echo "$_n"
 	# phrases drives the question-wording variety; without it prompts render with
 	# a literal %show% in them. prove one actually expands in the booted image.
 	printf 'learn-phrases: '; [ -f /usr/share/learn/phrases ] && echo yes || echo "no (BAD)"
@@ -195,24 +209,13 @@ if grep -q xos.test /proc/cmdline; then
 	printf 'net-has-address: '; [ "$(ip -o -4 addr show scope global 2>/dev/null | wc -l)" -gt 0 ] && echo yes || echo no
 	printf 'net-default-route: '; ip route show default 2>/dev/null | grep -oq 'dev' && echo yes || echo no
 	printf 'net-dns-servers: '; grep -c nameserver /tmp/resolv.conf 2>/dev/null || echo 0
-	irc=$(sed -n 's/.*xos\.irc=\([^ ]*\).*/\1/p' /proc/cmdline)
-	if [ -n "$irc" ]; then
-		ihost=${irc%:*}; iport=${irc##*:}
-		mkdir -p "$HOME/irc"
-		ii -s "$ihost" -p "$iport" -n xos -f xos -i "$HOME/irc" > /tmp/ii.log 2>&1 &
-		sleep 3
-		printf 'ii-stderr: '; head -2 /tmp/ii.log 2>/dev/null | tr '\n' ' '; echo
-		printf 'ii-home: '; echo "$HOME"; ls -d "$HOME/irc" 2>/dev/null || echo '  (no irc dir)'
-		d=$(find "$HOME/irc" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | head -1)
-		printf 'ii-created-tree: '; [ -n "$d" ] && echo yes || echo no
-		printf 'ii-server-greeting: '; grep -c 'Welcome to the xos test network' "$d/out" 2>/dev/null || echo 0
-		printf 'ii-in-fifo: '; [ -p "$d/in" ] && echo yes || echo no
-		echo '/j #xos' > "$d/in" 2>/dev/null
-		sleep 1
-		printf 'ii-joined-channel: '; find "$HOME/irc" -maxdepth 2 -type d -name '#xos' 2>/dev/null | wc -l
-	fi
+	# ii ships and is build-tested (compiled + manifest-checked), but its
+	# runtime probes were gated on xos.irc, a flag nothing ever sets -- wiring
+	# a full irc server into the qemu harness is heavy for what it buys, so
+	# the dead probe block that used to live here is gone. no runtime coverage
+	# for ii; build-tested only.
 
-	printf 'HEAD / HTTP/1.0\r\nHost: letsencrypt.org\r\nConnection: close\r\n\r\n' | tlstunnel - letsencrypt.org 443 > /tmp/tls.out 2> /tmp/tls.err
+	printf 'HEAD / HTTP/1.0\r\nHost: letsencrypt.org\r\nConnection: close\r\n\r\n' | timeout 20 tlstunnel - letsencrypt.org 443 > /tmp/tls.out 2> /tmp/tls.err
 	printf 'tls-handshake: '; head -1 /tmp/tls.out 2>/dev/null | tr -d '\r' | grep . || echo FAILED
 	printf 'tls-stderr: '; head -1 /tmp/tls.err 2>/dev/null | grep . || echo none
 	printf 'trust-anchors-in-binary: '; grep -ac 'Internet Security Research Group' /bin/tlstunnel 2>/dev/null || echo 0
@@ -434,6 +437,8 @@ console_loop() {
 	while : ; do
 		_t0=$(date +%s 2>/dev/null || echo 0)
 		banner > "$_dev" 2>/dev/null
+		# $_dev is a tty, not a regular file: rx+tx on one line is the point, not a hazard
+		# shellcheck disable=SC2094
 		setsid cttyhack /bin/sh <>"$_dev" >"$_dev" 2>&1 \
 			|| /bin/sh <>"$_dev" >"$_dev" 2>&1
 		# a console nothing is attached to returns EOF instantly and would
