@@ -73,11 +73,9 @@ cards_decay() {
 	' "$CARDS" > "$tmp" 2>/dev/null && mv "$tmp" "$CARDS" 2>/dev/null || :
 }
 
-# weakest first: tier 0 before tier 1 before tier 2. this is what makes a
-# review session spend its time where you are actually weak.
+# weakest first: lowest tier, then longest unproved. the tier is already
+# field 2 of every line -- sorting on it directly beats a card_tier lookup
+# per line (that early version forked an awk for every card).
 cards_sort_weak() {
-	while IFS= read -r line; do
-		[ -n "$line" ] || continue
-		printf '%s\t%s\n' "$(card_tier "${line%%	*}")" "$line"
-	done | sort -n -k1,1 | cut -f2-
+	sort -t "$(printf '\t')" -k2,2n -k3,3n
 }

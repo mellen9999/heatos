@@ -81,6 +81,14 @@ level_num() { _n=${1%%-*}; echo "${_n#0}"; }
 # get longer to type, not easier to remember.
 boss_limit() { echo $(( 30 + $(level_num "$1") / 3 )); }
 
+# the passed ledger -- which bosses have fallen. this is what lets a bare
+# `learn` resume where you left off instead of starting from ls every time.
+PASSED="$STATE/passed"
+level_passed()    { mkdir -p "$STATE" 2>/dev/null || :
+                    { cat "$PASSED" 2>/dev/null; echo "$1"; } | sort -u > "$TMP/passed" \
+                      && cp "$TMP/passed" "$PASSED" 2>/dev/null || :; }
+level_is_passed() { grep -qxF -- "$1" "$PASSED" 2>/dev/null; }
+
 # blk_load FILE INDEX -- fills Q_PROMPT, Q_ANSWERS, Q_OUT, Q_REF, Q_HINT, Q_ID
 # from block INDEX of any question file -- the levels and the challenge chains
 # share one parser. the roll happens here, once, and the SAME rolled script
@@ -254,7 +262,9 @@ run_level() {
 	rule
 	printf '  %s/%s\n' "$right" "$total"
 	echo
-	boss_round "$id"
+	boss_round "$id"; rc=$?
+	[ "$rc" = 0 ] && level_passed "$id"
+	return "$rc"
 }
 
 # what is printed when ROOT falls. it names the one thing that is actually
@@ -290,6 +300,32 @@ victory() {
 	                   they will not be the ones you memorised
 	EOF
 	echo
+}
+
+# ---- review ---------------------------------------------------------------
+
+# the weakest cards, re-asked. tier 0 before tier 1 before tier 2, stalest
+# first within a tier -- the session spends its time where you are actually
+# weak, which is the whole reason the cards exist.
+review() {
+	local n=${1:-20} line key lvl rest idx tpl rc
+	[ -s "$CARDS" ] || { note "no cards yet -- answer some questions first"; return 0; }
+	cards_sort_weak < "$CARDS" | head -n "$n" > "$TMP/rev"
+	hdr "review" "weakest first  $(grep -c . "$TMP/rev") cards"
+	echo
+	# the list is read on fd 3 because ask() owns stdin
+	while IFS= read -r line <&3; do
+		key=$(printf '%s\n' "$line" | cut -f1)
+		lvl=${key%%/*}; rest=${key#*/}; idx=${rest%%#*}; tpl=${rest#*#}
+		[ -f "$(level_path "$lvl")" ] || continue
+		# a card whose template no longer matches its block is stale -- the
+		# level file was edited since. skip it rather than ask the wrong thing.
+		blk_load "$(level_path "$lvl")" "$idx" >/dev/null 2>&1 || continue
+		[ "$Q_TPL" = "$tpl" ] || continue
+		ask "$lvl" "$idx"; rc=$?
+		[ "$rc" = 2 ] && return 0
+		echo
+	done 3< "$TMP/rev"
 }
 
 # ---- stats ----------------------------------------------------------------
@@ -754,6 +790,7 @@ usage() {
 	learn <cmd>           same, shorthand
 	learn -k <word>       search the corpus
 	learn list            every command xos ships
+	learn review [n]      re-ask your weakest cards, weakest first
 	learn challenge       the gauntlet: timed chains, one life, a best to beat
 	learn stats           what you have mastered
 	learn reset           forget all progress
@@ -765,9 +802,21 @@ usage() {
 }
 
 case "${1:-}" in
-	'')       _all=1
-	          for _id in $(level_ids); do run_level "$_id" || { _all=0; break; }; done
-	          [ "$_all" = 1 ] && victory
+	'')       _all=1; _ran=0
+	          for _id in $(level_ids); do
+	          	level_is_passed "$_id" && continue
+	          	if [ "$_ran" = 0 ] && [ -s "$PASSED" ]; then
+	          		note "resuming at level $(level_num "$_id") -- 'learn <n>' replays any level"
+	          	fi
+	          	_ran=1
+	          	run_level "$_id" || { _all=0; break; }
+	          done
+	          if [ "$_ran" = 0 ]; then
+	          	note "every boss has fallen. 'learn <n>' replays a level;"
+	          	note "'learn review' drills what is slipping; 'learn challenge' waits."
+	          elif [ "$_all" = 1 ]; then
+	          	victory
+	          fi
 	          session_summary ;;
 	ref)      shift; ref "$@" ;;
 	-k)       shift; search "$@" ;;
@@ -781,7 +830,8 @@ case "${1:-}" in
 	          esac ;;
 	coverage) shift; coverage "${1:--q}" ;;
 	order)    order ;;
-	reset)    rm -f "$CARDS" 2>/dev/null; ok "progress cleared" ;;
+	review)   shift; review "${1:-20}"; session_summary ;;
+	reset)    rm -f "$CARDS" "$PASSED" "$CHAL_BEST" 2>/dev/null; ok "progress cleared" ;;
 	-h|--help|help) usage ;;
 	[0-9]*)   _id=$(level_ids | grep "^0*$1-" | head -1)
 	          [ -n "$_id" ] || die "no level $1"
