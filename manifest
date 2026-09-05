@@ -34,3 +34,4 @@ bin/ip
 bin/setsid
 bin/cttyhack
 usr/share/udhcpc/default.script
+usr/share/xos/words

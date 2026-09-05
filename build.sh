@@ -1045,10 +1045,11 @@ flagchk() {
 #   G29 challenge track holds its shape
 #   G30 clock floor is fresh, not stale                    (new)
 #   G31 no test flags on the production cmdline            (new)
+#   G32 fingerprint wordlist holds its shape (256 unique words)
 size() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=28   # roster above, minus G8/G9 (checked elsewhere) and G22 (unassigned)
+  local EXPECTED_GATES=29   # roster above, minus G8/G9 (checked elsewhere) and G22 (unassigned)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -1192,6 +1193,16 @@ size() {
   local fw
   fw=$(unsquashfs -l rootfs.squashfs 2>/dev/null | grep -c 'squashfs-root/lib/firmware' || true)
   g "G18 no firmware blobs in image ($fw)" "$([ "${fw:-0}" -eq 0 ] && echo ok || echo FAIL)"
+
+  # G32 -- the fingerprint wordlist. init indexes it 1..256 by roothash byte;
+  # a short, duplicated, or malformed list makes two images share words or
+  # prints empty ones, silently -- exactly the quiet shrink gates exist for.
+  local wl=overlay/usr/share/xos/words wl_n wl_u wl_bad
+  wl_n=$(grep -c . "$wl" 2>/dev/null || true)
+  wl_u=$(sort -u "$wl" 2>/dev/null | grep -c . || true)
+  wl_bad=$(grep -cvE '^[a-z]+$' "$wl" 2>/dev/null || true)
+  g "G32 fingerprint wordlist ($wl_n words, $((wl_n - wl_u)) dup, $wl_bad malformed)" \
+    "$([ "${wl_n:-0}" -eq 256 ] && [ "${wl_u:-0}" -eq 256 ] && [ "${wl_bad:-1}" -eq 0 ] && echo ok || echo FAIL)"
 
   # G17 -- stick.img is coherent with the pinned artifacts: right PARTUUIDs, p2
   # byte-equal to xos.img, ESP carries the exact signed UKI.
@@ -1382,7 +1393,7 @@ size() {
   # build afterward, but a hard gate here means that restore is enforced,
   # not just intended.
   local tf=0 tfword
-  for tfword in xos.test xos.teststate xos.testwg; do
+  for tfword in xos.test xos.teststate xos.testwg xos.testtether; do
     grep -qF "$tfword" cmdline.txt && tf=$((tf+1))
   done
   g "G31 no test flags on production cmdline" "$([ "$tf" -eq 0 ] && echo ok || echo FAIL)"

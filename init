@@ -63,6 +63,48 @@ if [ -n "$epoch" ]; then
 	if [ "$now" -lt "$epoch" ]; then date -u -s "@$epoch" >/dev/null 2>&1; fi
 fi
 
+# boot fingerprint: four words derived from the verity roothash on the SIGNED
+# cmdline. a tampered image panics before it can speak, so these cannot lie;
+# what they catch is a DIFFERENT validly-signed image -- an old release, a
+# swapped stick -- whose roothash necessarily differs, so its words differ.
+# memorize yours; they change only when the image is re-pinned.
+fpw=""
+fprh=$(sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline | head -1)
+if [ -n "$fprh" ] && [ -f /usr/share/xos/words ]; then
+	i=1
+	while [ "$i" -le 8 ]; do
+		b=$(printf %s "$fprh" | cut -c"$i"-"$((i+1))")
+		w=$(sed -n "$((0x$b + 1))p" /usr/share/xos/words)
+		[ -n "$w" ] || { fpw=""; break; }
+		fpw="$fpw$w "
+		i=$((i+2))
+	done
+	fpw="${fpw% }"
+fi
+[ -n "$fpw" ] || echo "fingerprint FAILED: no roothash or bad wordlist"
+
+# dead-man tether: the root is a RAM copy, so pulling the stick otherwise
+# changes nothing. if the device backing dm-0 sits on the usb bus, watch it;
+# the moment it vanishes, power off -- nothing to flush, nothing to save,
+# that is the amnesic contract. the arming test is "is the backing device on
+# usb", not a flag, so virtio boots (qemu rigs) are never armed.
+XOS_TETHER="no (not usb)"
+tslave=$(ls /sys/block/dm-0/slaves 2>/dev/null | head -1)
+if grep -q xos.notether /proc/cmdline; then
+	XOS_TETHER="off (xos.notether)"
+elif [ -n "$tslave" ]; then
+	case "$(realpath "/sys/class/block/$tslave" 2>/dev/null)" in
+	*/usb*)
+		XOS_TETHER=yes
+		(
+			while [ -e "/sys/class/block/$tslave" ]; do sleep 2; done
+			echo "xos: boot stick removed -- powering off" > /dev/console
+			poweroff -f
+		) &
+		;;
+	esac
+fi
+
 mkdir -p /tmp/home
 export HOME=/tmp/home
 export XDG_DATA_HOME=/tmp/home/.local/share
@@ -75,6 +117,17 @@ export ENV=/etc/shrc
 mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
 
 ip link set lo up 2>/dev/null
+# per-boot mac: a stick that never leaves a stable hardware address on the
+# networks it visits. locally-administered (bit 2 set) + unicast (bit 1
+# clear), drawn from a pool the signed cmdline already vouches for
+# (random.trust_cpu=1). xos.realmac opts back into the burned-in address for
+# mac-allowlisted networks; flipping it costs a re-sign, same as any knob.
+randmac() {
+	# shellcheck disable=SC2046
+	set -- $(od -An -N6 -tu1 /dev/urandom)
+	printf '%02x:%02x:%02x:%02x:%02x:%02x' \
+		"$(( ($1 | 2) & 254 ))" "$2" "$3" "$4" "$5" "$6"
+}
 if ! grep -q xos.nonet /proc/cmdline; then
 	# pci nics are up before /init; usb net (tether/dongle) enumerates on
 	# xhci a second or two later. one pass misses it -- re-scan until a lease
@@ -86,6 +139,15 @@ if ! grep -q xos.nonet /proc/cmdline; then
 		# shellcheck disable=SC2045
 		for dev in $(ls /sys/class/net 2>/dev/null); do
 			[ "$dev" = lo ] && continue
+			# randomize once per iface per boot, while the link is still
+			# down. failure is loud but not fatal: the iface comes up on
+			# its hardware mac (degraded privacy, not a dead network) and
+			# the mac-randomized probe makes it visible.
+			if ! grep -q xos.realmac /proc/cmdline && [ ! -f "/tmp/mac.$dev" ]; then
+				cat "/sys/class/net/$dev/address" > "/tmp/mac.$dev" 2>/dev/null
+				ip link set dev "$dev" address "$(randmac)" 2>/dev/null \
+					|| echo "mac randomization FAILED: $dev"
+			fi
 			ip link set "$dev" up 2>/dev/null
 			[ "$(cat /sys/class/net/"$dev"/carrier 2>/dev/null)" = 1 ] || continue
 			udhcpc -i "$dev" -q -t 3 -T 1 >/dev/null 2>&1 && break 2
@@ -119,6 +181,9 @@ if grep -q xos.test /proc/cmdline; then
 	printf 'tmp-exec: '; cp /bin/busybox /tmp/probe-x 2>/dev/null; chmod +x /tmp/probe-x 2>/dev/null; if /tmp/probe-x true 2>/dev/null; then echo "SUCCEEDED (BAD)"; else echo "refused (good)"; fi; rm -f /tmp/probe-x
 	printf 'kptr-restrict: '; cat /proc/sys/kernel/kptr_restrict 2>/dev/null || echo '?'
 	printf 'dmesg-restrict: '; cat /proc/sys/kernel/dmesg_restrict 2>/dev/null || echo '?'
+	# both heap paths zeroed: alloc (INIT_ON_ALLOC) and free (INIT_ON_FREE).
+	# probes run as root, so dmesg_restrict does not bite here.
+	printf 'mem-autoinit: '; dmesg | grep -o 'heap alloc:on, heap free:on' | head -1 || echo "MISSING (BAD)"
 	printf 'busybox-runs: '; busybox true && echo yes || echo no
 	printf 'shell-vi-default: '; ENV=/etc/shrc printf 'set +o\n' | ENV=/etc/shrc /bin/sh -i 2>&1 | grep -q 'o vi' && echo yes || echo "no (BAD)"
 	printf 'no-bash: '; if [ -e /bin/bash ]; then echo "present (BAD)"; else echo "absent (good)"; fi
@@ -141,6 +206,8 @@ if grep -q xos.test /proc/cmdline; then
 	# kernel command line and not in the filesystem.
 	printf 'rootfs-digest: '; sha256sum /dev/dm-0 2>/dev/null | cut -d' ' -f1 || echo none
 	printf 'verity-roothash: '; sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline | head -1
+	printf 'fingerprint: %s\n' "${fpw:-MISSING (BAD)}"
+	printf 'tether-armed: %s\n' "$XOS_TETHER"
 	printf 'verity-onerror: '; grep -o 'panic_on_corruption' /proc/cmdline | head -1 || echo none
 	# p3 depends on all of these existing in the kernel. assert them rather than
 	# trusting the config, the same way every other claim here is asserted.
@@ -209,6 +276,14 @@ if grep -q xos.test /proc/cmdline; then
 	printf 'net-has-address: '; [ "$(ip -o -4 addr show scope global 2>/dev/null | wc -l)" -gt 0 ] && echo yes || echo no
 	printf 'net-default-route: '; ip route show default 2>/dev/null | grep -oq 'dev' && echo yes || echo no
 	printf 'net-dns-servers: '; grep -c nameserver /tmp/resolv.conf 2>/dev/null || echo 0
+	# print the mac itself only here: the block is xos.test-gated (G31 keeps
+	# the flag off production) and a per-boot random mac identifies nothing.
+	_up=$(ip -o -4 addr show scope global 2>/dev/null | awk '{print $2}' | head -1)
+	printf 'mac-uplink: '; cat "/sys/class/net/${_up:-none}/address" 2>/dev/null || echo none
+	printf 'mac-randomized: '
+	if grep -q xos.realmac /proc/cmdline; then echo "off (xos.realmac)"
+	elif [ -n "$_up" ] && [ -s "/tmp/mac.$_up" ] && [ "$(cat "/tmp/mac.$_up")" != "$(cat "/sys/class/net/$_up/address")" ]; then echo yes
+	else echo "no (BAD)"; fi
 	# ii ships and is build-tested (compiled + manifest-checked), but its
 	# runtime probes were gated on xos.irc, a flag nothing ever sets -- wiring
 	# a full irc server into the qemu harness is heavy for what it buys, so
@@ -411,6 +486,7 @@ banner() {
   every byte on this disk is covered by a hash tree
 
 BANNER
+	[ -n "$fpw" ] && printf '  this image is: %s\n\n' "$fpw"
 }
 
 # ── consoles ────────────────────────────────────────────────────────────────
@@ -489,7 +565,11 @@ if grep -q xos.test /proc/cmdline; then
 	# PID 1 no longer exits, so a test boot would otherwise run until the
 	# harness timeout on every single section. end it deliberately instead --
 	# and only ever on a cmdline flag that lives inside the signed UKI.
-	poweroff -f
+	# xos.testtether: A18 owns that boot's lifetime -- the tether (or the
+	# harness timeout) ends it, never this block.
+	if ! grep -q xos.testtether /proc/cmdline; then
+		poweroff -f
+	fi
 fi
 
 # PID 1 must never exit -- an exit here is a kernel panic. wait returns as each

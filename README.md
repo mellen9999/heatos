@@ -27,6 +27,12 @@ the root is named on the cmdline by PARTUUID, never by `/dev/sda`, and the
 kernel waits for that partition to appear -- so the same signed image boots
 whether the stick enumerates as the first disk or the third.
 
+the boot banner prints four words derived from the image's root hash on the
+signed cmdline -- `this image is: cobra drifter payday willow`. write them on
+the stick. a swapped or superseded stick speaks different words; a tampered
+one does not speak at all. they change only when the image is re-pinned, so
+re-memorize after a reflash.
+
 ## the chain
 
     firmware (secure boot, your enrolled keys)
@@ -213,7 +219,20 @@ at runtime the root is read-only and verity-covered; /proc, /sys and /tmp are
 mounted nosuid,nodev,noexec, which matters because a static-PIE binary needs no
 loader -- without noexec, /tmp was a place to drop and run code. sysctls tighten
 kernel-pointer exposure, dmesg, and the network stack. every writable byte lives
-on tmpfs and is gone at reboot.
+on tmpfs and is gone at reboot. memory is zeroed on both allocation and free,
+so freed pages do not keep secrets around for a use-after-free or a cold-boot
+read.
+
+every boot draws a fresh locally-administered mac before dhcp, so the stick
+never presents a stable link-layer identity to the networks it visits.
+`xos.realmac` (a rebuild, like any knob -- the cmdline is signed) opts back
+into the burned-in address for mac-allowlisted networks.
+
+the boot stick is a dead-man switch: the root runs from RAM, so pulling the
+stick would otherwise change nothing. when the boot device sits on the usb
+bus, init watches it and powers the machine off within seconds of removal,
+taking the tmpfs session with it. `xos.notether` opts out. the arming test is
+"is the boot device on usb", so qemu/virtio boots never arm.
 
 userland is compiled static-PIE with the stack protector and stack-clash
 protection, and linked with a non-executable stack.

@@ -12,7 +12,7 @@ pass=0; fail=0; skip=0; sections=0
 # the gate runner already learned this: a run that dies partway through prints
 # a smaller number and looks exactly like a clean one. count the checks that
 # actually ran and refuse to report a result if any of them went missing.
-EXPECTED_SECTIONS=17
+EXPECTED_SECTIONS=18
 section() { sections=$((sections+1)); echo; echo "$1"; }
 
 # p2 (root) starts after the 1 MiB gap + the ESP. keep in step with build.sh
@@ -172,6 +172,25 @@ grep -q 'net-has-address: yes' <<< "$out" && ok "dhcp lease obtained" || bad "no
 grep -q 'net-default-route: yes' <<< "$out" && ok "a default route was installed" || bad "no default route"
 dns_n=$(grep -oP 'net-dns-servers: \K[0-9]+' <<< "$out" | head -1)
 [ "${dns_n:-0}" -gt 0 ] && ok "$dns_n dns server(s) from dhcp" || bad "no dns servers from dhcp"
+# per-boot mac. qemu's default nic mac (52:54:00:12:34:56) ALREADY has the
+# locally-administered bit set, so the bit alone proves nothing -- assert the
+# address moved off the hardware one, then that the replacement is well-formed.
+mac2=$(grep -oP 'mac-uplink: \K[0-9a-f:]{17}' <<< "$out" | head -1)
+grep -q 'mac-randomized: yes' <<< "$out" && ok "uplink mac was randomized away from hardware" || bad "uplink still wears its hardware mac"
+[ -n "$mac2" ] && [ "$mac2" != "52:54:00:12:34:56" ] && ok "mac is not the qemu default" || bad "mac is still the qemu default"
+b1m=$((16#${mac2:0:2}))
+[ $((b1m & 2)) -ne 0 ] && [ $((b1m & 1)) -eq 0 ] && ok "locally-administered unicast bits correct" || bad "mac bit math wrong"
+# fingerprint words, recomputed from the two sources OUTSIDE the booted
+# system -- the tree wordlist and the roothash this run just built.
+rh18=$(cat verity.roothash); want_fp=""
+for i in 0 2 4 6; do want_fp="$want_fp $(sed -n "$((16#${rh18:$i:2} + 1))p" overlay/usr/share/xos/words)"; done
+want_fp="${want_fp# }"
+grep -qF "fingerprint: $want_fp" <<< "$out" \
+	&& ok "fingerprint words derive from the signed roothash ($want_fp)" \
+	|| bad "fingerprint mismatch (want: $want_fp)"
+grep -q 'tether-armed: no (not usb)' <<< "$out" \
+	&& ok "tether stays disarmed on a non-usb boot device" \
+	|| bad "tether armed (or errored) on a virtio boot"
 assert_complete "$out" "A2 boot"
 
 echo
@@ -253,6 +272,8 @@ grep -q 'vsyscall-map: 0'      <<< "$out" && ok "no fixed vsyscall page"   || ba
 grep -q 'lockdown: .*\[confidentiality\]' <<< "$out" && ok "lockdown=confidentiality enforced" || bad "lockdown not in confidentiality mode"
 grep -q 'module-loader: absent' <<< "$out" && ok "no loadable module support" || bad "module loading is possible"
 grep -q 'devport-node: absent'  <<< "$out" && ok "/dev/port absent"           || bad "/dev/port present"
+grep -q 'mem-autoinit: heap alloc:on, heap free:on' <<< "$out" \
+	&& ok "memory zeroed on both alloc and free" || bad "init_on_free not active"
 
 echo
 section "A9  write / exec containment"
@@ -268,6 +289,12 @@ if grep -q XOS-TEST-BEGIN <<< "$o10"; then
 	ok "booted from usb-storage via dm-mod.waitfor"
 	grep -qi 'secure boot is enabled' <<< "$o10" && ok "secure boot enforcing over USB" || bad "secure boot not enabled over USB"
 	grep -q 'write-to-root: refused'  <<< "$o10" && ok "root unwritable over USB"       || bad "root writable over USB"
+	grep -qF "fingerprint: $want_fp" <<< "$o10" \
+		&& ok "same fingerprint words over usb -- stable per image, per boot path" \
+		|| bad "fingerprint words changed on the usb boot path"
+	grep -q 'tether-armed: yes' <<< "$o10" \
+		&& ok "tether armed on the real usb boot path" \
+		|| bad "tether did not arm over usb"
 	assert_complete "$o10" "A10 boot"
 else
 	bad "stick did not boot over emulated USB (waitfor may have timed out)"
@@ -445,6 +472,14 @@ backout=$(boot_backclock stick.img)
 grep -q 'clock-not-before-floor: yes' <<< "$backout" \
 	&& ok "clock forced to 2010 was raised to the build-date floor" \
 	|| bad "the clock stayed in the past -- the floor did not hold"
+# this is a second full boot of the same stick -- free vehicle for the
+# per-boot properties: the mac must be fresh, the fingerprint must not be.
+mac15=$(grep -oP 'mac-uplink: \K[0-9a-f:]{17}' <<< "$backout" | head -1)
+[ -n "$mac15" ] && [ "$mac15" != "$mac2" ] \
+	&& ok "a second boot drew a different mac" || bad "mac repeated across boots"
+grep -qF "fingerprint: $want_fp" <<< "$backout" \
+	&& ok "fingerprint words identical across boots" \
+	|| bad "fingerprint words changed between boots of the same image"
 assert_complete "$backout" "A15 boot"
 
 echo
@@ -491,6 +526,57 @@ grep -q 'ssh-pubkey-login: ok' <<< "$out" \
 grep -q 'ssh-wrong-key-refused: refused' <<< "$out" \
 	&& ok "a key not in authorized_keys is refused" \
 	|| bad "the wrong key was accepted -- auth is not enforced"
+
+echo
+section "A18  yank the boot stick -- the machine must die"
+# the dead-man tether. root is a RAM copy, so removal would otherwise change
+# nothing. boot over emulated usb with a qmp monitor attached; xos.testtether
+# keeps init alive after the probe block (A18 owns this boot's lifetime), then
+# hot-remove the usb device the way a hand does and assert the poweroff.
+if ! R=$(./build.sh ramkeys) || [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
+	skipped "no stub or unlocked key -- A18 not evaluated"
+else
+	ukify build --linux=bzImage --cmdline="$(cat cmdline.txt) xos.testtether" \
+		--stub="$stub" --output=/tmp/xos-a18.efi >/dev/null 2>&1
+	sbsign --key "$R/db.key" --cert keys/db.crt \
+		--output /tmp/xos-a18-signed.efi /tmp/xos-a18.efi >/dev/null 2>&1
+	cp stick.img /tmp/xos-a18.img
+	mcopy -o -i /tmp/xos-a18.img@@1M /tmp/xos-a18-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+	a18log=/tmp/xos-a18.log; a18qmp=/tmp/xos-a18.qmp; rm -f "$a18log" "$a18qmp"
+	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
+		-global driver=cfi.pflash01,property=secure,value=on \
+		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
+		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
+		-device qemu-xhci,id=xhci \
+		-drive if=none,id=stick,format=raw,readonly=on,file=/tmp/xos-a18.img \
+		-device usb-storage,bus=xhci.0,drive=stick,id=stickdev \
+		-qmp unix:"$a18qmp",server,nowait \
+		-nic user,model=virtio-net-pci -nographic -no-reboot </dev/null >"$a18log" 2>&1 &
+	qpid=$!
+	t=0; while [ "$t" -lt 180 ] && ! grep -q 'XOS-TEST-DONE' "$a18log" 2>/dev/null; do sleep 1; t=$((t+1)); done
+	if ! grep -q 'tether-armed: yes' "$a18log" 2>/dev/null; then
+		bad "tether did not arm on the usb boot"; kill "$qpid" 2>/dev/null
+	else
+		ok "tether armed over emulated usb"
+		python3 - "$a18qmp" <<'PY'
+import json, socket, sys
+s = socket.socket(socket.AF_UNIX); s.connect(sys.argv[1]); f = s.makefile("rw")
+f.readline(); f.write(json.dumps({"execute": "qmp_capabilities"}) + "\n"); f.flush(); f.readline()
+f.write(json.dumps({"execute": "device_del", "arguments": {"id": "stickdev"}}) + "\n"); f.flush(); f.readline()
+PY
+		t=0; while [ "$t" -lt 30 ] && kill -0 "$qpid" 2>/dev/null; do sleep 1; t=$((t+1)); done
+		grep -q 'boot stick removed -- powering off' "$a18log" \
+			&& ok "init saw the yank and announced the poweroff" \
+			|| bad "no removal message -- the tether never fired"
+		if kill -0 "$qpid" 2>/dev/null; then
+			bad "machine still running ${t}s after the stick was pulled"; kill "$qpid" 2>/dev/null
+		else
+			ok "machine powered off within ${t}s of the yank"
+		fi
+	fi
+	wait "$qpid" 2>/dev/null
+	rm -f /tmp/xos-a18.efi /tmp/xos-a18-signed.efi /tmp/xos-a18.img "$a18log" "$a18qmp"
+fi
 
 printf '  %d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
 if [ "$sections" -ne "$EXPECTED_SECTIONS" ]; then
