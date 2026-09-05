@@ -45,13 +45,54 @@ refname() { [ "$1" = "." ] && echo dot || echo "$1"; }
 ref() {
 	[ $# -ge 1 ] || die "usage: learn ref <command>"
 	_r=$(refname "$1")
-	if [ -f "$REF/$_r" ]; then
-		cat "$REF/$_r"
-	else
+	if [ ! -f "$REF/$_r" ]; then
 		echo "learn: no entry for '$1'" >&2
 		echo "try: learn -k $1" >&2
 		return 1
 	fi
+	# a framed, tab-aligned page -- the raw file is busybox --help with hard tabs
+	# that render at whatever tabstop the terminal happens to use. this pins the
+	# flag column to one width and wraps the whole thing in rules, top and bottom.
+	awk -v B="$B" -v N="$N" -v D="$D" -v W="$W" -v cols="$COLS" '
+		function rl(   i,s){ s=""; for(i=0;i<cols;i++) s=s"-"; return D s N }
+		function pad(s,w,   r){ r=s; while(length(r)<w) r=r" "; return r }
+		{ line[NR]=$0 }
+		END {
+			# measure the flag column across every tab-led row
+			maxw=0
+			for(i=2;i<=NR;i++){
+				l=line[i]; if(l !~ /^\t/) continue
+				sub(/^\t+/,"",l)
+				if(match(l,/\t+/)) l=substr(l,1,RSTART-1)
+				if(length(l)>maxw) maxw=length(l)
+			}
+			if(maxw>18) maxw=18
+			col=maxw+2
+
+			print rl()
+			printf "  %s%s%s\n", B W, line[1], N          # command name
+			for(i=2;i<=NR;i++) if(line[i] ~ /^Usage:/){
+				printf "  %susage:%s %s\n", D, N, substr(line[i],8); break }
+			print rl()
+
+			started=0
+			for(i=2;i<=NR;i++){
+				l=line[i]
+				if(l ~ /^Usage:/) continue
+				if(l==""){ if(started) print ""; continue }   # no leading blank
+				started=1
+				if(l ~ /^\t/){                                 # a flag / example row
+					sub(/^\t+/,"",l)
+					if(match(l,/\t+/)){ f=substr(l,1,RSTART-1); d=substr(l,RSTART+RLENGTH) }
+					else { f=l; d="" }
+					if(d=="") printf "  %s%s%s\n", W, f, N
+					else      printf "  %s%s%s%s\n", W, pad(f,col), N, d
+				} else {                                       # prose
+					printf "  %s%s%s\n", D, l, N
+				}
+			}
+			print rl()
+		}' "$REF/$_r"
 }
 
 surface() { ls -1 "$REF" 2>/dev/null | sed 's/^dot$/./' | sort; }

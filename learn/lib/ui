@@ -13,8 +13,16 @@ else
 	U=$(printf '\033[4m')     V=$(printf '\033[7m')
 fi
 
-COLS=${COLUMNS:-80}
+# terminal width. ash does not export COLUMNS the way bash does, so trusting it
+# alone pinned every session to 80 and made the rules wrap on any other size.
+# ask the terminal itself, then fall back.
+COLS=${COLUMNS:-}
+[ -n "$COLS" ] || COLS=$(stty size 2>/dev/null | cut -d' ' -f2)
+[ -n "$COLS" ] || COLS=$(tput cols 2>/dev/null)
 [ "$COLS" -ge 40 ] 2>/dev/null || COLS=80
+# never draw past 100 columns -- a full-width rule on an ultrawide terminal is
+# noise, not structure.
+[ "$COLS" -le 100 ] 2>/dev/null || COLS=100
 
 rule() { printf '%s' "$D"; awk -v n="$COLS" 'BEGIN{while(n-->0)printf "-"}'; printf '%s\n' "$N"; }
 
@@ -23,8 +31,9 @@ hdr() {
 	rule
 }
 
-# say -- prose, wrapped to the terminal, never past 76 columns
-say() { fold -s -w $(( COLS < 78 ? COLS - 2 : 76 )) | sed 's/^/  /'; }
+# say -- prose, wrapped to the terminal, never past 76 columns. blank lines
+# stay blank: indenting them left trailing-whitespace lines all through the text.
+say() { fold -s -w $(( COLS < 78 ? COLS - 2 : 76 )) | sed '/./s/^/  /'; }
 
 ok()   { printf '  %s+%s %s\n' "$G" "$N" "$1"; }
 no()   { printf '  %s-%s %s\n' "$R" "$N" "$1"; }
