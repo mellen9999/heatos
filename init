@@ -517,23 +517,26 @@ if state_open; then
 	# in authorized_keys, baked into the read-only root where verity covers it.
 	if [ -f "$STATE_DIR/wg0.conf" ] && command -v wg >/dev/null 2>&1; then
 		# keep the prefix length the operator wrote (WireGuard point-to-point is
-		# conventionally /32); only default to /24 when the conf gives none.
-		wgip=$(sed -n 's/^ *Address *= *\([0-9./]*\).*/\1/p' "$STATE_DIR/wg0.conf" | head -1)
-		case "$wgip" in */*) : ;; ?*) wgip="$wgip/24" ;; esac
+		# conventionally /32); only default to /24 when the conf gives none. wgip
+		# is the bare address for binding, wgcidr the address+prefix for the route.
+		wgcidr=$(sed -n 's/^ *Address *= *\([0-9./]*\).*/\1/p' "$STATE_DIR/wg0.conf" | head -1)
+		wgip=${wgcidr%/*}
+		case "$wgcidr" in */*) : ;; ?*) wgcidr="$wgip/24" ;; esac
 		if ip link add wg0 type wireguard 2>/dev/null \
 		   && wg setconf wg0 "$STATE_DIR/wg0.conf" 2>/dev/null \
 		   && [ -n "$wgip" ] \
-		   && ip addr add "$wgip" dev wg0 2>/dev/null \
+		   && ip addr add "$wgcidr" dev wg0 2>/dev/null \
 		   && ip link set wg0 up 2>/dev/null; then
-			printf '  wireguard up on wg0 (%s)\n' "$wgip" > /dev/console
+			printf '  wireguard up on wg0 (%s)\n' "$wgcidr" > /dev/console
 			# host key on p3, made once
 			[ -f "$STATE_DIR/ssh_host_key" ] || dropbearkey -t ed25519 -f "$STATE_DIR/ssh_host_key" >/dev/null 2>&1
-			# authorized_keys: prefer the one baked into the image (verity-covered),
-			# fall back to one on p3 if the operator put it there.
-			akeys=/etc/dropbear/authorized_keys
-			[ -f "$STATE_DIR/authorized_keys" ] && akeys="$STATE_DIR/authorized_keys"
-			if [ -f "$akeys" ]; then
-				mkdir -p "$HOME/.ssh"; cp "$akeys" "$HOME/.ssh/authorized_keys"; chmod 600 "$HOME/.ssh/authorized_keys"
+			# authorize BOTH keys: the one baked into the verity-covered image (a
+			# safety net that a writable-p3 key must never be able to lock out) and
+			# any key the operator added on p3. either file may be absent.
+			mkdir -p "$HOME/.ssh"
+			cat /etc/dropbear/authorized_keys "$STATE_DIR/authorized_keys" 2>/dev/null > "$HOME/.ssh/authorized_keys"
+			chmod 600 "$HOME/.ssh/authorized_keys"
+			if [ -s "$HOME/.ssh/authorized_keys" ]; then
 				dropbear -r "$STATE_DIR/ssh_host_key" -p "$wgip:22" >/dev/null 2>&1 &
 				printf '  ssh listening on the tunnel only (%s:22), pubkey only\n' "$wgip" > /dev/console
 			else
