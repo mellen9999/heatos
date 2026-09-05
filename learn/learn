@@ -1006,7 +1006,7 @@ ctx_init
 
 usage() {
 	cat <<-EOF
-	learn                 resume the curriculum
+	learn                 the main menu (or resumes, when piped)
 	learn <n>             practice level n
 	learn ref <cmd>       the reference entry for a command
 	learn <cmd>           same, shorthand
@@ -1021,34 +1021,89 @@ usage() {
 
 	at a question: type your answer with full vi editing -- Esc for normal
 	mode, then h l w b e x dd i a, and the up-arrow recalls what you typed.
-	?  hint    Tab or man  the reference    skip  reveal    quit  leave
+	?  hint    Tab or man  the reference    skip  reveal
+	quit, :q, normal-mode q, or Ctrl-D all leave.
 	EOF
 }
 
+# ---- resume + main menu ---------------------------------------------------
+
+# the campaign: run every level not yet passed or placed, in order, until one
+# is left unfinished or the last boss falls.
+resume() {
+	local _all=1 _ran=0 _id
+	for _id in $(level_ids); do
+		level_is_passed "$_id" && continue
+		level_is_placed "$_id" && continue
+		_ran=1
+		run_level "$_id" || { _all=0; break; }
+	done
+	if [ "$_ran" = 0 ]; then
+		cls; hdr "learn" "every boss has fallen"
+		note "the gauntlet is open. or replay any level to keep the cards sharp."
+		pause_card || return 0
+	elif [ "$_all" = 1 ]; then
+		victory
+	fi
+}
+
+_mi() { printf '   %s%s%s   %s%-10s%s %s%s%s\n' "$C$B" "$1" "$N" "$W" "$2" "$N" "$D" "$3" "$N"; }
+_mi_off() { printf '   %s%s   %-10s %s%s\n' "$D" "$1" "$2" "$3" "$N"; }
+
+# the main menu: a full-screen home you steer with one key. every mode returns
+# here rather than to the shell, so a session is a place you are in, not a
+# series of commands you retype. non-interactive callers never reach it.
+menu() {
+	local k p t id unlocked=1
+	t=$(level_ids | grep -c .)
+	while :; do
+		# recount each loop: a boss fought from the menu can unlock the gauntlet
+		p=0; unlocked=1
+		for id in $(level_ids); do
+			if level_is_passed "$id"; then p=$((p + 1)); else unlocked=0; fi
+		done
+
+		cls
+		hdr "learn" "the shell, one card at a time"
+		printf '  '; bar "$p" "$t" 20; printf ' %s%s/%s bosses down%s\n\n' "$D" "$p" "$t" "$N"
+
+		_mi c continue  "resume where you left off"
+		_mi p practice  "drill any level by number"
+		_mi r review    "your weakest cards, first"
+		_mi d daily     "today's ten, the same for everyone"
+		if [ "$unlocked" = 1 ]; then _mi g gauntlet "the endgame -- 30s a stage, one life"
+		else _mi_off g gauntlet "locked until every boss has fallen"; fi
+		_mi x placement "skip past what you already know"
+		_mi f find      "look up any command's reference"
+		_mi s stats     "what you have mastered"
+		_mi q quit      ""
+		rule
+		printf '  %schoose%s ' "$D" "$N"
+		IFS= read -rsn1 k 2>/dev/null || break
+		echo
+		case "$k" in
+			c) resume ;;
+			p) cls; printf '  %spractice which level? (1-%s)%s ' "$W" "$t" "$N"
+			   IFS= read -r k 2>/dev/null || continue
+			   id=$(level_ids | grep "^0*$k-" | head -1)
+			   if [ -n "$id" ]; then run_level "$id"; else no "no level $k"; pause_card; fi ;;
+			r) review 20 ;;
+			d) daily ;;
+			g) if [ "$unlocked" = 1 ]; then challenge; else no "the gauntlet is locked."; pause_card; fi ;;
+			x) place ;;
+			f) cls; printf '  %swhich command?%s ' "$W" "$N"
+			   IFS= read -r k 2>/dev/null || continue
+			   [ -n "$k" ] && { cls; ref "$k"; pause_card; } ;;
+			s) cls; stats; pause_card ;;
+			q|:q|Q|"$E_EOT") break ;;   # q or Ctrl-D leaves, as in cmdchamp
+		esac
+	done
+}
+
 case "${1:-}" in
-	'')       if [ ! -s "$PASSED" ] && [ ! -s "$PLACED" ] && [ ! -s "$CARDS" ] && [ -t 0 ]; then
-	          	# a first-timer gets one screen of orientation before the cards
-	          	# clear it away -- what this is, and the two keys that matter.
-	          	cls
-	          	hdr "learn" "the shell, one card at a time"
-	          	printf '  %sanswers RUN -- type what you would really type. Esc for vi\n  normal mode; Tab shows the reference; ? a hint; skip reveals.%s\n' "$D" "$N"
-	          	echo
-	          	note "'learn place' skips you past what you already know."
-	          	pause_card || exit 0
-	          fi
-	          _all=1; _ran=0
-	          for _id in $(level_ids); do
-	          	level_is_passed "$_id" && continue
-	          	level_is_placed "$_id" && continue
-	          	_ran=1
-	          	run_level "$_id" || { _all=0; break; }
-	          done
-	          if [ "$_ran" = 0 ]; then
-	          	note "every boss has fallen. 'learn <n>' replays a level;"
-	          	note "'learn review' drills what is slipping; 'learn challenge' waits."
-	          elif [ "$_all" = 1 ]; then
-	          	victory
-	          fi
+	'')       # interactive: the menu. piped (a build probe, a script): resume
+	          # straight through, so nothing automated waits on a keypress.
+	          if [ -t 0 ]; then menu; else resume; fi
 	          session_summary ;;
 	ref)      shift; ref "$@" ;;
 	brief)    shift; _id=$(level_ids | grep "^0*${1:-}-" | head -1)
