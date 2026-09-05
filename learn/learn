@@ -289,6 +289,8 @@ boss_round() {
 
 	BOSS_LIMIT=$(boss_limit "$id")
 
+	# the splash gets its own screen -- the boss is an event, not another card.
+	cls
 	echo
 	printf '%s' "$R$B"; awk -v n="$COLS" 'BEGIN{while(n-->0)printf "="}'; printf '%s\n' "$N"
 	printf '  %sBOSS%s  %s%s%s%s\n' "$R$B" "$N" "$B" "$bname" "$N" \
@@ -296,52 +298,66 @@ boss_round() {
 	level_field "$id" flavor | say
 	printf '%s' "$R"; awk -v n="$COLS" 'BEGIN{while(n-->0)printf "="}'; printf '%s\n' "$N"
 	note "no hints. no reference. the clock does not stop."
-	echo
+	pause_card || { MODE=learn; return 2; }
 
 	MODE=boss
+	local k=0
 	for n in $(shuffle_n "$nq" 5); do
+		k=$((k + 1))
+		cls
+		statusbar "BOSS: $bname" "${BOSS_LIMIT}s each" "q $k/5   +$right"
 		ask "$id" "$n"; rc=$?
 		[ "$rc" = 2 ] && { MODE=learn; return 2; }
 		[ "$rc" = 0 ] && right=$((right + 1))
 		asked=$((asked + 1))
-		echo
+		pause_card || { MODE=learn; return 2; }
 	done
 	MODE=learn
 
+	cls
 	if [ "$right" -ge 4 ]; then
+		statusbar "BOSS: $bname" "defeated" "$right/5"
 		printf '\n  %s%s falls.%s  %s of %s.\n' "$G$B" "$bname" "$N" "$right" "$asked"
 		return 0
 	fi
+	statusbar "BOSS: $bname" "held" "$right/5"
+	printf '\n'
 	no "$bname holds. $right of $asked -- come back when it is $((4 - right)) more."
 	return 1
 }
 
 run_level() {
-	local id=$1 nq i right=0 total=0 rc
+	local id=$1 nq i k=0 right=0 total=0 rc lname
 	nq=$(level_nq "$id")
 	[ "$nq" -gt 0 ] || { note "level $id has no questions yet"; return 0; }
+	lname=$(level_field "$id" name)
 
-	hdr "$(level_field "$id" name)" "level ${id%%-*}  ${nq} questions"
-	# the brief teaches once; after that the header alone, so a resume is the
-	# questions, not the lecture. `learn brief <n>` reprints it on demand.
+	# the brief teaches once, on its own screen; after that the header alone, so
+	# a resume is the questions, not the lecture. `learn brief <n>` reprints it.
 	if ! level_is_briefed "$id"; then
+		cls
+		hdr "$lname" "level ${id%%-*}  ${nq} questions"
 		level_field "$id" brief | say
 		level_briefed "$id"
+		pause_card || return 2
 	fi
-	echo
 
 	# the order changes every run, so the level cannot be memorised as a
-	# sequence -- only as a set of things you can do
+	# sequence -- only as a set of things you can do. one card per screen.
 	for i in $(shuffle_n "$nq" "$nq"); do
+		k=$((k + 1))
+		cls
+		statusbar "$lname" "level ${id%%-*}" "card $k/$nq   +$right -$((total - right))"
 		ask "$id" "$i"; rc=$?
 		[ "$rc" = 2 ] && return 2
 		[ "$rc" = 0 ] && right=$((right + 1))
 		total=$((total + 1))
-		echo
+		pause_card || return 2
 	done
 
-	rule
-	printf '  %s/%s\n' "$right" "$total"
+	cls
+	statusbar "$lname" "level ${id%%-*}" "practice done"
+	printf '\n  %s%s/%s%s\n' "$B" "$right" "$total" "$N"
 	echo
 	while :; do
 		boss_round "$id"; rc=$?
@@ -401,8 +417,7 @@ review() {
 	local n=${1:-20} line key lvl rest idx tpl rc
 	[ -s "$CARDS" ] || { note "no cards yet -- answer some questions first"; return 0; }
 	cards_sort_weak < "$CARDS" | head -n "$n" > "$TMP/rev"
-	hdr "review" "weakest first  $(grep -c . "$TMP/rev") cards"
-	echo
+	local nc k=0; nc=$(grep -c . "$TMP/rev")
 	# the list is read on fd 3 because ask() owns stdin
 	while IFS= read -r line <&3; do
 		key=$(printf '%s\n' "$line" | cut -f1)
@@ -412,9 +427,12 @@ review() {
 		# level file was edited since. skip it rather than ask the wrong thing.
 		blk_load "$(level_path "$lvl")" "$idx" >/dev/null 2>&1 || continue
 		[ "$Q_TPL" = "$tpl" ] || continue
+		k=$((k + 1))
+		cls
+		statusbar "review" "weakest first" "card $k/$nc"
 		ask "$lvl" "$idx"; rc=$?
 		[ "$rc" = 2 ] && return 0
-		echo
+		pause_card || return 0
 	done 3< "$TMP/rev"
 }
 
@@ -427,8 +445,10 @@ review() {
 # to unlock the gauntlet the way one actually beaten does.
 place() {
 	local rung lvl last=0 misses=0 nq idx rc
-	note "placement: one question per rung, no hints. two misses in a row stops the climb."
-	echo
+	cls
+	hdr "placement" "one question per rung  no hints"
+	note "two misses in a row stops the climb."
+	pause_card || return 0
 	MODE=daily   # the editor, no hints -- placement measures, it does not teach
 	for rung in 03 06 09 12 15 18 21 24 27 30; do
 		lvl=$(level_ids | grep "^$rung-" | head -1)
@@ -436,10 +456,11 @@ place() {
 		nq=$(level_nq "$lvl")
 		[ "$nq" -gt 0 ] || continue
 		rnd "$nq"; idx=$((REPLY + 1))
-		printf '  %srung %s%s\n' "$D" "$(level_num "$lvl")" "$N"
+		cls
+		statusbar "placement" "no hints" "rung $(level_num "$lvl")/30"
 		ask "$lvl" "$idx"; rc=$?
 		[ "$rc" = 2 ] && { MODE=learn; return 0; }
-		echo
+		pause_card || { MODE=learn; return 0; }
 		if [ "$rc" = 0 ]; then
 			last=$(level_num "$lvl"); misses=0
 		else
@@ -474,8 +495,6 @@ daily() {
 	day=$(date -u +%Y-%m-%d 2>/dev/null || echo today)
 	RANDOM=$(( $(date +%s 2>/dev/null || echo 0) / 86400 ))
 	nl=$(level_ids | grep -c .)
-	hdr "daily" "$day  ten questions  no hints"
-	echo
 	MODE=daily
 	while [ "$n" -lt 10 ]; do
 		# draw in THIS shell: a subshell re-seeds RANDOM from its own pid,
@@ -484,11 +503,13 @@ daily() {
 		nq=$(level_nq "$lvl")
 		[ "$nq" -gt 0 ] || continue
 		rnd "$nq"; idx=$((REPLY + 1))
+		cls
+		statusbar "daily" "$day  no hints" "q $((n + 1))/10   +$right"
 		ask "$lvl" "$idx"; rc=$?
 		[ "$rc" = 2 ] && { MODE=learn; return 0; }
 		[ "$rc" = 0 ] && right=$((right + 1))
 		n=$((n + 1))
-		echo
+		pause_card || { MODE=learn; return 0; }
 	done
 	MODE=learn
 	rule
@@ -1004,16 +1025,19 @@ usage() {
 
 case "${1:-}" in
 	'')       if [ ! -s "$PASSED" ] && [ ! -s "$PLACED" ] && [ ! -s "$CARDS" ] && [ -t 0 ]; then
-	          	note "first run? 'learn place' skips you past what you already know."
+	          	# a first-timer gets one screen of orientation before the cards
+	          	# clear it away -- what this is, and the two keys that matter.
+	          	cls
+	          	hdr "learn" "the shell, one card at a time"
+	          	printf '  %sanswers RUN -- type what you would really type. Esc for vi\n  normal mode; Tab shows the reference; ? a hint; skip reveals.%s\n' "$D" "$N"
 	          	echo
+	          	note "'learn place' skips you past what you already know."
+	          	pause_card || exit 0
 	          fi
 	          _all=1; _ran=0
 	          for _id in $(level_ids); do
 	          	level_is_passed "$_id" && continue
 	          	level_is_placed "$_id" && continue
-	          	if [ "$_ran" = 0 ] && { [ -s "$PASSED" ] || [ -s "$PLACED" ]; }; then
-	          		note "resuming at level $(level_num "$_id") -- 'learn <n>' replays any level"
-	          	fi
 	          	_ran=1
 	          	run_level "$_id" || { _all=0; break; }
 	          done

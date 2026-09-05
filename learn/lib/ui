@@ -60,3 +60,37 @@ note() { printf '  %s%s%s\n' "$D" "$1" "$N"; }
 # a dim $ at the far left, the command in yellow -- the same shape as the live
 # prompt, so the eye reads it as "this is what belonged on that line".
 reveal() { printf '%s$ %s%s%s%s\n' "$D" "$N" "$Y" "$1" "$N"; }
+
+# ---- flashcard screen -----------------------------------------------------
+#
+# one card at a time: the screen clears, a status bar names where you are, the
+# question runs, and a pause lets you read the result before the next clear.
+# every one of these is a no-op when output is not a terminal, so the build's
+# probes and any piped run stay linear and never block.
+
+# clear the screen AND the scrollback, so you cannot scroll up to the last card
+cls() { [ -t 1 ] && [ "${TERM:-dumb}" != dumb ] && printf '\033[H\033[2J\033[3J'; return 0; }
+
+# the top bar: bold title on the left, dim subtitle beside it, dim position on
+# the right, then a rule. widths are measured on the plain text, never the
+# coloured string, so the right edge lands true.
+statusbar() {
+	[ -t 1 ] || return 0
+	local title="$1" sub="$2" pos="$3" plain padw
+	plain="  $title  $sub"
+	padw=$(( COLS - ${#plain} - ${#pos} - 2 ))
+	[ "$padw" -ge 1 ] 2>/dev/null || padw=1
+	printf '  %s%s%s  %s%s%s%*s%s%s%s\n' \
+		"$B" "$title" "$N" "$D" "$sub" "$N" "$padw" '' "$D" "$pos" "$N"
+	rule
+}
+
+# between cards: wait for Enter, or quit. non-interactive returns at once so
+# nothing automated ever hangs here.
+pause_card() {
+	[ -t 0 ] || return 0
+	printf '\n  %s[enter] next  %s·%s  quit to leave%s ' "$D" "$D" "$D" "$N"
+	IFS= read -r _pc 2>/dev/null || { echo; return 2; }
+	case "$_pc" in quit|:q) return 2 ;; esac
+	return 0
+}
