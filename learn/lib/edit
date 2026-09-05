@@ -37,7 +37,7 @@ _ed_last() { _r=${1#"${1%?}"}; }
 _ed_first() { _r=${1%"${1#?}"}; }
 
 read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
-	local prompt="$1" L="" R="" mode=insert c c2 c3 _r
+	local prompt="$1" L="" R="" mode=insert c c2 c3 _r _pc
 	if [ ! -t 0 ]; then
 		IFS= read -r REPLY_LINE || return 1
 		return 0
@@ -47,7 +47,13 @@ read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
 	hn=$([ -f "$EDIT_HIST" ] && grep -c '' "$EDIT_HIST" 2>/dev/null || echo 0)
 	hi=$hn   # index one past the newest entry == the fresh line being typed
 
-	_ed_draw "$prompt" "$L" "$R"
+	# the prompt colour tracks the mode, the way cmdchamp's does: white while you
+	# type, red the instant you drop to normal mode, so the mode is legible
+	# without a separate indicator. PROMPT_INS/NORM come from ui, where the red
+	# global is not shadowed by this function's R (the right-of-cursor buffer).
+	_ed_prompt() { [ "$mode" = normal ] && printf '%s' "$PROMPT_NORM" || printf '%s' "$PROMPT_INS"; }
+
+	_ed_draw "$(_ed_prompt)" "$L" "$R"
 	while :; do
 		IFS= read -rsn1 c || { printf '\n'; REPLY_LINE="$L$R"; return 1; }
 		[ -z "$c" ] && break   # Enter (read strips the newline -> empty)
@@ -100,7 +106,7 @@ read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
 			fi
 			;;
 		esac
-		_ed_draw "$prompt" "$L" "$R"
+		_ed_draw "$(_ed_prompt)" "$L" "$R"
 	done
 
 	printf '\n'

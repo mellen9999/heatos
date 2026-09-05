@@ -26,6 +26,13 @@ COLS=${COLUMNS:-}
 
 rule() { printf '%s' "$D"; awk -v n="$COLS" 'BEGIN{while(n-->0)printf "-"}'; printf '%s\n' "$N"; }
 
+# the answer prompt, cmdchamp-style: a bare $ at the far left, white while you
+# type and red the moment you drop to vi normal mode. built here where the R/W
+# colour globals are in scope -- inside the editor R is the right-of-cursor
+# buffer, so it cannot see them.
+PROMPT_INS=$(printf '%s$ %s' "$W" "$N")
+PROMPT_NORM=$(printf '%s$ %s' "$R" "$N")
+
 hdr() {
 	printf '\n%s%s%s %s\n' "$B$M" "$1" "$N" "${D}$2$N"
 	rule

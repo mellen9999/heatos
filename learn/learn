@@ -205,7 +205,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 		else
 			# full vi-mode line editing with history (falls back to a plain read
 			# when stdin is not a terminal, e.g. the build's own checks).
-			read_line "$(printf '%s$%s ' "$W" "$N")" || return 2
+			read_line || return 2   # the editor draws its own mode-coloured prompt
 			input="$REPLY_LINE"
 		fi
 		case "$input" in
