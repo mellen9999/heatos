@@ -717,7 +717,67 @@ else
 	else
 		bad "the nostate boot never reached the banner -- nothing was proven"
 	fi
-	rm -f /tmp/xos-a19*.efi /tmp/xos-a19*.img "$a19luks"
+
+	# ── the crown jewel: the REAL production unlock, typed at the prompt ────
+	# a fresh partitioned-but-blank disk is provisioned by a teststate boot
+	# (which now targets vdb1 and drops an operator-style wg0.conf on it),
+	# then a production boot gets the passphrase typed over the serial
+	# console -- the same keystrokes a hand would make. everything after is
+	# the path real hardware runs: scan, prompt, cryptsetup open, mount,
+	# ledger, wireguard from the conf, dropbear bound to the tunnel address.
+	a19e=/tmp/xos-a19e.img
+	truncate -s 48M "$a19e"
+	printf 'label: gpt\n, 40M, L\n' | sfdisk "$a19e" >/dev/null 2>&1
+	prov=$(boot_state "$a19e")
+	grep -q 'teststate-mkfs: ok' <<< "$prov" \
+		&& ok "provision boot formatted the partition (vdb1, not the whole disk)" \
+		|| bad "teststate did not provision vdb1"
+
+	# type the passphrase: qemu's stdin is a fifo; write only after the
+	# prompt has actually appeared in the log, the way a human waits.
+	boot_typed() { # $1=stick $2=disk $3=passphrase $4=log
+		local fifo=/tmp/xos-a19.fifo t=0
+		rm -f "$fifo" "$4"; mkfifo "$fifo"
+		timeout 150 qemu-system-x86_64 -machine q35,smm=on -m 512 \
+			-global driver=cfi.pflash01,property=secure,value=on \
+			-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
+			-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
+			-drive file="$1",if=virtio,format=raw,readonly=on \
+			-drive file="$2",if=virtio,format=raw \
+			-nic user,model=virtio-net-pci -nographic -no-reboot < "$fifo" > "$4" 2>&1 &
+		qp19=$!
+		exec 9> "$fifo"
+		while [ "$t" -lt 90 ] && ! grep -aq 'unlock persistent state?' "$4"; do sleep 1; t=$((t+1)); done
+		printf '%s\n' "$3" >&9
+		t=0
+		while [ "$t" -lt 45 ] && ! grep -aqE 'state unlocked|wrong passphrase|would not mount' "$4"; do sleep 1; t=$((t+1)); done
+		sleep 5   # let the wg/ssh lines land before the kill
+		exec 9>&-
+		kill "$qp19" 2>/dev/null; wait "$qp19" 2>/dev/null
+		rm -f "$fifo"
+	}
+
+	a19log=/tmp/xos-a19-typed.log
+	boot_typed /tmp/xos-a19p.img "$a19e" testpass "$a19log"
+	grep -aq 'state unlocked' "$a19log" \
+		&& ok "typed passphrase: the real state_open opened and mounted p3" \
+		|| bad "the production unlock did not accept a typed passphrase"
+	grep -aq 'ledger: boot 2 on this state' "$a19log" \
+		&& ok "the production boot counted in the same ledger" \
+		|| bad "ledger did not carry from the provision boot to the real unlock"
+	grep -aq 'wireguard up on wg0 (10.9.0.2/32)' "$a19log" \
+		&& ok "wireguard came up from an operator-style conf (Address included)" \
+		|| bad "the real wg path did not bring the tunnel up"
+	grep -aq 'ssh listening on the tunnel only (10.9.0.2:22)' "$a19log" \
+		&& ok "dropbear bound to the tunnel address, nothing else" \
+		|| bad "ssh did not come up on the tunnel"
+
+	boot_typed /tmp/xos-a19p.img "$a19e" wrongpass "$a19log"
+	grep -aq 'wrong passphrase -- continuing without persistence' "$a19log" \
+		&& ok "a wrong passphrase is refused out loud, and the boot goes on" \
+		|| bad "wrong passphrase was not refused loudly"
+
+	rm -f /tmp/xos-a19*.efi /tmp/xos-a19*.img "$a19luks" "$a19log"
 fi
 
 printf '  %d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"

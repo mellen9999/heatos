@@ -453,11 +453,16 @@ if grep -q xos.test /proc/cmdline; then
 	# boot 2 finds it already LUKS, opens it, and reads the marker back: proof
 	# the bytes survived a real power cycle. the open+mount path is identical to
 	# the interactive one; only the passphrase source differs.
+	# target vdb1 when the disk is partitioned: that is the shape the REAL
+	# state_open() scan matches, so the same provisioned disk can then feed a
+	# production boot end to end (A19). a bare vdb keeps the old behavior.
 	if grep -q xos.teststate /proc/cmdline && [ -b /dev/vdb ]; then
-		if cryptsetup isLuks /dev/vdb 2>/dev/null; then
+		tsdev=/dev/vdb
+		[ -b /dev/vdb1 ] && tsdev=/dev/vdb1
+		if cryptsetup isLuks "$tsdev" 2>/dev/null; then
 			printf 'teststate-phase: reopen\n'
 			printf 'teststate-open: '
-			if printf 'testpass' | cryptsetup open --key-file - /dev/vdb ts >/dev/null 2>&1; then
+			if printf 'testpass' | cryptsetup open --key-file - "$tsdev" ts >/dev/null 2>&1; then
 				echo ok
 				mkdir -p /tmp/ts
 				mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/ts /tmp/ts 2>/dev/null
@@ -470,14 +475,30 @@ if grep -q xos.test /proc/cmdline; then
 			printf 'teststate-phase: provision\n'
 			printf 'teststate-format: '
 			if printf 'testpass' | cryptsetup luksFormat --type luks2 --integrity hmac-sha256 \
-			     --pbkdf pbkdf2 --pbkdf-force-iterations 1000 --batch-mode --key-file - /dev/vdb >/dev/null 2>&1
+			     --pbkdf pbkdf2 --pbkdf-force-iterations 1000 --batch-mode --key-file - "$tsdev" >/dev/null 2>&1
 			then echo ok; else echo FAILED; fi
 			printf 'teststate-mkfs: '
-			if printf 'testpass' | cryptsetup open --key-file - /dev/vdb ts >/dev/null 2>&1; then
+			if printf 'testpass' | cryptsetup open --key-file - "$tsdev" ts >/dev/null 2>&1; then
 				if mke2fs -F /dev/mapper/ts >/dev/null 2>&1; then echo ok; else echo FAILED; fi
 				mkdir -p /tmp/ts
 				mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/ts /tmp/ts 2>/dev/null
 				printf 'teststate-write: '; if echo "survived-a-reboot" > /tmp/ts/marker; then sync; echo ok; else echo FAILED; fi
+				# an operator-style wireguard config (Address INCLUDED -- that is
+				# how a human writes one) so a later production boot of this same
+				# disk exercises the real unlock -> wg -> ssh chain end to end.
+				if command -v wg >/dev/null 2>&1; then
+					wg genkey > /tmp/tswg.key 2>/dev/null
+					printf '[Interface]\nPrivateKey = %s\nAddress = 10.9.0.2/32\n' \
+						"$(cat /tmp/tswg.key)" > /tmp/ts/wg0.conf
+					chmod 600 /tmp/ts/wg0.conf
+					rm -f /tmp/tswg.key
+					# and an operator key on p3, so the later production boot
+					# has something to authorize -- the image ships none.
+					dropbearkey -t ed25519 -f /tmp/tsak >/dev/null 2>&1
+					dropbearkey -y -f /tmp/tsak 2>/dev/null | grep '^ssh-ed25519' > /tmp/ts/authorized_keys
+					chmod 600 /tmp/ts/authorized_keys
+					rm -f /tmp/tsak
+				fi
 				recon_check /tmp/ts
 				ledger_note /tmp/ts
 				umount /tmp/ts 2>/dev/null; cryptsetup close ts 2>/dev/null
@@ -593,6 +614,10 @@ state_open() {
 	# the type (the ext4 driver mounts ext2/3/4 alike), and the mountpoint is
 	# under /tmp because the root is read-only.
 	if ! mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/xosstate "$STATE_DIR" 2>/dev/null; then
+		# the passphrase was RIGHT -- a silent fall-through here would tell the
+		# operator "wrong passphrase" by omission when the truth is a damaged
+		# filesystem. say exactly which it was.
+		printf '  state unlocked but the filesystem would not mount -- p3 is damaged\n' > /dev/console
 		cryptsetup close xosstate 2>/dev/null
 		return 1
 	fi
@@ -626,8 +651,14 @@ if state_open; then
 		wgcidr=$(sed -n 's/^ *Address *= *\([0-9./]*\).*/\1/p' "$STATE_DIR/wg0.conf" | head -1)
 		wgip=${wgcidr%/*}
 		case "$wgcidr" in */*) : ;; ?*) wgcidr="$wgip/24" ;; esac
+		# an operator writes wg-quick style (Address inside the conf), but
+		# `wg setconf` is strict and REJECTS unknown keys -- fed the raw file it
+		# errors out and the tunnel never comes up. strip the keys wg does not
+		# own into a tmpfs copy; the original on p3 stays exactly as written.
+		sed '/^ *Address *=/d;/^ *DNS *=/d;/^ *MTU *=/d' "$STATE_DIR/wg0.conf" > /tmp/wgset.conf
+		chmod 600 /tmp/wgset.conf
 		if ip link add wg0 type wireguard 2>/dev/null \
-		   && wg setconf wg0 "$STATE_DIR/wg0.conf" 2>/dev/null \
+		   && wg setconf wg0 /tmp/wgset.conf 2>/dev/null \
 		   && [ -n "$wgip" ] \
 		   && ip addr add "$wgcidr" dev wg0 2>/dev/null \
 		   && ip link set wg0 up 2>/dev/null; then
@@ -650,6 +681,8 @@ if state_open; then
 			printf '  wireguard config present but wg0 did not come up\n' > /dev/console
 			ip link del wg0 2>/dev/null
 		fi
+		# the private key now lives in the kernel's wg device; the copy is done.
+		rm -f /tmp/wgset.conf
 	fi
 fi
 

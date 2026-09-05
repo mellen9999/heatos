@@ -1259,6 +1259,7 @@ size() {
   grep -q 'dropbear .*-p "\$wgip:22"' init               || { g33=FAIL; printf '    ssh bind no longer uses bare $wgip\n' >&2; }
   grep -q 'for p in /sys/class/block/\*/partition' init  || { g33=FAIL; printf '    state_open no longer scans */partition\n' >&2; }
   grep -q 'for dev in \$cands' init                      || { g33=FAIL; printf '    state_open no longer tries every candidate\n' >&2; }
+  grep -q 'wg setconf wg0 /tmp/wgset.conf' init          || { g33=FAIL; printf '    setconf fed the raw conf -- Address= lines make strict wg error out\n' >&2; }
   g "G33 init remote-access logic (real ash)" "$g33"
 
   # G34 -- the signed UKI's EMBEDDED roothash must match the tree. G6 pins
