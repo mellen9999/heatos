@@ -12,7 +12,7 @@ pass=0; fail=0; skip=0; sections=0
 # the gate runner already learned this: a run that dies partway through prints
 # a smaller number and looks exactly like a clean one. count the checks that
 # actually ran and refuse to report a result if any of them went missing.
-EXPECTED_SECTIONS=18
+EXPECTED_SECTIONS=19
 section() { sections=$((sections+1)); echo; echo "$1"; }
 
 # p2 (root) starts after the 1 MiB gap + the ESP. keep in step with build.sh
@@ -615,6 +615,97 @@ PY
 	fi
 	wait "$qpid" 2>/dev/null
 	rm -f /tmp/xos-a18.efi /tmp/xos-a18-signed.efi /tmp/xos-a18.img "$a18log" "$a18qmp"
+fi
+
+echo
+section "A19  every opt-out knob holds, and the state prompt is real"
+# the knobs are guards; a guard that silently stopped guarding is the exact
+# regression class this harness exists for. one signed variant UKI turns every
+# opt-out on at once and asserts each visibly took. then two production-
+# flavoured boots (no xos.test -- the probe block ends in poweroff and never
+# reaches state_open) attach a PARTITIONED luks disk and prove the real
+# state_open() scan finds it: the unlock prompt must appear, and xos.nostate
+# must make it not. A16's whole-disk vdb has no partition attr, so the real
+# scan never sees it -- this is the only place the production path runs.
+if ! R=$(./build.sh ramkeys) || [ ! -f "$stub" ] || [ ! -f "$R/db.key" ]; then
+	skipped "no stub or unlocked key -- A19 not evaluated"
+else
+	ukify build --linux=bzImage \
+		--cmdline="$(cat cmdline.txt) xos.nonet xos.realmac xos.notether xos.nostate" \
+		--stub="$stub" --output=/tmp/xos-a19.efi >/dev/null 2>&1
+	sbsign --key "$R/db.key" --cert keys/db.crt \
+		--output /tmp/xos-a19-signed.efi /tmp/xos-a19.efi >/dev/null 2>&1
+	cp stick.img /tmp/xos-a19.img
+	mcopy -o -i /tmp/xos-a19.img@@1M /tmp/xos-a19-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+	o19=$(boot_img /tmp/xos-a19.img)
+	grep -q 'net-has-address: no' <<< "$o19" \
+		&& ok "xos.nonet: no address was configured" \
+		|| bad "xos.nonet did not hold -- the box got a lease"
+	grep -q 'net-dns-servers: 0' <<< "$o19" \
+		&& ok "xos.nonet: no resolver was written" \
+		|| bad "xos.nonet: dns servers appeared"
+	grep -q 'mac-randomized: off (xos.realmac)' <<< "$o19" \
+		&& ok "xos.realmac: burned-in mac kept" \
+		|| bad "xos.realmac did not hold"
+	grep -q 'tether-armed: off (xos.notether)' <<< "$o19" \
+		&& ok "xos.notether: tether stayed down" \
+		|| bad "xos.notether did not hold"
+	assert_complete "$o19" "A19 opt-out boot"
+
+	# the partitioned luks disk, built host-side: gpt with one partition at
+	# 1MiB, a luks2 header dd'd into it. in the guest it enumerates as vdb1
+	# WITH a partition attr -- exactly what the real scan looks for.
+	a19disk=/tmp/xos-a19-state.img; a19luks=/tmp/xos-a19.luks
+	truncate -s 48M "$a19disk"
+	printf 'label: gpt\n, 40M, L\n' | sfdisk "$a19disk" >/dev/null 2>&1
+	truncate -s 40M "$a19luks"
+	printf 'testpass' | cryptsetup luksFormat --type luks2 --pbkdf pbkdf2 \
+		--pbkdf-force-iterations 1000 --batch-mode --key-file - "$a19luks" >/dev/null 2>&1
+	dd if="$a19luks" of="$a19disk" bs=1M seek=1 conv=notrunc status=none
+
+	# production cmdline: the test flags stripped, nothing else touched. this
+	# boot never prints XOS-TEST-END; it is killed by its own timeout after
+	# the assertion window.
+	prodcmd=$(tr ' ' '\n' < cmdline.txt | grep -v '^xos\.test' | tr '\n' ' ')
+	ukify build --linux=bzImage --cmdline="$prodcmd" \
+		--stub="$stub" --output=/tmp/xos-a19p.efi >/dev/null 2>&1
+	sbsign --key "$R/db.key" --cert keys/db.crt \
+		--output /tmp/xos-a19p-signed.efi /tmp/xos-a19p.efi >/dev/null 2>&1
+	cp stick.img /tmp/xos-a19p.img
+	mcopy -o -i /tmp/xos-a19p.img@@1M /tmp/xos-a19p-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+	o19p=$(timeout 90 qemu-system-x86_64 -machine q35,smm=on -m 512 \
+		-global driver=cfi.pflash01,property=secure,value=on \
+		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
+		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
+		-drive file=/tmp/xos-a19p.img,if=virtio,format=raw,readonly=on \
+		-drive file="$a19disk",if=virtio,format=raw \
+		-nic user,model=virtio-net-pci -nographic -no-reboot < /dev/null 2>&1)
+	grep -q 'unlock persistent state?' <<< "$o19p" \
+		&& ok "the real state_open() scan found the partitioned luks disk and asked" \
+		|| bad "no unlock prompt -- the production state scan is not finding partitions"
+
+	# same disk, same cmdline plus xos.nostate: the prompt must NOT appear.
+	ukify build --linux=bzImage --cmdline="$prodcmd xos.nostate" \
+		--stub="$stub" --output=/tmp/xos-a19n.efi >/dev/null 2>&1
+	sbsign --key "$R/db.key" --cert keys/db.crt \
+		--output /tmp/xos-a19n-signed.efi /tmp/xos-a19n.efi >/dev/null 2>&1
+	cp stick.img /tmp/xos-a19n.img
+	mcopy -o -i /tmp/xos-a19n.img@@1M /tmp/xos-a19n-signed.efi ::/EFI/BOOT/BOOTX64.EFI
+	o19n=$(timeout 90 qemu-system-x86_64 -machine q35,smm=on -m 512 \
+		-global driver=cfi.pflash01,property=secure,value=on \
+		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
+		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
+		-drive file=/tmp/xos-a19n.img,if=virtio,format=raw,readonly=on \
+		-drive file="$a19disk",if=virtio,format=raw \
+		-nic user,model=virtio-net-pci -nographic -no-reboot < /dev/null 2>&1)
+	if grep -q 'unlock persistent state?' <<< "$o19n"; then
+		bad "xos.nostate did not hold -- the unlock prompt appeared anyway"
+	elif grep -q 'this image is:' <<< "$o19n"; then
+		ok "xos.nostate: same disk, no prompt, boot carried on"
+	else
+		bad "the nostate boot never reached the banner -- nothing was proven"
+	fi
+	rm -f /tmp/xos-a19*.efi /tmp/xos-a19*.img "$a19luks"
 fi
 
 printf '  %d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
