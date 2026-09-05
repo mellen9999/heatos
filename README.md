@@ -254,6 +254,11 @@ the first console spawns; evil-maid detection for the *machines* you visit,
 not just the stick. no state unlocked, no recon -- the stick records nothing
 about where it has been unless you open the encrypted partition.
 
+the same unlock feeds a boot ledger: p3 counts its own opens and shows the
+number and the previous boot's time at every unlock. remember it like the
+fingerprint words -- a stick that says boot 44 when you left it at 47 was
+rolled back to an older copy of p3, and nothing else on it can tell you that.
+
 userland is compiled static-PIE with the stack protector and stack-clash
 protection, and linked with a non-executable stack.
 

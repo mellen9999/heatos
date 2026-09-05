@@ -510,6 +510,9 @@ section "A16  state survives a real power cycle"
 p3disk=/tmp/xos-p3test.img
 rm -f "$p3disk"; truncate -s 64M "$p3disk"
 b1=$(boot_state "$p3disk")
+grep -q 'ledger: first boot recorded' <<< "$b1" \
+	&& ok "boot 1 opened the ledger at one" \
+	|| bad "no ledger entry on first boot"
 if grep -q 'teststate-phase: provision' <<< "$b1" \
    && grep -q 'teststate-format: ok' <<< "$b1" \
    && grep -q 'teststate-mkfs: ok' <<< "$b1"; then
@@ -532,6 +535,12 @@ grep -q 'teststate-prior-marker: survived-a-reboot' <<< "$b2" \
 grep -qE 'recon: MACHINE [0-9a-f]{16} CHANGED' <<< "$b2" \
 	&& ok "boot 2 noticed the machine changed" \
 	|| bad "a new pci device went unremarked -- recon is blind"
+# the ledger must count across a real power cycle, and carry the previous
+# boot's timestamp -- a rolled-back p3 image shows a lower number than the
+# one you remember, which is the only thing on the stick that can say so.
+grep -qE 'ledger: boot 2 on this state \(last was [0-9]{4}-[0-9]{2}-[0-9]{2}' <<< "$b2" \
+	&& ok "boot 2 counted, and named when boot 1 happened" \
+	|| bad "the ledger did not advance to 2 across the power cycle"
 grep -q 'new:  pci' <<< "$b2" \
 	&& ok "the diff names the device that appeared" \
 	|| bad "recon said 'changed' but not what changed"
@@ -543,6 +552,9 @@ b3=$(boot_state "$p3disk" -device qemu-xhci)
 grep -q 'recon: machine [0-9a-f]\{16\} is as you left it' <<< "$b3" \
 	&& ok "boot 3 saw identical hardware and said nothing changed" \
 	|| bad "recon cried 'changed' on an unchanged machine -- false alarms"
+grep -q 'ledger: boot 3 on this state' <<< "$b3" \
+	&& ok "boot 3 counted on -- the ledger is monotonic" \
+	|| bad "the ledger lost count on boot 3"
 assert_complete "$b3" "A16 boot 3"
 rm -f "$p3disk"
 

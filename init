@@ -268,6 +268,34 @@ recon_check() { # $1 = root of the unlocked state filesystem
 		|| printf '  recon FAILED: could not record the baseline\n' > /dev/console
 	rm -f "$now"
 }
+# the boot ledger: p3 counts its own unlocks. recon watches the MACHINE change
+# under the stick; this watches the STICK's history change under you. remember
+# the number the way you remember the fingerprint words -- a stick that says
+# boot 44 when you left it at 47 was rolled back to an older p3 image, and
+# nothing else on it will tell you that. a corrupt or non-numeric ledger is
+# called out, never silently reset to a clean-looking count.
+ledger_note() { # $1 = root of the unlocked state filesystem
+	local f="$1/ledger" n=0 last=""
+	if [ -f "$f" ]; then
+		n=$(cut -d' ' -f1 "$f" 2>/dev/null)
+		last=$(cut -d' ' -f2 "$f" 2>/dev/null)
+		case "$n" in ''|*[!0-9]*)
+			printf '  ledger CORRUPT -- treat this state as replayed\n' > /dev/console
+			n=0 ;;
+		esac
+	fi
+	n=$((n + 1))
+	if printf '%s %s\n' "$n" "$(date -u +%s)" > "$f" 2>/dev/null && sync; then
+		if [ "$n" = 1 ]; then
+			printf '  ledger: first boot recorded on this state\n' > /dev/console
+		else
+			printf '  ledger: boot %s on this state (last was %s UTC)\n' \
+				"$n" "$(date -u -d "@$last" '+%Y-%m-%d %H:%M' 2>/dev/null)" > /dev/console
+		fi
+	else
+		printf '  ledger FAILED: could not record this boot\n' > /dev/console
+	fi
+}
 
 if grep -q xos.test /proc/cmdline; then
 	echo
@@ -435,6 +463,7 @@ if grep -q xos.test /proc/cmdline; then
 				mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/ts /tmp/ts 2>/dev/null
 				printf 'teststate-prior-marker: '; [ -f /tmp/ts/marker ] && cat /tmp/ts/marker || echo NONE
 				recon_check /tmp/ts
+				ledger_note /tmp/ts
 				umount /tmp/ts 2>/dev/null; cryptsetup close ts 2>/dev/null
 			else echo FAILED; fi
 		else
@@ -450,6 +479,7 @@ if grep -q xos.test /proc/cmdline; then
 				mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/ts /tmp/ts 2>/dev/null
 				printf 'teststate-write: '; if echo "survived-a-reboot" > /tmp/ts/marker; then sync; echo ok; else echo FAILED; fi
 				recon_check /tmp/ts
+				ledger_note /tmp/ts
 				umount /tmp/ts 2>/dev/null; cryptsetup close ts 2>/dev/null
 			else echo FAILED; fi
 		fi
@@ -576,6 +606,7 @@ if state_open; then
 	mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
 	printf '  state unlocked -- %s persists across reboots\n' "$HOME" > /dev/console
 	recon_check "$STATE_DIR"
+	ledger_note "$STATE_DIR"
 
 	# ── remote access ───────────────────────────────────────────────────────
 	# activates only when p3 is unlocked AND a wireguard config is present on it.
