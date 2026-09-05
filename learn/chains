@@ -1,5 +1,5 @@
 name: the gauntlet
-brief: multi-command chains, composed from everything the levels taught. thirty seconds each, one life, no hints, no reference. every chain is graded on what your pipe really prints, so any correct pipeline passes. how far can you get?
+brief: multi-command chains, composed from everything the levels taught -- text triage, then the tradecraft you carry a stick like this to do: name a blob by its magic, carve the secret out of it, count who was refused, find the line where a machine died. thirty seconds each, one life, no hints, no reference. every chain is graded on what your pipe really prints, so any correct pipeline passes. how far can you get?
 ---
 q: %count% the distinct lines of @txt@
 a: sort -u @txt@ | wc -l
@@ -13,6 +13,16 @@ ref: uniq
 ---
 q: %count% the @sev@ lines of @log@ with a pipe, not a flag
 a: grep @sev@ @log@ | wc -l
+lvl: 06
+ref: grep
+---
+q: %count% the times a connection was refused in @log@, with a pipe
+a: grep refused @log@ | wc -l
+lvl: 06
+ref: grep
+---
+q: %show% the line where @log@ died
+a: grep FATAL @log@ | tail -1
 lvl: 06
 ref: grep
 ---
@@ -36,8 +46,18 @@ a: tail -n +2 @csv@ | awk -F, '{s += $4} END {print s}'
 lvl: 10
 ref: awk
 ---
+q: %list% every severity that appears in @log@, once each
+a: awk '{print $3}' @log@ | sort -u
+lvl: 10
+ref: awk
+---
 q: %show% the times of the @sev@ lines in @log@, sorted
 a: grep @sev@ @log@ | awk '{print $2}' | sort
+lvl: 10
+ref: awk
+---
+q: %get% the address that was refused in @log@, listed once
+a: grep refused @log@ | awk '{print $NF}' | sort -u
 lvl: 10
 ref: awk
 ---
@@ -50,6 +70,16 @@ q: %show% just the hash of @txt@, nothing after it
 a: sha256sum @txt@ | cut -d' ' -f1
 lvl: 20
 ref: sha256sum
+---
+q: {name @bin@ by its first eight bytes in hex, on one line|read @bin@'s first eight bytes as hex, one line|dump the first eight bytes of @bin@ as hex on a single line}
+a: od -A n -t x1 -N 8 @bin@ | head -1
+lvl: 21
+ref: od
+---
+q: {pull the readable secret buried in @bin@|carve the unlocking string out of @bin@|dig the string that mentions unlocking out of @bin@}
+a: strings @bin@ | grep unlock
+lvl: 21
+ref: strings
 ---
 q: %count% the processor lines in /proc/cpuinfo with a pipe, not a flag
 a: grep processor /proc/cpuinfo | wc -l
