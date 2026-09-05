@@ -1173,6 +1173,11 @@ size() {
       [ -n "$opt" ] || continue
       grep -q "^$opt=y" "$kc" && { k_bad=$((k_bad+1)); printf '    config still on: %s\n' "$opt" >&2; }
     done < <(grep -oP '^CONFIG_[A-Z0-9_]+(?==n$)' kernel.config)
+    # CONFIG_EXTRA_FIRMWARE bakes a vendor blob straight into bzImage, which
+    # G18 (squashfs only) cannot see. it is a string option, so the =n leak
+    # scan above skips it -- assert its absence explicitly.
+    grep -q '^CONFIG_EXTRA_FIRMWARE="..*"' "$kc" \
+      && { k_bad=$((k_bad+1)); printf '    firmware blob embedded in kernel: CONFIG_EXTRA_FIRMWARE\n' >&2; }
     g "G14 kernel hardening config ($k_miss off, $k_bad leaked)" \
       "$([ "$k_miss" -eq 0 ] && [ "$k_bad" -eq 0 ] && echo ok || echo FAIL)"
   else
@@ -1186,7 +1191,17 @@ size() {
   for want15 in 'panic_on_corruption' 'oops=panic' 'panic=-1' 'page_alloc.shuffle=1' 'random.trust_cpu=1' 'xos.epoch=' 'dm-mod.waitfor=PARTUUID='; do
     grep -qF "$want15" cmdline.txt || { c15=$((c15+1)); printf '    cmdline missing: %s\n' "$want15" >&2; }
   done
-  g "G15 cmdline hardening params ($c15 missing)" "$([ "$c15" -eq 0 ] && echo ok || echo FAIL)"
+  # ...and assert NO param is present that would neuter the compiled-in
+  # hardening at boot. G15 checked only for presence; a runtime override like
+  # mitigations=off or init_on_free=0 keeps every config gate green while
+  # switching the protection off, and the cmdline is signed, so it must be
+  # caught here before it ships inside the signature.
+  local c15b=0 deny15
+  for deny15 in 'mitigations=off' 'init_on_alloc=0' 'init_on_free=0' 'nokaslr' 'lockdown=none' 'nosmep' 'nosmap' 'nopti' 'no_hash_pointers' 'page_alloc.shuffle=0' 'random.trust_cpu=0'; do
+    grep -qF "$deny15" cmdline.txt && { c15b=$((c15b+1)); printf '    cmdline FORBIDDEN: %s\n' "$deny15" >&2; }
+  done
+  g "G15 cmdline hardening params ($c15 missing, $c15b forbidden)" \
+    "$([ "$c15" -eq 0 ] && [ "$c15b" -eq 0 ] && echo ok || echo FAIL)"
 
   # G18 -- no firmware blobs in the image. r8169 pulls in FW_LOADER; if a blob
   # ever gets shipped it is unverified-by-vendor content on a verified system.
