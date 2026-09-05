@@ -60,7 +60,7 @@ mkdir -p /tmp/run/cryptsetup
 epoch=$(sed -n 's/.*xos\.epoch=\([0-9][0-9]*\).*/\1/p' /proc/cmdline)
 if [ -n "$epoch" ]; then
 	now=$(date -u +%s 2>/dev/null || echo 0)
-	if [ "$now" -lt "$epoch" ]; then date -u -s "@$epoch" >/dev/null 2>&1; fi
+	if [ "$now" -lt "$epoch" ]; then date -u -s "@$epoch" >/dev/null 2>&1 || echo "clock floor FAILED: could not set clock to epoch $epoch"; fi
 fi
 
 # boot fingerprint: four words derived from the verity roothash on the SIGNED
@@ -169,7 +169,10 @@ fi
 recon_inv() {
 	local f p
 	for f in sys_vendor product_name product_version board_name bios_vendor bios_version bios_date; do
-		[ -r "/sys/class/dmi/id/$f" ] && printf 'dmi %s %s\n' "$f" "$(cat "/sys/class/dmi/id/$f")"
+		# strip control chars: a firmware-supplied DMI string is untrusted, and
+		# an embedded newline would inject a spoofed record into this line-oriented
+		# inventory (and the identity hash derived from it).
+		[ -r "/sys/class/dmi/id/$f" ] && printf 'dmi %s %s\n' "$f" "$(tr -cd '[:print:]' < "/sys/class/dmi/id/$f")"
 	done
 	for p in /sys/bus/pci/devices/*; do
 		[ -r "$p/vendor" ] && printf 'pci %s %s %s\n' "${p##*/}" "$(cat "$p/vendor")" "$(cat "$p/device")"
@@ -223,7 +226,7 @@ if grep -q xos.test /proc/cmdline; then
 	printf 'devport-node: '; if [ -e /dev/port ]; then echo "present (BAD)"; else echo "absent (good)"; fi
 	printf 'kcore: '; if [ -e /proc/kcore ]; then echo "present (BAD)"; else echo "absent (good)"; fi
 	printf 'kexec-loaded: '; if [ -e /sys/kernel/kexec_loaded ]; then echo "present (BAD)"; else echo "absent (good)"; fi
-	printf 'vsyscall-map: '; grep -c vsyscall /proc/self/maps 2>/dev/null || echo 0
+	printf 'vsyscall-map: '; _c=$(grep -c vsyscall /proc/self/maps 2>/dev/null); echo "${_c:-0}"
 	printf 'lockdown: '; cat /sys/kernel/security/lockdown 2>/dev/null || echo "(no securityfs)"
 	printf 'remount-rw: '; if mount -o remount,rw / 2>/dev/null; then echo "SUCCEEDED (BAD)"; else echo "refused (good)"; fi
 	printf 'tmp-exec: '; cp /bin/busybox /tmp/probe-x 2>/dev/null; chmod +x /tmp/probe-x 2>/dev/null; if /tmp/probe-x true 2>/dev/null; then echo "SUCCEEDED (BAD)"; else echo "refused (good)"; fi; rm -f /tmp/probe-x
@@ -231,7 +234,7 @@ if grep -q xos.test /proc/cmdline; then
 	printf 'dmesg-restrict: '; cat /proc/sys/kernel/dmesg_restrict 2>/dev/null || echo '?'
 	# both heap paths zeroed: alloc (INIT_ON_ALLOC) and free (INIT_ON_FREE).
 	# probes run as root, so dmesg_restrict does not bite here.
-	printf 'mem-autoinit: '; dmesg | grep -o 'heap alloc:on, heap free:on' | head -1 || echo "MISSING (BAD)"
+	printf 'mem-autoinit: '; dmesg | grep -o 'heap alloc:on, heap free:on' | head -1 | grep . || echo "MISSING (BAD)"
 	printf 'busybox-runs: '; busybox true && echo yes || echo no
 	printf 'shell-vi-default: '; ENV=/etc/shrc printf 'set +o\n' | ENV=/etc/shrc /bin/sh -i 2>&1 | grep -q 'o vi' && echo yes || echo "no (BAD)"
 	printf 'no-bash: '; if [ -e /bin/bash ]; then echo "present (BAD)"; else echo "absent (good)"; fi
@@ -252,11 +255,11 @@ if grep -q xos.test /proc/cmdline; then
 	# come from OUTSIDE -- a checksum stored inside the thing it describes
 	# proves nothing, which is exactly why the root hash lives on the signed
 	# kernel command line and not in the filesystem.
-	printf 'rootfs-digest: '; sha256sum /dev/dm-0 2>/dev/null | cut -d' ' -f1 || echo none
+	printf 'rootfs-digest: '; sha256sum /dev/dm-0 2>/dev/null | cut -d' ' -f1 | grep . || echo none
 	printf 'verity-roothash: '; sed -n 's/.*sha256 \([0-9a-f]\{64\}\).*/\1/p' /proc/cmdline | head -1
 	printf 'fingerprint: %s\n' "${fpw:-MISSING (BAD)}"
 	printf 'tether-armed: %s\n' "$XOS_TETHER"
-	printf 'verity-onerror: '; grep -o 'panic_on_corruption' /proc/cmdline | head -1 || echo none
+	printf 'verity-onerror: '; grep -o 'panic_on_corruption' /proc/cmdline | head -1 | grep . || echo none
 	# p3 depends on all of these existing in the kernel. assert them rather than
 	# trusting the config, the same way every other claim here is asserted.
 	printf 'fs-ext4: '; grep -qw ext4 /proc/filesystems && echo yes || echo "no (BAD)"
@@ -270,7 +273,7 @@ if grep -q xos.test /proc/cmdline; then
 	# instead. what is worth probing is the concrete ciphers they build on.
 	printf 'clock-floor: '; sed -n 's/.*xos\.epoch=\([0-9]*\).*/\1/p' /proc/cmdline | head -1 | grep . || echo "not pinned (BAD)"
 	printf 'clock-not-before-floor: '; nowchk=$(date -u +%s); floorchk=$(sed -n 's/.*xos\.epoch=\([0-9]*\).*/\1/p' /proc/cmdline | head -1); [ "${nowchk:-0}" -ge "${floorchk:-0}" ] && echo yes || echo "no (BAD)"
-	printf 'entropy-trusted: '; grep -o 'random.trust_cpu=1' /proc/cmdline | head -1 || echo "not pinned (BAD)"
+	printf 'entropy-trusted: '; grep -o 'random.trust_cpu=1' /proc/cmdline | head -1 | grep . || echo "not pinned (BAD)"
 	printf 'crypto-aes: '; grep -qw aes /proc/crypto && echo yes || echo "no (BAD)"
 	printf 'crypto-sha512: '; grep -qw sha512 /proc/crypto && echo yes || echo "no (BAD)"
 	# the whole p3 stack, exercised rather than assumed: cryptsetup binary,
@@ -308,7 +311,7 @@ if grep -q xos.test /proc/cmdline; then
 	# learn must describe the system that is actually running, not the one it was
 	# written against -- A15 reads these two back.
 	printf 'learn-refs: '; _n=0; for _f in /usr/share/learn/ref/*; do [ -e "$_f" ] && _n=$((_n+1)); done; echo "$_n"
-	printf 'learn-runs: '; learn list 2>/dev/null | grep -c . || echo 0
+	printf 'learn-runs: '; _c=$(learn list 2>/dev/null | grep -c .); echo "${_c:-0}"
 	printf 'learn-ref-ls: '; learn ref ls 2>/dev/null | head -1 | grep . || echo MISSING
 	printf 'learn-levels: '; _n=0; for _f in /usr/share/learn/levels/*; do [ -e "$_f" ] && _n=$((_n+1)); done; echo "$_n"
 	printf 'learn-pools: '; _n=0; for _f in /usr/share/learn/pools/*; do [ -e "$_f" ] && _n=$((_n+1)); done; echo "$_n"
@@ -323,7 +326,7 @@ if grep -q xos.test /proc/cmdline; then
 	printf 'net-iface-up: '; ip -o -4 addr show scope global 2>/dev/null | awk '{print $2}' | head -1 | grep . || echo none
 	printf 'net-has-address: '; [ "$(ip -o -4 addr show scope global 2>/dev/null | wc -l)" -gt 0 ] && echo yes || echo no
 	printf 'net-default-route: '; ip route show default 2>/dev/null | grep -oq 'dev' && echo yes || echo no
-	printf 'net-dns-servers: '; grep -c nameserver /tmp/resolv.conf 2>/dev/null || echo 0
+	printf 'net-dns-servers: '; _c=$(grep -c nameserver /tmp/resolv.conf 2>/dev/null); echo "${_c:-0}"
 	# print the mac itself only here: the block is xos.test-gated (G31 keeps
 	# the flag off production) and a per-boot random mac identifies nothing.
 	_up=$(ip -o -4 addr show scope global 2>/dev/null | awk '{print $2}' | head -1)
@@ -341,7 +344,7 @@ if grep -q xos.test /proc/cmdline; then
 	printf 'HEAD / HTTP/1.0\r\nHost: letsencrypt.org\r\nConnection: close\r\n\r\n' | timeout 20 tlstunnel - letsencrypt.org 443 > /tmp/tls.out 2> /tmp/tls.err
 	printf 'tls-handshake: '; head -1 /tmp/tls.out 2>/dev/null | tr -d '\r' | grep . || echo FAILED
 	printf 'tls-stderr: '; head -1 /tmp/tls.err 2>/dev/null | grep . || echo none
-	printf 'trust-anchors-in-binary: '; grep -ac 'Internet Security Research Group' /bin/tlstunnel 2>/dev/null || echo 0
+	printf 'trust-anchors-in-binary: '; _c=$(grep -ac 'Internet Security Research Group' /bin/tlstunnel 2>/dev/null); echo "${_c:-0}"
 
 	printf 'writable-home: '; touch "$HOME/probe" 2>/dev/null && echo "yes (tmpfs)" || echo no
 	# persistence across reboots, driven non-interactively. the harness attaches
@@ -402,7 +405,10 @@ if grep -q xos.test /proc/cmdline; then
 		mkdir -p /tmp/home/.ssh
 		dropbearkey -y -f /tmp/clientkey 2>/dev/null | grep '^ssh-ed25519' > /tmp/home/.ssh/authorized_keys
 		chmod 600 /tmp/home/.ssh/authorized_keys
-		dropbear -r /tmp/hostkey -p 127.0.0.1:2222 -E >/tmp/db.log 2>&1 &
+		# -F: stay in the foreground so the backgrounded job IS the server and
+		# $! is its real pid -- without it dropbear double-forks, $! captures the
+		# parent that exits at once, and the later kill misses the live daemon.
+		dropbear -r /tmp/hostkey -p 127.0.0.1:2222 -E -F >/tmp/db.log 2>&1 &
 		_dbpid=$!
 		sleep 1
 		printf 'ssh-listening: '; netstat -ltn 2>/dev/null | grep -q '127.0.0.1:2222' && echo yes || echo no
@@ -451,15 +457,14 @@ state_open() {
 	# whatever the host names the stick (sda3, nvme0n1p3, vdb3). the host's
 	# own disks never enumerate (no nvme/sata driver), so every partition
 	# seen here is on the stick or on attached usb.
-	local dev p
-	dev=""
+	local cands="" dev p
 	for p in /sys/class/block/*/partition; do
 		[ -f "$p" ] || continue
 		local cand="/dev/$(basename "$(dirname "$p")")"
 		[ -b "$cand" ] || continue
-		if cryptsetup isLuks "$cand" 2>/dev/null; then dev="$cand"; break; fi
+		cryptsetup isLuks "$cand" 2>/dev/null && cands="$cands $cand"
 	done
-	[ -n "$dev" ] || return 1
+	[ -n "$cands" ] || return 1
 
 	local pass
 	printf '\n  unlock persistent state? passphrase (empty to skip): ' > /dev/console
@@ -467,7 +472,16 @@ state_open() {
 	printf '\n' > /dev/console
 	[ -n "$pass" ] || return 1
 
-	if ! printf '%s' "$pass" | cryptsetup open --key-file - "$dev" xosstate >/dev/null 2>&1; then
+	# try the passphrase against EVERY LUKS partition on the bus, not just the
+	# first one found: an unrelated encrypted drive sharing the hub must not
+	# shadow the real state stick and turn a correct passphrase into "wrong".
+	local opened=""
+	for dev in $cands; do
+		if printf '%s' "$pass" | cryptsetup open --key-file - "$dev" xosstate >/dev/null 2>&1; then
+			opened="$dev"; break
+		fi
+	done
+	if [ -z "$opened" ]; then
 		printf '  wrong passphrase -- continuing without persistence\n' > /dev/console
 		return 1
 	fi
@@ -503,11 +517,14 @@ if state_open; then
 	# reproducible image would be a published private key); titan's public key is
 	# in authorized_keys, baked into the read-only root where verity covers it.
 	if [ -f "$STATE_DIR/wg0.conf" ] && command -v wg >/dev/null 2>&1; then
-		wgip=$(sed -n 's/^ *Address *= *\([0-9.]*\).*/\1/p' "$STATE_DIR/wg0.conf" | head -1)
+		# keep the prefix length the operator wrote (WireGuard point-to-point is
+		# conventionally /32); only default to /24 when the conf gives none.
+		wgip=$(sed -n 's/^ *Address *= *\([0-9./]*\).*/\1/p' "$STATE_DIR/wg0.conf" | head -1)
+		case "$wgip" in */*) : ;; ?*) wgip="$wgip/24" ;; esac
 		if ip link add wg0 type wireguard 2>/dev/null \
 		   && wg setconf wg0 "$STATE_DIR/wg0.conf" 2>/dev/null \
 		   && [ -n "$wgip" ] \
-		   && ip addr add "$wgip/24" dev wg0 2>/dev/null \
+		   && ip addr add "$wgip" dev wg0 2>/dev/null \
 		   && ip link set wg0 up 2>/dev/null; then
 			printf '  wireguard up on wg0 (%s)\n' "$wgip" > /dev/console
 			# host key on p3, made once
