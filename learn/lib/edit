@@ -16,7 +16,7 @@
 # plain read, so nothing here can break a headless learn.
 
 E_ESC=$(printf '\033'); E_DEL=$(printf '\177'); E_BS=$(printf '\010')
-E_TAB=$(printf '\011')
+E_TAB=$(printf '\011'); E_EOT=$(printf '\004')
 # history lives beside cards/passed -- persistent when $STATE is (p3 up),
 # tmpfs when it is not -- so the EXIT trap wiping $TMP never touches it.
 EDIT_HIST="${EDIT_HIST:-$STATE/answers}"
@@ -40,7 +40,7 @@ _ed_last() { _r=${1#"${1%?}"}; }
 _ed_first() { _r=${1%"${1#?}"}; }
 
 read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
-	local prompt="$1" L="" R="" mode=insert c c2 c3 _r _pc
+	local prompt="$1" L="" R="" mode=insert c c2 c3 _r _pc _quit=
 	if [ ! -t 0 ]; then
 		IFS= read -r REPLY_LINE || return 1
 		return 0
@@ -88,6 +88,12 @@ read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
 				fi
 			fi
 			;;
+		"$E_EOT")
+			# Ctrl-D quits the prompt from either mode, the way it does in
+			# cmdchamp. raw read delivers it as a byte, not EOF, so it has to
+			# be caught by hand; a blank line is returned and nothing graded.
+			printf '\n'; REPLY_LINE=""; return 1
+			;;
 		"$E_DEL"|"$E_BS")
 			[ -n "$L" ] && L="${L%?}"
 			;;
@@ -109,6 +115,9 @@ read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
 			fi
 			;;
 		esac
+		# normal-mode q sets this (cmdchamp binds q to quit); honour it here,
+		# where a return actually leaves read_line.
+		[ -n "$_quit" ] && { printf '\n'; REPLY_LINE=""; return 1; }
 		_ed_draw "$(_ed_prompt)" "$L" "$R"
 	done
 
@@ -128,6 +137,7 @@ read_line() {   # $1 = prompt; sets REPLY_LINE, returns 1 on EOF/quit-signal
 _ed_normal() {   # $1 = key
 	local _k="$1" _c
 	case "$_k" in
+		q|"$E_EOT") _quit=1 ;;   # q or Ctrl-D quits, as in cmdchamp; read_line acts on it
 		h) [ -n "$L" ] && { _ed_last "$L"; R="$_r$R"; L="${L%?}"; } ;;
 		l|' ') [ "${R#?}" != "" ] && { _ed_first "$R"; L="$L$_r"; R="${R#?}"; } ;;
 		0|^) R="$L$R"; L="" ;;
