@@ -26,6 +26,14 @@ else
 	SYNC_BEG=$(printf '\033[?2026h') SYNC_END=$(printf '\033[?2026l')
 fi
 
+# progress-bar cells: solid block filled, light shade empty on a real terminal;
+# ascii where there is no colour to carry them (dumb/NO_COLOR).
+if [ -z "$N" ] || [ "${TERM:-dumb}" = dumb ]; then
+	BAR_F='#' BAR_E='-'
+else
+	BAR_F='█' BAR_E='░'
+fi
+
 COLS=${COLUMNS:-}
 [ -n "$COLS" ] || COLS=$(stty size 2>/dev/null | cut -d' ' -f2)
 [ -n "$COLS" ] || COLS=$(tput cols 2>/dev/null)
@@ -71,17 +79,37 @@ reveal() { printf '%s$ %s%s%s%s\n' "$D" "$N" "$Y" "$1" "$N"; }
 # clear the screen AND the scrollback, so you cannot scroll up to the last card
 cls() { [ -t 1 ] && [ "${TERM:-dumb}" != dumb ] && printf '\033[H\033[2J\033[3J'; return 0; }
 
-# the top bar: bold title on the left, dim subtitle beside it, dim position on
-# the right, then a rule. widths are measured on the plain text, never the
-# coloured string, so the right edge lands true.
-statusbar() {
+# a green fill bar: $1 done, $2 total, $3 cells wide. filled cells green, the
+# rest dim -- the one moving element in the whole ui, and it does not animate,
+# it just reflects where you are.
+bar() {
+	local d=$1 t=$2 w=${3:-16} f i
+	[ "$t" -gt 0 ] 2>/dev/null || t=1
+	[ "$d" -ge 0 ] 2>/dev/null || d=0
+	f=$(( d * w / t )); [ "$f" -gt "$w" ] && f=$w
+	printf '%s' "$G"; i=0
+	while [ "$i" -lt "$f" ]; do printf '%s' "$BAR_F"; i=$((i + 1)); done
+	printf '%s' "$D"
+	while [ "$i" -lt "$w" ]; do printf '%s' "$BAR_E"; i=$((i + 1)); done
+	printf '%s' "$N"
+}
+
+# the top bar: bold title, dim subtitle, then a green progress bar with its
+# count and (optional) running score on the right, then a rule. every segment's
+# visible width is known here, so the coloured escapes never shear the layout.
+statusbar() {   # $1 title  $2 sub  $3 done  $4 total  $5 right(optional)
 	[ -t 1 ] || return 0
-	local title="$1" sub="$2" pos="$3" plain padw
-	plain="  $title  $sub"
-	padw=$(( COLS - ${#plain} - ${#pos} - 2 ))
+	local title="$1" sub="$2" done="$3" tot="$4" right="$5" bw=16 lt rt padw
+	lt="  $title  $sub"
+	rt=" $done/$tot"
+	[ -n "$right" ] && rt="$rt  +$right"
+	padw=$(( COLS - ${#lt} - bw - ${#rt} ))
 	[ "$padw" -ge 1 ] 2>/dev/null || padw=1
-	printf '  %s%s%s  %s%s%s%*s%s%s%s\n' \
-		"$B" "$title" "$N" "$D" "$sub" "$N" "$padw" '' "$D" "$pos" "$N"
+	printf '  %s%s%s  %s%s%s%*s' "$B" "$title" "$N" "$D" "$sub" "$N" "$padw" ''
+	bar "$done" "$tot" "$bw"
+	printf ' %s%s/%s%s' "$D" "$done" "$tot" "$N"
+	[ -n "$right" ] && printf '  %s+%s%s' "$G" "$right" "$N"
+	printf '\n'
 	rule
 }
 

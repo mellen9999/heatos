@@ -76,7 +76,7 @@ challenge() {
 	i=1
 	while [ "$i" -le "$nq" ]; do
 		cls
-		statusbar "the gauntlet" "30s each  one life" "stage $i/$nq   +$score"
+		statusbar "the gauntlet" "30s each  one life" "$i" "$nq" "$score"
 		chal_ask "$i"; rc=$?
 		[ "$rc" = 2 ] && { MODE=learn; return 2; }
 		[ "$rc" != 0 ] && { pause_card; break; }
