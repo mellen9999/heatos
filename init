@@ -49,9 +49,15 @@ mkdir -p /tmp/run/cryptsetup
 # go below it: max(clock, floor). this does not make the clock RIGHT, it makes
 # it impossible to push into the past, which is the property TLS needs.
 epoch=$(sed -n 's/.*xos\.epoch=\([0-9][0-9]*\).*/\1/p' /proc/cmdline)
+clockfloored=""
 if [ -n "$epoch" ]; then
 	now=$(date -u +%s 2>/dev/null || echo 0)
-	if [ "$now" -lt "$epoch" ]; then date -u -s "@$epoch" >/dev/null 2>&1 || echo "clock floor FAILED: could not set clock to epoch $epoch"; fi
+	if [ "$now" -lt "$epoch" ]; then
+		# remember that we floored: the rtc was broken or absent, so the clock
+		# is now merely NOT-WRONG-BACKWARD. tls-time below tries to make it right.
+		if date -u -s "@$epoch" >/dev/null 2>&1; then clockfloored=1
+		else echo "clock floor FAILED: could not set clock to epoch $epoch"; fi
+	fi
 fi
 
 # boot fingerprint: four words derived from the verity roothash on the SIGNED
@@ -146,6 +152,70 @@ if ! grep -q xos.nonet /proc/cmdline; then
 		t=$((t+1)); [ "$t" -ge 6 ] && break
 		sleep 1
 	done
+fi
+
+# ── tls-time: make a floored clock RIGHT, not just not-backward ─────────────
+#
+# the floor stops time going below the build date; it cannot advance it. a
+# machine with a dead cmos battery boots AT the floor, up to 90 days behind
+# real time -- every tls validity window is skewed by that much. there is no
+# ntp here (unsigned udp is exactly the attacker-controlled source the floor
+# exists to shut out), but the image already holds one authenticated channel:
+# a tls handshake whose server certificate must chain to the compiled-in
+# anchors. the Date header on that response cannot be forged without a key
+# for the pinned host. forward-only (the floor property is never weakened),
+# capped at two years past the build date (even that host cannot wind us into
+# the far future), and only attempted when the clock was actually floored --
+# a machine with a sane rtc makes no network call at all.
+#
+# chicken-and-egg: validating the chain needs a clock, and the clock is what
+# we came for. a cert issued AFTER the build date is "not yet valid" at the
+# floor. so ladder the validation instant (XOS_TLS_TIME, full verification at
+# a chosen moment -- never relaxed) from the floor in 45-day steps: the leaf's
+# validity window is at least ~47 days wide, so one rung must land inside it
+# if real time is within two years of the build. first fully-valid chain wins.
+# an attacker gains nothing: any rung still demands a chain valid at a time at
+# or after the floor, exactly what tls demands of a correct clock.
+XOS_TLSTIME="skipped (rtc sane)"
+if [ -n "$clockfloored" ]; then
+	if grep -q xos.nonet /proc/cmdline; then
+		XOS_TLSTIME="off (xos.nonet)"
+	else
+		thdr=""
+		tofs=0
+		tstart=$(date -u +%s 2>/dev/null || echo 0)
+		while [ "$tofs" -le 62208000 ]; do    # 0..720d, step 45d
+			thdr=$(printf 'HEAD / HTTP/1.0\r\nHost: letsencrypt.org\r\nConnection: close\r\n\r\n' \
+				| XOS_TLS_TIME=$((epoch + tofs)) timeout 15 tlstunnel - letsencrypt.org 443 2>/dev/null \
+				| sed -n 's/^[Dd]ate: \(.*\) GMT.*/\1/p' | head -1)
+			[ -n "$thdr" ] && break
+			tofs=$((tofs + 3888000))
+			# a blackholed network burns the full timeout per rung; bound the
+			# whole ladder so a hostile net cannot stall the boot for minutes.
+			[ $(( $(date -u +%s 2>/dev/null || echo 0) - tstart )) -ge 25 ] && break
+		done
+		tsec=""
+		[ -n "$thdr" ] && tsec=$(date -u -D '%a, %d %b %Y %H:%M:%S' -d "$thdr" +%s 2>/dev/null)
+		now=$(date -u +%s 2>/dev/null || echo 0)
+		if [ -n "$tsec" ] && [ "$tsec" -gt "$now" ] && [ "$tsec" -lt "$((epoch + 63072000))" ]; then
+			if date -u -s "@$tsec" >/dev/null 2>&1; then
+				XOS_TLSTIME="synced"
+				echo "  clock: rtc was behind the floor -- advanced to tls time ($(date -u '+%Y-%m-%d %H:%M') UTC)" > /dev/console
+			else
+				XOS_TLSTIME="set FAILED"
+				echo "  clock: tls time fetched but could not be set" > /dev/console
+			fi
+		elif [ -n "$tsec" ]; then
+			# a verified server dating itself at or before our build, or past
+			# the cap: something is wrong enough that touching the clock is
+			# worse than leaving it at the floor. say so and leave it.
+			XOS_TLSTIME="implausible ($tsec)"
+			echo "  clock: tls time implausible -- staying at the build-date floor" > /dev/console
+		else
+			XOS_TLSTIME="unreachable"
+			echo "  clock: rtc was behind the floor and tls time is unreachable -- time is the build date" > /dev/console
+		fi
+	fi
 fi
 
 # ── recon: know the machine you plugged into ────────────────────────────────
@@ -343,6 +413,9 @@ if grep -q xos.test /proc/cmdline; then
 	printf 'HEAD / HTTP/1.0\r\nHost: letsencrypt.org\r\nConnection: close\r\n\r\n' | timeout 20 tlstunnel - letsencrypt.org 443 > /tmp/tls.out 2> /tmp/tls.err
 	printf 'tls-handshake: '; head -1 /tmp/tls.out 2>/dev/null | tr -d '\r' | grep . || echo FAILED
 	printf 'tls-stderr: '; head -1 /tmp/tls.err 2>/dev/null | grep . || echo none
+	# what the boot-time tls-time pass decided (set well before this block ran):
+	# a sane-rtc boot must say "skipped" -- proof there was no network time call.
+	printf 'tls-time: %s\n' "$XOS_TLSTIME"
 	printf 'trust-anchors-in-binary: '; _c=$(grep -ac 'Internet Security Research Group' /bin/tlstunnel 2>/dev/null); echo "${_c:-0}"
 
 	printf 'writable-home: '; touch "$HOME/probe" 2>/dev/null && echo "yes (tmpfs)" || echo no

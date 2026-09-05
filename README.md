@@ -228,6 +228,18 @@ never presents a stable link-layer identity to the networks it visits.
 `xos.realmac` (a rebuild, like any knob -- the cmdline is signed) opts back
 into the burned-in address for mac-allowlisted networks.
 
+time has no trusted source on a strange machine, and tls validation reads the
+clock. `xos.epoch`, the build date pinned inside the signed uki, is a floor the
+clock can never fall below -- an attacker cannot wind time back to before a
+revocation. a floor is not a clock, though: a dead cmos battery boots at the
+build date, up to 90 days behind. there is no ntp (unsigned udp is exactly the
+attacker-controlled source the floor shuts out); instead init reads the Date
+header off an https response whose certificate chained to the compiled-in
+anchors -- forward-only, capped at two years past the build, and validated at
+laddered instants to escape the bootstrap paradox of checking a certificate's
+dates with the clock you are trying to set. a machine whose rtc is sane makes
+no network call at all.
+
 the boot stick is a dead-man switch: the root runs from RAM, so pulling the
 stick would otherwise change nothing. when the boot device sits on the usb
 bus, init watches it and powers the machine off within seconds of removal,

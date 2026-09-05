@@ -465,6 +465,12 @@ grep -q 'clock-floor: [0-9]' <<< "$out" && ok "a signed clock floor is pinned on
 grep -q 'clock-not-before-floor: yes' <<< "$out" \
 	&& ok "the running clock is at or above the floor" \
 	|| bad "the clock is below the floor -- init did not raise it"
+# a machine whose rtc is already sane must make NO network time call -- the
+# tls-time pass exists for floored clocks only, and its absence is a privacy
+# property worth pinning.
+grep -q 'tls-time: skipped (rtc sane)' <<< "$out" \
+	&& ok "sane rtc: no tls-time network call was made" \
+	|| bad "tls-time ran (or failed) on a boot whose clock was already right"
 
 echo
 section "A15  a clock set to the past cannot fall below the signed floor"
@@ -475,6 +481,15 @@ backout=$(boot_backclock stick.img)
 grep -q 'clock-not-before-floor: yes' <<< "$backout" \
 	&& ok "clock forced to 2010 was raised to the build-date floor" \
 	|| bad "the clock stayed in the past -- the floor did not hold"
+# the floor made time not-backward; tls-time must then make it RIGHT. this is
+# the real production path end to end: floored clock -> handshake against the
+# compiled-in anchors -> Date header parsed -> clock advanced, forward only.
+grep -q 'advanced to tls time' <<< "$backout" \
+	&& ok "floored clock was advanced to authenticated tls time" \
+	|| bad "tls-time did not advance a floored clock (dead-rtc machines stay 90 days behind)"
+grep -q 'tls-time: synced' <<< "$backout" \
+	&& ok "probe agrees: tls-time synced" \
+	|| bad "tls-time probe did not report synced"
 # this is a second full boot of the same stick -- free vehicle for the
 # per-boot properties: the mac must be fresh, the fingerprint must not be.
 mac15=$(grep -oP 'mac-uplink: \K[0-9a-f:]{17}' <<< "$backout" | head -1)

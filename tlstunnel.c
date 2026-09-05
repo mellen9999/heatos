@@ -26,6 +26,32 @@
 #include "bearssl.h"
 #include "ta.h"
 
+/*
+ * XOS_TLS_TIME=<unix-epoch> validates the certificate chain AT that moment
+ * instead of at the system clock. Validation itself is never weakened -- the
+ * chain must still fully verify against the compiled-in anchors, just at a
+ * caller-chosen instant. init's tls-time uses this to escape the chicken-and-
+ * egg of a floored clock: a cert issued after the build date is "not yet
+ * valid" at the floor, so init ladders candidate times until one lands inside
+ * the chain's real validity window. Unset or malformed, the system clock rules.
+ */
+static void
+set_verify_time(br_x509_minimal_context *xc)
+{
+	const char *e = getenv("XOS_TLS_TIME");
+	char *end;
+	long long t;
+
+	if (!e || !*e)
+		return;
+	t = strtoll(e, &end, 10);
+	if (*end || t < 0)
+		return;
+	/* BearSSL counts days from Jan 1, 0 AD; 1970-01-01 is day 719528 */
+	br_x509_minimal_set_time(xc, (uint32_t)(t / 86400 + 719528),
+	    (uint32_t)(t % 86400));
+}
+
 static int
 tcp_connect(const char *host, const char *port)
 {
@@ -240,6 +266,7 @@ main(int argc, char **argv)
 		if ((tfd = tcp_connect(argv[2], argv[3])) < 0)
 			return 1;
 		br_ssl_client_init_full(&sc, &xc, TAs, TAs_NUM);
+		set_verify_time(&xc);
 		br_ssl_engine_set_buffer(&sc.eng, iobuf, sizeof iobuf, 1);
 		br_ssl_client_reset(&sc, argv[2], 0);
 		rc = pump_stdio(&sc, tfd);
@@ -266,6 +293,7 @@ main(int argc, char **argv)
 		/* full profile + our compiled-in trust anchors, so the server
 		 * certificate must chain to one of them or the handshake fails */
 		br_ssl_client_init_full(&sc, &xc, TAs, TAs_NUM);
+		set_verify_time(&xc);
 		br_ssl_engine_set_buffer(&sc.eng, iobuf, sizeof iobuf, 1);
 		br_ssl_client_reset(&sc, argv[2], 0);
 
