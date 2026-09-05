@@ -636,6 +636,17 @@ keymatch() {
 
 unlock() {
   keymatch && return 0
+  # "nothing lands on disk" (top of file) only holds if tmpfs never spills to a
+  # disk-backed swap. zram swap is compressed RAM -- still never disk -- but a
+  # swap partition or file could page a decrypted key out. refuse by default so
+  # the guarantee is enforced, not assumed; XOS_ALLOW_SWAP=1 is the escape hatch.
+  local badswap
+  badswap=$(sed '1d' /proc/swaps 2>/dev/null | awk '$1 !~ /^\/dev\/zram/ {print $1}' | tr '\n' ' ')
+  if [ -n "${badswap# }" ] && [ "${XOS_ALLOW_SWAP:-0}" != 1 ]; then
+    echo "FAIL: disk-backed swap active ($badswap) -- an unlocked key could be paged to disk." >&2
+    echo "      'sudo swapoff $badswap' first, or set XOS_ALLOW_SWAP=1 to accept the risk." >&2
+    return 1
+  fi
   # present but not ours: wipe it rather than sign with it.
   [ -f "$RAMKEYS/db.key" ] && { echo "  cached key does not match keys/db.crt -- re-unlocking"; rm -rf "$RAMKEYS"; }
   [ -f keys/db.key.enc ] || { echo "FAIL: keys/db.key.enc missing -- run ./build.sh keys then seal" >&2; return 1; }
@@ -1046,10 +1057,11 @@ flagchk() {
 #   G30 clock floor is fresh, not stale                    (new)
 #   G31 no test flags on the production cmdline            (new)
 #   G32 fingerprint wordlist holds its shape (256 unique words)
+#   G33 init remote-access arg-building, run through the real ash   (new)
 size() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=29   # roster above, minus G8/G9 (checked elsewhere) and G22 (unassigned)
+  local EXPECTED_GATES=30   # roster above, minus G8/G9 (checked elsewhere) and G22 (unassigned)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -1218,6 +1230,35 @@ size() {
   wl_bad=$(grep -cvE '^[a-z]+$' "$wl" 2>/dev/null || true)
   g "G32 fingerprint wordlist ($wl_n words, $((wl_n - wl_u)) dup, $wl_bad malformed)" \
     "$([ "${wl_n:-0}" -eq 256 ] && [ "${wl_u:-0}" -eq 256 ] && [ "${wl_bad:-1}" -eq 0 ] && echo ok || echo FAIL)"
+
+  # G33 -- init's remote-access arg-building, exercised through the SAME busybox
+  # ash the image runs. the wg-address parse and its two consumers (the route
+  # keeps the CIDR, the ssh bind takes the bare address) are the exact lines a
+  # prior fix inverted -- $wgip carried the CIDR into `dropbear -p`, and neither
+  # the 29 gates nor the boot self-test caught it, because the real state_open()
+  # / wg block never runs in the harness (it needs a partitioned LUKS stick and
+  # an interactive passphrase). this runs init's own parse bytes and asserts the
+  # split; the structural checks pin the two consumers and the partition scan so
+  # a future edit that swaps them fails here instead of on a stick in the field.
+  local g33=ok bb33 wgp33 t33=/tmp/xos-g33.$$ got33
+  bb33=./busybox; [ -x "$bb33" ] || bb33=$(command -v busybox 2>/dev/null)
+  wgp33=$(sed -n '/^[[:space:]]*wgcidr=/,/^[[:space:]]*case /p' init)
+  mkdir -p "$t33"
+  _wg33() {   # $1 = Address value ('' for none), $2 = expected "wgcidr|wgip"
+    if [ -n "$1" ]; then printf 'Address = %s\n' "$1" > "$t33/wg0.conf"; else : > "$t33/wg0.conf"; fi
+    got33=$(STATE_DIR="$t33" "$bb33" ash -c "$wgp33"'; printf "%s|%s" "$wgcidr" "$wgip"' 2>/dev/null)
+    [ "$got33" = "$2" ] || { g33=FAIL; printf '    wg-parse %s -> %s (want %s)\n' "${1:-none}" "$got33" "$2" >&2; }
+  }
+  _wg33 "10.9.0.2/32" "10.9.0.2/32|10.9.0.2"
+  _wg33 "10.9.0.1/24" "10.9.0.1/24|10.9.0.1"
+  _wg33 "10.9.0.5"    "10.9.0.5/24|10.9.0.5"
+  _wg33 ""            "|"
+  rm -rf "$t33"
+  grep -q 'ip addr add "\$wgcidr" dev wg0' init          || { g33=FAIL; printf '    wg route no longer uses $wgcidr\n' >&2; }
+  grep -q 'dropbear .*-p "\$wgip:22"' init               || { g33=FAIL; printf '    ssh bind no longer uses bare $wgip\n' >&2; }
+  grep -q 'for p in /sys/class/block/\*/partition' init  || { g33=FAIL; printf '    state_open no longer scans */partition\n' >&2; }
+  grep -q 'for dev in \$cands' init                      || { g33=FAIL; printf '    state_open no longer tries every candidate\n' >&2; }
+  g "G33 init remote-access logic (real ash)" "$g33"
 
   # G17 -- stick.img is coherent with the pinned artifacts: right PARTUUIDs, p2
   # byte-equal to xos.img, ESP carries the exact signed UKI.
