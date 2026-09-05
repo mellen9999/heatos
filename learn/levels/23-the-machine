@@ -331,6 +331,24 @@ ref: lsusb
 teach: lsusb
 hint: lsusb walks the usb bus the way lspci walks pci
 ---
+q: {who manufactured this machine|which vendor built this machine|name the maker of this machine}
+a: cat /sys/class/dmi/id/sys_vendor
+ref: cat
+teach: cat
+hint: the firmware's own identity plate lives under /sys/class/dmi/id
+---
+q: {what product name does the firmware give this machine|which model does the firmware say this is|report the machine's product name as the firmware states it}
+a: cat /sys/class/dmi/id/product_name
+ref: cat
+teach: cat
+hint: product_name sits beside sys_vendor in /sys/class/dmi/id
+---
+q: {which bios version is flashed on this machine|what version of firmware is this machine running|report the bios version this machine carries}
+a: cat /sys/class/dmi/id/bios_version
+ref: cat
+teach: cat
+hint: a changed bios_version since your last visit is worth noticing
+---
 q: {write a line into the system log|log a line to the system log|send a line into the system log}
 a: logger hello from xos
 ref: logger

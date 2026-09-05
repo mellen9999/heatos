@@ -83,12 +83,13 @@ boot_img() {
 # hardware path, including usb enumeration and the dm-mod.waitfor poll.
 # boot with a second virtio disk attached (becomes /dev/vdb), for the p3 test.
 boot_state() {
+	local disk="$1"; shift
 	timeout 360 qemu-system-x86_64 -machine q35,smm=on -m 512 \
 		-drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
 		-drive if=pflash,format=raw,unit=1,file=ovmf-vars.fd \
 		-drive file=stick.img,if=virtio,format=raw,readonly=on \
-		-drive file="$1",if=virtio,format=raw \
-		-nic user,model=virtio-net-pci -nographic -no-reboot < /dev/null 2>&1
+		-drive file="$disk",if=virtio,format=raw \
+		-nic user,model=virtio-net-pci -nographic -no-reboot "$@" < /dev/null 2>&1
 }
 
 # boot with the hardware clock forced years into the past. proves the floor.
@@ -499,11 +500,24 @@ if grep -q 'teststate-phase: provision' <<< "$b1" \
 else
 	bad "boot 1 did not provision p3"
 fi
+grep -q 'recon: first visit to machine' <<< "$b1" \
+	&& ok "boot 1 recorded a recon baseline for this machine" \
+	|| bad "recon did not record a baseline on first visit"
 assert_complete "$b1" "A16 boot 1"
-b2=$(boot_state "$p3disk")
+# boot 2 is the same machine, same disk -- but a pci device has appeared
+# (an xhci controller). recon must read the marker back AND call out the
+# new hardware; a machine that grew a device since your last visit is
+# exactly what recon exists to notice.
+b2=$(boot_state "$p3disk" -device qemu-xhci)
 grep -q 'teststate-prior-marker: survived-a-reboot' <<< "$b2" \
 	&& ok "boot 2 read the marker back -- state survived the power cycle" \
 	|| bad "the marker did not survive the reboot"
+grep -qE 'recon: MACHINE [0-9a-f]{16} CHANGED' <<< "$b2" \
+	&& ok "boot 2 noticed the machine changed" \
+	|| bad "a new pci device went unremarked -- recon is blind"
+grep -q 'new:  pci' <<< "$b2" \
+	&& ok "the diff names the device that appeared" \
+	|| bad "recon said 'changed' but not what changed"
 assert_complete "$b2" "A16 boot 2"
 rm -f "$p3disk"
 

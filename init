@@ -157,6 +157,54 @@ if ! grep -q xos.nonet /proc/cmdline; then
 	done
 fi
 
+# ── recon: know the machine you plugged into ────────────────────────────────
+#
+# a stick that travels meets many machines, and the evil-maid problem is not
+# only about the stick -- the MACHINE can change under you: a bios reflash, a
+# new pci card, an implant on the usb bus. the kernel already knows all of it;
+# this writes that knowledge down, one file per machine on the encrypted
+# state partition, and prints what changed since the last visit. no state
+# unlocked, no recon -- an attacker holding the stick learns nothing about
+# where it has been.
+recon_inv() {
+	local f p
+	for f in sys_vendor product_name product_version board_name bios_vendor bios_version bios_date; do
+		[ -r "/sys/class/dmi/id/$f" ] && printf 'dmi %s %s\n' "$f" "$(cat "/sys/class/dmi/id/$f")"
+	done
+	for p in /sys/bus/pci/devices/*; do
+		[ -r "$p/vendor" ] && printf 'pci %s %s %s\n' "${p##*/}" "$(cat "$p/vendor")" "$(cat "$p/device")"
+	done
+	for p in /sys/bus/usb/devices/*; do
+		[ -r "$p/idVendor" ] && printf 'usb %s %s:%s\n' "${p##*/}" "$(cat "$p/idVendor")" "$(cat "$p/idProduct")"
+	done
+	sed -n 's/^model name[^:]*: /cpu /p' /proc/cpuinfo | sort -u
+	printf 'cpus %s\n' "$(nproc)"
+}
+recon_check() { # $1 = root of the unlocked state filesystem
+	local dir="$1/recon" now=/tmp/recon.now mid old
+	recon_inv > "$now" 2>/dev/null
+	if ! [ -s "$now" ]; then
+		printf '  recon FAILED: empty inventory\n' > /dev/console; rm -f "$now"; return
+	fi
+	# machine identity = the dmi block; a machine with no dmi at all falls
+	# back to its cpu lines rather than colliding every such machine into
+	# the hash of nothing.
+	if grep -q '^dmi ' "$now"; then mid=$(grep '^dmi ' "$now" | sha256sum | cut -c1-16)
+	else mid=$(grep '^cpu' "$now" | sha256sum | cut -c1-16); fi
+	old="$dir/$mid"
+	if [ ! -f "$old" ]; then
+		printf '  recon: first visit to machine %s -- baseline recorded\n' "$mid" > /dev/console
+	elif cmp -s "$old" "$now"; then
+		printf '  recon: machine %s is as you left it\n' "$mid" > /dev/console
+	else
+		printf '  recon: MACHINE %s CHANGED since your last visit:\n' "$mid" > /dev/console
+		diff "$old" "$now" | sed -n 's/^-\([^-]\)/    gone: \1/p;s/^+\([^+]\)/    new:  \1/p' > /dev/console
+	fi
+	{ mkdir -p "$dir" && cp "$now" "$old" && sync; } 2>/dev/null \
+		|| printf '  recon FAILED: could not record the baseline\n' > /dev/console
+	rm -f "$now"
+}
+
 if grep -q xos.test /proc/cmdline; then
 	echo
 	echo "XOS-TEST-BEGIN"
@@ -311,6 +359,7 @@ if grep -q xos.test /proc/cmdline; then
 				mkdir -p /tmp/ts
 				mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/ts /tmp/ts 2>/dev/null
 				printf 'teststate-prior-marker: '; [ -f /tmp/ts/marker ] && cat /tmp/ts/marker || echo NONE
+				recon_check /tmp/ts
 				umount /tmp/ts 2>/dev/null; cryptsetup close ts 2>/dev/null
 			else echo FAILED; fi
 		else
@@ -325,6 +374,7 @@ if grep -q xos.test /proc/cmdline; then
 				mkdir -p /tmp/ts
 				mount -t ext4 -o nosuid,nodev,noexec /dev/mapper/ts /tmp/ts 2>/dev/null
 				printf 'teststate-write: '; if echo "survived-a-reboot" > /tmp/ts/marker; then sync; echo ok; else echo FAILED; fi
+				recon_check /tmp/ts
 				umount /tmp/ts 2>/dev/null; cryptsetup close ts 2>/dev/null
 			else echo FAILED; fi
 		fi
@@ -439,6 +489,7 @@ if state_open; then
 	# survives a reboot.
 	mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
 	printf '  state unlocked -- %s persists across reboots\n' "$HOME" > /dev/console
+	recon_check "$STATE_DIR"
 
 	# ── remote access ───────────────────────────────────────────────────────
 	# activates only when p3 is unlocked AND a wireguard config is present on it.

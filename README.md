@@ -234,6 +234,14 @@ bus, init watches it and powers the machine off within seconds of removal,
 taking the tmpfs session with it. `xos.notether` opts out. the arming test is
 "is the boot device on usb", so qemu/virtio boots never arm.
 
+when the state partition is unlocked, init takes an inventory of the machine
+-- dmi identity, the pci and usb buses, the cpu -- and diffs it against the
+last visit to that same machine, one baseline file per machine on p3. a
+reflashed bios, a new pci card, or an extra usb device gets printed before
+the first console spawns; evil-maid detection for the *machines* you visit,
+not just the stick. no state unlocked, no recon -- the stick records nothing
+about where it has been unless you open the encrypted partition.
+
 userland is compiled static-PIE with the stack protector and stack-clash
 protection, and linked with a non-executable stack.
 
