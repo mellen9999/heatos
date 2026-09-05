@@ -1058,10 +1058,11 @@ flagchk() {
 #   G31 no test flags on the production cmdline            (new)
 #   G32 fingerprint wordlist holds its shape (256 unique words)
 #   G33 init remote-access arg-building, run through the real ash   (new)
+#   G34 signed UKI's embedded roothash matches the tree             (new)
 size() {
   say "gates"
   local bad=0 ran=0
-  local EXPECTED_GATES=30   # roster above, minus G8/G9 (checked elsewhere) and G22 (unassigned)
+  local EXPECTED_GATES=31   # roster above, minus G8/G9 (checked elsewhere) and G22 (unassigned)
   g() { printf '  %-42s %s
 ' "$1" "$2"; ran=$((ran+1)); [ "$2" = ok ] || bad=1; }
 
@@ -1259,6 +1260,17 @@ size() {
   grep -q 'for p in /sys/class/block/\*/partition' init  || { g33=FAIL; printf '    state_open no longer scans */partition\n' >&2; }
   grep -q 'for dev in \$cands' init                      || { g33=FAIL; printf '    state_open no longer tries every candidate\n' >&2; }
   g "G33 init remote-access logic (real ash)" "$g33"
+
+  # G34 -- the signed UKI's EMBEDDED roothash must match the tree. G6 pins
+  # cmdline.txt (a file) to verity.roothash (a file), and G17 pins the ESP to
+  # xos-signed.efi -- but nothing pinned what is INSIDE the signed efi to
+  # either. a uki step that fails (locked keys) while verity and stick succeed
+  # leaves a stale signed efi beside a fresh image, every gate green, and a
+  # stick that panics at the verity mount on real hardware. seen happen.
+  local g34_have
+  g34_have=$(strings xos-signed.efi 2>/dev/null | grep -o 'sha256 [0-9a-f]\{64\}' | head -1 | cut -d' ' -f2)
+  g "G34 signed UKI embeds the tree's roothash" \
+    "$([ -n "$g34_have" ] && [ "$g34_have" = "$(cat verity.roothash)" ] && echo ok || echo FAIL)"
 
   # G17 -- stick.img is coherent with the pinned artifacts: right PARTUUIDs, p2
   # byte-equal to xos.img, ESP carries the exact signed UKI.
