@@ -16,6 +16,16 @@ fi
 # terminal width. ash does not export COLUMNS the way bash does, so trusting it
 # alone pinned every session to 80 and made the rules wrap on any other size.
 # ask the terminal itself, then fall back.
+# synchronised output: the editor reprints the whole answer line on every
+# keystroke, which can tear or flicker on a slow or remote terminal. wrapping a
+# redraw in these markers tells the terminal to paint it in one frame. unknown
+# to older terminals, which ignore the private mode -- so it is safe everywhere.
+if [ "${TERM:-dumb}" = dumb ] || [ ! -t 1 ]; then
+	SYNC_BEG= SYNC_END=
+else
+	SYNC_BEG=$(printf '\033[?2026h') SYNC_END=$(printf '\033[?2026l')
+fi
+
 COLS=${COLUMNS:-}
 [ -n "$COLS" ] || COLS=$(stty size 2>/dev/null | cut -d' ' -f2)
 [ -n "$COLS" ] || COLS=$(tput cols 2>/dev/null)
@@ -45,3 +55,8 @@ say() { fold -s -w $(( COLS < 78 ? COLS - 2 : 76 )) | sed '/./s/^/  /'; }
 ok()   { printf '  %s+%s %s\n' "$G" "$N" "$1"; }
 no()   { printf '  %s-%s %s\n' "$R" "$N" "$1"; }
 note() { printf '  %s%s%s\n' "$D" "$1" "$N"; }
+
+# the answer a miss or a skip reveals, shown the way you would have typed it:
+# a dim $ at the far left, the command in yellow -- the same shape as the live
+# prompt, so the eye reads it as "this is what belonged on that line".
+reveal() { printf '%s$ %s%s%s%s\n' "$D" "$N" "$Y" "$1" "$N"; }

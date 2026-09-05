@@ -196,6 +196,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			if ! IFS= read -t "$BOSS_LIMIT" -r input; then
 				echo
 				no "out of time."
+				reveal "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
 				card_grade "$key" 0; S_WRONG=$((S_WRONG + 1)); S_STREAK=0
 				return 1
 			fi
@@ -236,7 +237,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 					return 1
 				fi
 				card_grade "$key" 0; S_WRONG=$((S_WRONG + 1)); S_STREAK=0
-				note "answer: $(printf '%s\n' "$Q_ANSWERS" | head -1)"
+				reveal "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
 				return 1 ;;
 		esac
 
@@ -261,7 +262,8 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			card_grade "$key" 0
 			S_WRONG=$((S_WRONG + 1)); S_STREAK=0
 			[ "$MODE" = learn ] && coach_miss "$input"
-			no "wrong -- $(printf '%s\n' "$Q_ANSWERS" | head -1)"
+			no "wrong"
+			reveal "$(printf '%s\n' "$Q_ANSWERS" | head -1)"
 			return 1
 		fi
 		no "not that. one more try (or 'skip')."

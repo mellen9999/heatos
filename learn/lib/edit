@@ -25,10 +25,13 @@ EDIT_HIST="${EDIT_HIST:-$STATE/answers}"
 # set -u an unset read crashes the lesson mid-question.
 YANK=
 
-# redraw: reprint the line after the prompt, clear to end, park the cursor.
+# redraw: reprint the line after the prompt, clear to end, park the cursor. the
+# whole repaint is wrapped in one synchronised-output frame so a remote terminal
+# never shows a half-drawn line mid-keystroke.
 _ed_draw() {   # $1 prompt  $2 L  $3 R
-	printf '\r%s%s%s\033[K' "$1" "$2" "$3"
+	printf '%s\r%s%s%s\033[K' "$SYNC_BEG" "$1" "$2" "$3"
 	[ -n "$3" ] && printf '\033[%dD' "${#3}"
+	printf '%s' "$SYNC_END"
 }
 
 # last char of a string, via expansion only
