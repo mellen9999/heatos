@@ -140,6 +140,15 @@ level_placed()    { mkdir -p "$STATE" 2>/dev/null || :
                       && cp "$TMP/placed" "$PLACED" 2>/dev/null || :; }
 level_is_placed() { grep -qxF -- "$1" "$PLACED" 2>/dev/null; }
 
+# the briefed ledger -- a level's brief is a teaching paragraph, worth reading
+# once. after that it is a wall of text between you and the questions, so every
+# later run prints only the one-line header and drops you straight in.
+BRIEFED="$STATE/briefed"
+level_briefed()    { mkdir -p "$STATE" 2>/dev/null || :
+                     { cat "$BRIEFED" 2>/dev/null; echo "$1"; } | sort -u > "$TMP/briefed" \
+                       && cp "$TMP/briefed" "$BRIEFED" 2>/dev/null || :; }
+level_is_briefed() { grep -qxF -- "$1" "$BRIEFED" 2>/dev/null; }
+
 # blk_load FILE INDEX -- fills Q_PROMPT, Q_ANSWERS, Q_OUT, Q_REF, Q_HINT, Q_ID
 # from block INDEX of any question file -- the levels and the challenge chains
 # share one parser. the roll happens here, once, and the SAME rolled script
@@ -183,7 +192,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 			# tradition, and a real test: thirty seconds is long enough to type
 			# what you know and far too short to go and look it up. no editor
 			# under the clock -- just type.
-			printf '  %s$%s ' "$C" "$N"
+			printf '%s$%s ' "$W" "$N"
 			if ! IFS= read -t "$BOSS_LIMIT" -r input; then
 				echo
 				no "out of time."
@@ -196,7 +205,7 @@ ask() {                      # ask LEVEL INDEX ; returns 0 right, 1 wrong, 2 qui
 		else
 			# full vi-mode line editing with history (falls back to a plain read
 			# when stdin is not a terminal, e.g. the build's own checks).
-			read_line "$(printf '  %s$%s ' "$C" "$N")" || return 2
+			read_line "$(printf '%s$%s ' "$W" "$N")" || return 2
 			input="$REPLY_LINE"
 		fi
 		case "$input" in
@@ -311,7 +320,12 @@ run_level() {
 	[ "$nq" -gt 0 ] || { note "level $id has no questions yet"; return 0; }
 
 	hdr "$(level_field "$id" name)" "level ${id%%-*}  ${nq} questions"
-	level_field "$id" brief | say
+	# the brief teaches once; after that the header alone, so a resume is the
+	# questions, not the lecture. `learn brief <n>` reprints it on demand.
+	if ! level_is_briefed "$id"; then
+		level_field "$id" brief | say
+		level_briefed "$id"
+	fi
 	echo
 
 	# the order changes every run, so the level cannot be memorised as a
@@ -1009,6 +1023,10 @@ case "${1:-}" in
 	          fi
 	          session_summary ;;
 	ref)      shift; ref "$@" ;;
+	brief)    shift; _id=$(level_ids | grep "^0*${1:-}-" | head -1)
+	          [ -n "$_id" ] || die "usage: learn brief <n>"
+	          hdr "$(level_field "$_id" name)" "level ${_id%%-*}"
+	          level_field "$_id" brief | say ;;
 	-k)       shift; search "$@" ;;
 	list)     surface ;;
 	stats)    stats ;;
@@ -1027,7 +1045,7 @@ case "${1:-}" in
 	coverage) shift; coverage "${1:--q}" ;;
 	order)    order ;;
 	review)   shift; review "${1:-20}"; session_summary ;;
-	reset)    rm -f "$CARDS" "$PASSED" "$PLACED" "$CHAL_BEST" 2>/dev/null; ok "progress cleared" ;;
+	reset)    rm -f "$CARDS" "$PASSED" "$PLACED" "$BRIEFED" "$CHAL_BEST" 2>/dev/null; ok "progress cleared" ;;
 	-h|--help|help) usage ;;
 	[0-9]*)   _id=$(level_ids | grep "^0*$1-" | head -1)
 	          [ -n "$_id" ] || die "no level $1"
