@@ -27,20 +27,11 @@ mount -t tmpfs -o nosuid,nodev,noexec none /tmp
 # safe state, so skip it; a write that FAILS on a present key is loud. several
 # (dmesg_restrict, perf_event_paranoid) are inert while the console is root,
 # and are set for the day that stops being true.
-for kv in \
-  kernel/kptr_restrict=2 \
-  kernel/dmesg_restrict=1 \
-  kernel/perf_event_paranoid=3 \
-  fs/protected_symlinks=1 \
-  fs/protected_hardlinks=1 \
-  fs/protected_fifos=2 \
-  fs/protected_regular=2 \
-  net/ipv4/tcp_syncookies=1 \
-  net/ipv4/conf/all/accept_redirects=0 \
-  net/ipv4/conf/all/send_redirects=0 \
-  net/ipv4/conf/all/accept_source_route=0 \
-  net/ipv4/conf/all/rp_filter=1 \
-  net/ipv4/icmp_echo_ignore_broadcasts=1
+# one source of truth for the hardening sysctls: the setter below applies them,
+# and the xos.test probe re-reads this same list to prove every one took (a
+# deleted or silently-failed line is otherwise invisible).
+HARDEN_SYSCTLS="kernel/kptr_restrict=2 kernel/dmesg_restrict=1 kernel/perf_event_paranoid=3 fs/protected_symlinks=1 fs/protected_hardlinks=1 fs/protected_fifos=2 fs/protected_regular=2 net/ipv4/tcp_syncookies=1 net/ipv4/conf/all/accept_redirects=0 net/ipv4/conf/all/send_redirects=0 net/ipv4/conf/all/accept_source_route=0 net/ipv4/conf/all/rp_filter=1 net/ipv4/icmp_echo_ignore_broadcasts=1"
+for kv in $HARDEN_SYSCTLS
 do
   p=/proc/sys/${kv%=*}; v=${kv#*=}
   [ -e "$p" ] || continue
@@ -232,6 +223,14 @@ if grep -q xos.test /proc/cmdline; then
 	printf 'tmp-exec: '; cp /bin/busybox /tmp/probe-x 2>/dev/null; chmod +x /tmp/probe-x 2>/dev/null; if /tmp/probe-x true 2>/dev/null; then echo "SUCCEEDED (BAD)"; else echo "refused (good)"; fi; rm -f /tmp/probe-x
 	printf 'kptr-restrict: '; cat /proc/sys/kernel/kptr_restrict 2>/dev/null || echo '?'
 	printf 'dmesg-restrict: '; cat /proc/sys/kernel/dmesg_restrict 2>/dev/null || echo '?'
+	# re-read every hardening sysctl (not just the two above) against the same
+	# list the setter used -- catches a dropped or silently-failed line.
+	printf 'sysctls-hardened: '; _sb=0
+	for kv in $HARDEN_SYSCTLS; do
+		_p=/proc/sys/${kv%=*}; [ -e "$_p" ] || continue
+		[ "$(cat "$_p" 2>/dev/null)" = "${kv#*=}" ] || _sb=$((_sb + 1))
+	done
+	[ "$_sb" = 0 ] && echo yes || echo "no ($_sb wrong) (BAD)"
 	# both heap paths zeroed: alloc (INIT_ON_ALLOC) and free (INIT_ON_FREE).
 	# probes run as root, so dmesg_restrict does not bite here.
 	printf 'mem-autoinit: '; dmesg | grep -o 'heap alloc:on, heap free:on' | head -1 | grep . || echo "MISSING (BAD)"

@@ -282,6 +282,8 @@ grep -q 'remount-rw: refused' <<< "$out" && ok "/ cannot be remounted rw"      |
 grep -q 'tmp-exec: refused'   <<< "$out" && ok "noexec /tmp blocks execution"  || bad "a binary ran from /tmp"
 grep -q 'kptr-restrict: 2'    <<< "$out" && ok "kernel pointers restricted"    || bad "kptr_restrict not 2"
 grep -q 'dmesg-restrict: 1'   <<< "$out" && ok "dmesg restricted to privileged readers" || bad "dmesg_restrict not 1"
+grep -q 'sysctls-hardened: yes' <<< "$out" && ok "every hardening sysctl took" || bad "a hardening sysctl is not at its value"
+grep -q 'sysctl FAILED'       <<< "$out" && bad "a sysctl write failed at boot" || ok "no sysctl write failed"
 
 echo
 section "A10  boot the stick over emulated USB (the real hardware path)"
@@ -519,6 +521,14 @@ grep -q 'new:  pci' <<< "$b2" \
 	&& ok "the diff names the device that appeared" \
 	|| bad "recon said 'changed' but not what changed"
 assert_complete "$b2" "A16 boot 2"
+# boot 3 is the same machine AND the same hardware as boot 2 -- recon must now
+# report NO change. the other half of the guarantee: a feature that cried
+# "changed" on every boot would be as useless as one that never noticed.
+b3=$(boot_state "$p3disk" -device qemu-xhci)
+grep -q 'recon: machine [0-9a-f]\{16\} is as you left it' <<< "$b3" \
+	&& ok "boot 3 saw identical hardware and said nothing changed" \
+	|| bad "recon cried 'changed' on an unchanged machine -- false alarms"
+assert_complete "$b3" "A16 boot 3"
 rm -f "$p3disk"
 
 echo
